@@ -839,7 +839,7 @@ Si también se subieron en bloque, eso solo ya explica buena parte del bajo rend
 
 ## PARTE 4 — Plan de implementación
 
-### Fase 1 — Arreglos críticos (1–2 h, cero costo de API)
+### ✅ Fase 1 — Arreglos críticos — APLICADA (commit `5cfac52`)
 
 Se prueban regenerando solo el paso 07+08 sobre un tema existente, sin repagar nada:
 
@@ -848,28 +848,49 @@ export PROYECTO=Mundial16 TITULO_VIDEO="Memo Ochoa perdió PSG por visa"
 python 07_video_generator.py && python 08_music_mixer.py
 ```
 
-- [ ] **BUG-01** — máscara desde el canal alfa (`to_mask(canal=3)`) + helper `rgba_a_clip`
-- [ ] **BUG-01b** — reajustar `title_bg_opacity` a ~170
-- [ ] **BUG-02** — el paso 03 aborta si ElevenLabs falla
-- [ ] **BUG-03** — paso 08 con mux ffmpeg `-c:v copy` + `+faststart`
-- [ ] **BUG-04** — `loudnorm=I=-14`
-- [ ] **BUG-05** — música a 0.22 con ducking
-- [ ] **BUG-07** — título en pantalla solo 2.5 s
-- [ ] **BUG-08** — CTA a `height * 0.70`
+- [x] **BUG-01** — máscara desde el canal alfa (`to_mask(canal=3)`) + helper `rgba_a_clip`
+- [x] **BUG-01b** — `title_bg_opacity` 10 → 170
+- [x] **BUG-02** — el paso 03 aborta si ElevenLabs falla
+- [x] **BUG-03** — paso 08 con mux ffmpeg `-c:v copy` + `+faststart`
+- [x] **BUG-04** — `loudnorm=I=-14:TP=-1.5:LRA=11`
+- [x] **BUG-05** — música 0.1 → 0.22 con ducking por sidechain
+- [x] **BUG-07** — título en pantalla solo 2.5 s con fade
+- [x] **BUG-08** — CTA a `height * 0.70`; título de `y=20` a `y=200`
 
-**Resultado esperado:** subtítulos legibles, entregable sin pérdida de calidad, audio al nivel del
-feed, sin spoiler en el frame 0.
+**Resultados medidos sobre `Mundial16`:**
+
+| Métrica | Antes | Después |
+|---|---|---|
+| Bitrate del entregable | 2 418 kbps | **3 343 kbps** (stream de video bit a bit idéntico al de `videos_no_music/`) |
+| Sonoridad integrada | −17.5 LUFS | **−14.3 LUFS** |
+| Orden de átomos | `ftyp, free, mdat, moov` | **`ftyp, moov, free, mdat`** (faststart) |
+| Tiempo del paso 08 | ~60 s | **2.7 s** |
+| Contorno del texto | no se dibujaba | **66 035 px opacos** en el par de subtítulo |
+
+Extra aplicado fuera de la lista: `git init` con `.gitignore` que excluye el `.env`,
+`.env.example` y `requirements.txt` con `moviepy==1.0.3` fijado.
 
 ---
 
-### Fase 2 — Ritmo y empaque (medio día)
+### ✅ Fase 2 — Ritmo y empaque — APLICADA
 
-- [ ] **Parte 2 § B** — 2–3 planos por imagen (1 corte cada ~1.6 s)
-- [ ] **Parte 2 § D** — barra de progreso
-- [ ] **Parte 2 § E** — exportar SRT
-- [ ] **Parte 3 § 3** — guion a 65–75 palabras + `atempo=1.10` → videos de ~25 s
-- [ ] **Parte 3 § 4** — cortar al final, CTA como pregunta
-- [ ] **BUG-14 / BUG-15** — auto-ajuste de fuente y silencio inicial
+- [x] **Parte 2 § B** — 3 planos por imagen: 8 imágenes → **24 cortes**, 1 cada ~1.1 s
+      (`crear_planos_de_imagen()` + `ENCUADRES` + `planos_por_imagen` en `CONFIG`)
+- [x] **Parte 2 § D** — barra de progreso (`crear_barra_progreso()`)
+- [x] **Parte 2 § E** — exportar SRT a `proyectos/$PROYECTO/$PROYECTO.srt`
+- [x] **Parte 3 § 3** — guion a 65–75 palabras (paso 01) + `atempo=1.10` (paso 03)
+- [x] **Parte 3 § 4** — CTA de 2 s **encima** de la última frase, texto → `"¿Tú lo sabías?"`
+- [x] **BUG-14** — `fuente_que_quepa()` con cache de fuentes; el layout usa el tamaño efectivo
+- [x] **BUG-15** — nada en pantalla antes de la primera palabra
+
+Extra: guarda si Whisper no transcribe nada, y aviso en consola si un plano dura más de 3 s.
+
+**Efecto combinado sobre la duración:** 90 palabras a 143 wpm = 38 s →
+65–75 palabras a 157 wpm = **~26 s**.
+
+> ⚠️ `planos_por_imagen: 3` y `recorte_escala_min: 0.85` están calibrados para imágenes de
+> 720×1280. Cuando apliques BUG-06 (generar a 832×1472 o más) puedes bajar `recorte_escala_min`
+> a 0.75 y cerrar más los planos sin que se pixele.
 
 ---
 

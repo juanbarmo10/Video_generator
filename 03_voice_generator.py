@@ -2,7 +2,7 @@
 #%%
 from dotenv import load_dotenv
 import os
-from openai import OpenAI
+import subprocess
 import requests
 
 load_dotenv()
@@ -12,6 +12,13 @@ elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY")
 
 path_script= "script.txt"
 output = "voice.mp3"
+
+# Aceleración de la narración. ElevenLabs entrega ~143 palabras/minuto, y la
+# narración que retiene en vertical va a 170-190. atempo NO altera el tono
+# (no suena a ardilla) y hasta 1.15 es imperceptible.
+# 1.0 = desactivado. El paso 07 transcribe el audio YA acelerado, así que los
+# subtítulos siguen sincronizados solos.
+VELOCIDAD = 1.10
 
 # ========================================================================== #
 
@@ -68,6 +75,37 @@ with open(output, "wb") as f:
     f.write(response.content)
 
 print(f"✅ Voz generada: '{output}' ({len(response.content) // 1024} KB)")
+
+
+def duracion(path: str) -> float:
+    salida = subprocess.check_output([
+        "ffprobe", "-v", "error", "-show_entries", "format=duration",
+        "-of", "default=nw=1:nk=1", path,
+    ], text=True)
+    return float(salida.strip())
+
+
+if VELOCIDAD != 1.0:
+    antes = duracion(output)
+    temporal = "voice_tempo.mp3"
+
+    resultado = subprocess.run([
+        "ffmpeg", "-y", "-loglevel", "error",
+        "-i", output,
+        "-filter:a", f"atempo={VELOCIDAD}",
+        "-b:a", "192k",
+        temporal,
+    ])
+
+    if resultado.returncode != 0:
+        os.path.exists(temporal) and os.remove(temporal)
+        raise SystemExit(f"❌ ffmpeg falló acelerando la voz (código {resultado.returncode})")
+
+    os.replace(temporal, output)
+    despues = duracion(output)
+    palabras = len(script.split())
+    print(f"⏩ Narración acelerada ×{VELOCIDAD}: {antes:.1f}s → {despues:.1f}s "
+          f"({palabras / despues * 60:.0f} palabras/minuto)")
 
 
 

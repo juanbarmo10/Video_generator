@@ -30,12 +30,16 @@ el ángulo más oscuro, irónico o sorprendente de eventos reales.
 
 TEMA: {tema_instruccion}
 
-TAREA: Escribe un guion de exactamente 90-100 palabras sobre un evento histórico real.
+TAREA: Escribe un guion de exactamente 65-75 palabras sobre un evento histórico real.
 
 REGLAS ESTRICTAS:
 - El evento debe ser 100% verificable — nada de "se dice que" o "algunos creen"
 - PROHIBIDO empezar con: "En", "Cuando", "Fue", "Era", "Hubo"
+- La PRIMERA frase debe tener MÁXIMO 8 PALABRAS. Es la más importante del guion:
+  si el espectador no se engancha ahí, no llega a la segunda. Cuéntala y si tiene
+  más de 8 palabras, reescríbela.
 - La primera frase debe hacer una afirmación que parezca imposible pero sea verdad
+- La primera frase NO debe revelar el desenlace: abre la pregunta, no la respondas
 - Incluir UN solo dato que el 95% de personas no conoce
 - La última frase debe dejar una sensación de incredulidad o escalofrío
 - CERO fechas en el texto (destruyen el ritmo)
@@ -55,10 +59,12 @@ REGLAS ESTRICTAS:
 - Una tecnología, ley o costumbre cuyo origen nadie conoce
 
 ESTILO:
-- Frases de máximo 12 palabras
+- Frases de máximo 12 palabras (la primera, máximo 8)
 - Ritmo: rápido, cinematográfico, como trailer de Netflix
 - Cada frase debe empujar al lector a la siguiente
 - Español latino neutro, conversacional
+- El guion se narra en voz alta a ~160 palabras por minuto: 65-75 palabras son
+  unos 25 segundos, que es la duración que mejor retiene en vertical. No te pases.
 
 FORMATO DE SALIDA:
 Solo el guion. Sin títulos, sin explicaciones, sin comillas.

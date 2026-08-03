@@ -109,7 +109,12 @@ CONFIG = {
     # Posición vertical del CTA (0.0 = arriba, 1.0 = abajo).
     # Máximo 0.72: más abajo lo tapan el caption y los botones de Reels/TikTok.
     "cta_y_ratio": 0.70,
-    "cta_duration": 3,                  # segundos que dura el CTA al final
+    # Va ENCIMA de la última frase, no después: un colchón al final hunde el
+    # % de retención y corta el bucle.
+    "cta_duration": 2.0,                # segundos que dura el CTA al final
+    # Una pregunta genera comentarios, y los comentarios son señal de
+    # distribución. "Sígueme" no lo es.
+    "cta_texto": "¿Tú lo sabías?",
 
     # ── Configuración de Fondos de Subtítulos ─────────────────
     "subtitle_bg_mode": "none",         # Opciones: "full" (rectángulo ancho), "text" (sigue las letras), "none" (sin fondo)
@@ -138,6 +143,36 @@ CONFIG = {
     "zoom_max": 1.15,
     # Duración del crossfade entre imágenes en segundos (0 = sin transición)
     "crossfade_duration": 0.5,
+
+    # ── Ritmo visual (sub-planos) ─────────────────────────────
+    # Cada imagen se parte en N encuadres distintos (Ken Burns sobre regiones
+    # diferentes) para multiplicar los cortes SIN generar más imágenes.
+    # Antes: 8 imágenes / 38s = 1 corte cada 4.9s — ritmo de diapositivas.
+    # Con 3: 24 planos / 38s = 1 corte cada 1.6s, que es el rango que retiene.
+    # Poner 1 restaura el comportamiento anterior.
+    "planos_por_imagen": 3,
+    # Escala mínima de los recortes. Ojo: 0.75 significa ampliar la imagen un
+    # 33% extra. Con fuentes de 720x1280 no bajes de 0.85 o se ve pixelado.
+    "recorte_escala_min": 0.85,
+
+    # ── Barra de progreso ─────────────────────────────────────
+    # Le dice al espectador "esto es corto, aguanta". Sube la tasa de completado.
+    "barra_progreso": True,
+    "barra_altura": 8,                  # px
+    "barra_color": (255, 220, 0),       # mismo amarillo que el resaltado
+    "barra_fondo_alpha": 40,            # opacidad del carril vacío (0-255)
+    "barra_y": 0,                       # 0 = pegada arriba del todo
+
+    # ── Subtítulos: ajuste automático ─────────────────────────
+    # Palabras muy largas (CONSTANTINOPLA a 100px) se salían del clip por
+    # ambos lados. Ahora la fuente se reduce hasta que el texto entra.
+    "font_size_min": 44,
+
+    # ── Exportación de subtítulos ─────────────────────────────
+    # YouTube indexa el .srt → mejora la búsqueda. Los timestamps ya los
+    # tenemos de Whisper, así que es gratis.
+    "exportar_srt": True,
+    "srt_palabras_por_linea": 6,
 }
 
 
@@ -228,12 +263,75 @@ def add_smooth_zoom(clip, zoom_factor: float = 1.05):
     return clip.resize(zoom_func)
 
 
+# Encuadres para los sub-planos: (centro_y, escala).
+#   centro_y → 0.0 = arriba de la imagen, 1.0 = abajo
+#   escala   → 1.0 = imagen completa, menor = más cerrado (más zoom)
+# El centro X se deja fijo: las imágenes ya vienen en 9:16 y descentrarlas
+# horizontalmente rompe la composición más de lo que aporta.
+ENCUADRES = [
+    (0.50, 1.00),   # completo, centrado
+    (0.35, 0.88),   # cerrado sobre el tercio superior (suele estar la cara)
+    (0.50, 0.88),   # cerrado al centro
+    (0.65, 0.88),   # cerrado sobre el tercio inferior
+    (0.42, 0.94),   # medio, ligeramente alto
+]
+
+
+def crear_planos_de_imagen(img_path: str, idx: int, n_planos: int,
+                           dur_plano: float, cfg: dict) -> list:
+    """Parte UNA imagen en varios planos con encuadre y movimiento distintos.
+
+    Multiplica los cortes sin generar más imágenes: 8 imágenes × 3 planos = 24
+    cortes. El ojo lee cada cambio de encuadre como un corte de cámara nuevo.
+    """
+    target_w, target_h = cfg["video_width"], cfg["video_height"]
+    crossfade = cfg["crossfade_duration"]
+    escala_min = cfg["recorte_escala_min"]
+
+    planos = []
+    for k in range(n_planos):
+        cy, escala = ENCUADRES[(idx * 2 + k) % len(ENCUADRES)]
+        escala = max(escala, escala_min)
+
+        clip = (
+            ImageClip(img_path)
+            .set_duration(dur_plano + crossfade)   # extra para solapar el crossfade
+            .resize(height=int(target_h / escala))
+        )
+
+        # Si el ancho resultante es menor al objetivo, escalar por ancho
+        if clip.size[0] < target_w:
+            clip = clip.resize(width=target_w)
+
+        # Recorte al encuadre elegido, acotado para no salirse de la imagen
+        y_centro = clip.size[1] * cy
+        y_centro = min(max(y_centro, target_h / 2), clip.size[1] - target_h / 2)
+
+        clip = clip.crop(
+            x_center=clip.size[0] / 2,
+            y_center=y_centro,
+            width=target_w,
+            height=target_h,
+        )
+
+        # Zoom alternando dirección para que dos planos seguidos no se parezcan
+        zoom = random.uniform(cfg["zoom_min"], cfg["zoom_max"])
+        if (idx + k) % 2 == 0:
+            clip = add_smooth_zoom(clip, zoom_factor=zoom)
+        else:
+            clip = add_smooth_zoom(clip, zoom_factor=1.0 / zoom + (zoom - 1))
+
+        planos.append(clip)
+
+    return planos
+
+
 def create_video(image_paths: list[str], audio_path: str, cfg: dict):
     """
     Construye el video principal:
-    - Escala cada imagen al tamaño de video configurado
+    - Parte cada imagen en varios planos (ver crear_planos_de_imagen)
     - Aplica zoom suave con easing
-    - Agrega crossfade entre imágenes para transiciones fluidas
+    - Agrega crossfade entre planos para transiciones fluidas
     - Sincroniza con el audio de narración
     """
     audio = AudioFileClip(audio_path)
@@ -243,43 +341,20 @@ def create_video(image_paths: list[str], audio_path: str, cfg: dict):
     target_h = cfg["video_height"]
     crossfade = cfg["crossfade_duration"]
 
-    # Tiempo por imagen, descontando los crossfades solapados
-    duration_per_image = total_duration / n_images
+    n_planos = max(1, cfg.get("planos_por_imagen", 1))
+    total_planos = n_images * n_planos
+    dur_plano = total_duration / total_planos
 
-    print(f"🎬  Creando video: {n_images} imágenes × {duration_per_image:.2f}s = {total_duration:.2f}s total")
+    print(f"🎬  Creando video: {n_images} imágenes × {n_planos} planos = "
+          f"{total_planos} cortes × {dur_plano:.2f}s = {total_duration:.2f}s total")
+    if dur_plano > 3.0:
+        print(f"⚠️   {dur_plano:.1f}s por plano es lento para vertical "
+              f"(el rango que retiene es 1.5-2.5s) — sube 'planos_por_imagen'")
 
     clips = []
     for i, img_path in enumerate(image_paths):
-        # Carga la imagen y la escala para cubrir el frame (sin barras negras)
-        clip = (
-            ImageClip(img_path)
-            .set_duration(duration_per_image + crossfade)  # Un poco extra para el crossfade
-            .resize(height=target_h)                        # Escala por altura primero
-        )
-
-        # Si el ancho resultante es menor al objetivo, escalar por ancho
-        if clip.size[0] < target_w:
-            clip = clip.resize(width=target_w)
-
-        # Recortar al centro para que quede exactamente en las dimensiones objetivo
-        clip = clip.crop(
-            x_center=clip.size[0] / 2,
-            y_center=clip.size[1] / 2,
-            width=target_w,
-            height=target_h
-        )
-
-        # Zoom con variación aleatoria entre escenas (dentro del rango configurado)
-        zoom = random.uniform(cfg["zoom_min"], cfg["zoom_max"])
-        # Dirección del zoom alterna (a veces zoom-in, a veces zoom-out)
-        if i % 2 == 0:
-            clip = add_smooth_zoom(clip, zoom_factor=zoom)
-        else:
-            # Zoom-out: empieza grande y reduce
-            clip = add_smooth_zoom(clip, zoom_factor=1.0 / zoom + (zoom - 1))
-
-        clip = clip.set_start(i * duration_per_image)
-        clips.append(clip)
+        for k, clip in enumerate(crear_planos_de_imagen(img_path, i, n_planos, dur_plano, cfg)):
+            clips.append(clip.set_start((i * n_planos + k) * dur_plano))
 
     # Aplicar crossfade entre clips consecutivos
     if crossfade > 0 and len(clips) > 1:
@@ -332,6 +407,11 @@ def get_active_word_window(words: list[dict], t: float, window_size: int = 2) ->
     if not words:
         return [], -1
 
+    # Antes de la primera palabra no hay nada que mostrar: si no, el primer par
+    # queda congelado en pantalla durante el silencio inicial del audio.
+    if t < words[0]["start"] - 0.15:
+        return [], -1
+
     # Construir pares fijos de palabras
     pairs = []
     i = 0
@@ -376,6 +456,36 @@ def get_text_total_width(words_text: list[str], draw: ImageDraw.Draw, font: Imag
         total += draw.textlength(text, font=font)
     return total
 
+
+# Cache de fuentes por tamaño: ImageFont.truetype() en cada frame de un video
+# de 1200 frames es caro y siempre devuelve lo mismo.
+_FUENTES: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
+
+
+def cargar_fuente(ruta: str, size: int) -> ImageFont.FreeTypeFont:
+    clave = (ruta, size)
+    if clave not in _FUENTES:
+        try:
+            _FUENTES[clave] = ImageFont.truetype(ruta, size)
+        except IOError:
+            _FUENTES[clave] = ImageFont.load_default()
+    return _FUENTES[clave]
+
+
+def fuente_que_quepa(texto: str, draw: ImageDraw.Draw, cfg: dict,
+                     ancho_max: float) -> ImageFont.FreeTypeFont:
+    """Baja el tamaño de fuente hasta que el texto entre en el ancho disponible.
+
+    Sin esto, una palabra larga ("CONSTANTINOPLA" a 100px) hace que x sea
+    negativo y el texto se recorte por los dos lados.
+    """
+    ruta = cfg["font_path"]
+    for size in range(cfg["font_size"], cfg["font_size_min"] - 1, -4):
+        fuente = cargar_fuente(ruta, size)
+        if draw.textlength(texto, font=fuente) <= ancho_max:
+            return fuente
+    return cargar_fuente(ruta, cfg["font_size_min"])
+
 def create_subtitle_frame(
     words: list[dict],
     t: float,
@@ -394,16 +504,26 @@ def create_subtitle_frame(
     words_text = [w["word"] for w in window]
 
     max_width = width - 60  # margen lateral
+
+    # Si la palabra MÁS LARGA no entra ni sola, achicar la fuente para este frame.
+    # Con la fuente fija, una palabra larga se recortaba por los dos lados.
+    palabra_mas_larga = max(words_text, key=lambda w: draw.textlength(w, font=font))
+    if draw.textlength(palabra_mas_larga, font=font) > max_width:
+        font = fuente_que_quepa(palabra_mas_larga, draw, cfg, max_width)
+
     total_width = get_text_total_width(words_text, draw, font)
 
     bg_mode = cfg.get("subtitle_bg_mode", "none")
     bg_color = cfg.get("subtitle_bg_color", (0, 0, 0)) + (cfg.get("subtitle_bg_opacity", 0),)
     pad = cfg.get("subtitle_bg_padding", 15)
 
+    # Tamaño efectivo: puede ser menor que cfg["font_size"] si se auto-ajustó
+    alto_fuente = getattr(font, "size", cfg["font_size"])
+
     # Si no caben en una línea, partir en dos líneas (una palabra por línea)
     if total_width > max_width and len(words_text) == 2:
         lines = [[words_text[0], 0], [words_text[1], 1]]  # [texto, índice_original]
-        line_h = cfg["font_size"] + 10
+        line_h = alto_fuente + 10
         y_start = (height - line_h * 2) // 2
 
         # Dibujar fondo para 2 líneas
@@ -425,14 +545,14 @@ def create_subtitle_frame(
                       stroke_width=6, stroke_fill=(0, 0, 0, 255))
     else:
         # Una sola línea centrada
-        y_text = (height - cfg["font_size"]) // 2
+        y_text = (height - alto_fuente) // 2
         x = (width - total_width) // 2
 
         # Dibujar fondo para 1 línea
         if bg_mode == "full":
             draw.rectangle([0, 0, width, height], fill=bg_color)
         elif bg_mode == "text":
-            draw.rectangle([x - pad, y_text - pad, x + total_width + pad, y_text + cfg["font_size"] + pad], fill=bg_color)
+            draw.rectangle([x - pad, y_text - pad, x + total_width + pad, y_text + alto_fuente + pad], fill=bg_color)
 
         for i, word in enumerate(words_text):
             is_active = (i == local_active)
@@ -566,6 +686,50 @@ def create_title_clip(title: str, video_size: tuple, duration: float, cfg: dict)
     clip = rgba_a_clip(make_frame, duration, cfg.get("fps", 30))
     return clip.set_position(cfg.get("title_position", ("center", 0)))
 
+def crear_barra_progreso(video_size: tuple, duration: float, cfg: dict) -> VideoClip:
+    """Barra fina que se llena a lo largo del video.
+
+    Le dice al espectador "esto es corto, aguanta" sin ocupar espacio útil.
+    Es de las intervenciones con mejor relación esfuerzo/retención en vertical.
+    """
+    width = video_size[0]
+    alto = cfg["barra_altura"]
+    color = tuple(cfg["barra_color"]) + (255,)
+    carril = (255, 255, 255, cfg["barra_fondo_alpha"])
+
+    def make_frame(t):
+        img = Image.new("RGBA", (width, alto), carril)
+        avance = int(width * min(t / duration, 1.0))
+        if avance > 0:
+            ImageDraw.Draw(img).rectangle([0, 0, avance, alto], fill=color)
+        return np.array(img)
+
+    clip = rgba_a_clip(make_frame, duration, cfg.get("fps", 30))
+    return clip.set_position(("center", cfg["barra_y"]))
+
+
+def exportar_srt(words: list[dict], destino: str, palabras_por_linea: int = 6) -> None:
+    """Escribe un .srt a partir de los timestamps por palabra de Whisper.
+
+    YouTube indexa el contenido hablado del .srt → mejora la búsqueda.
+    Los timestamps ya los tenemos, así que sale gratis.
+    """
+    def ts(segundos: float) -> str:
+        h = int(segundos // 3600)
+        m = int(segundos % 3600 // 60)
+        s = segundos % 60
+        return f"{h:02d}:{m:02d}:{s:06.3f}".replace(".", ",")
+
+    with open(destino, "w", encoding="utf-8") as f:
+        for n, i in enumerate(range(0, len(words), palabras_por_linea), start=1):
+            grupo = words[i:i + palabras_por_linea]
+            f.write(f"{n}\n")
+            f.write(f"{ts(grupo[0]['start'])} --> {ts(grupo[-1]['end'])}\n")
+            f.write(" ".join(w["word"] for w in grupo) + "\n\n")
+
+    print(f"📄  Subtítulos exportados: '{destino}'")
+
+
 def create_cta_clip(text: str, video_size: tuple, duration: float, cfg: dict) -> VideoClip:
     """Overlay de CTA que aparece en los últimos segundos del video."""
     width, height = video_size
@@ -626,6 +790,11 @@ def main():
         language=cfg["whisper_language"]
     )
 
+    if not words:
+        raise SystemExit(
+            "❌ Whisper no transcribió ni una palabra — ¿voice.mp3 está vacío o corrupto?"
+        )
+
     # ── Paso 4: Crear subtítulos dinámicos ───────────────────
     print("📝  Generando subtítulos dinámicos...")
     subtitle_clip = create_dynamic_subtitles(
@@ -638,31 +807,30 @@ def main():
     # ── Paso 5: Componer video final ──────────────────────────
     print("🎞️  Componiendo video final...")
 
-    cta_duration = cfg["cta_duration"]
-    cta_start = video.duration - cta_duration
+    tamano = (cfg["video_width"], cfg["video_height"])
 
     # El título ya no dura todo el video: aparece al inicio y se va con fade.
     # Antes se quedaba los 40s y, como suele resumir el desenlace, spoileaba
     # la historia desde el frame 0.
     title_duration = min(cfg["title_duration"], video.duration)
     title_clip = create_title_clip(
-        cfg["video_title"],
-        video_size=(cfg["video_width"], cfg["video_height"]),
-        duration=title_duration,
-        cfg=cfg
+        cfg["video_title"], video_size=tamano, duration=title_duration, cfg=cfg
     ).crossfadeout(cfg["title_fadeout"])
 
+    # El CTA va ENCIMA de la última frase, no después: 3 segundos de colchón al
+    # final hundían el % de retención justo donde más se mide, y además cortaban
+    # el bucle (el video que vuelve a empezar suma reproducción).
+    cta_duration = min(cfg["cta_duration"], video.duration)
     cta_clip = create_cta_clip(
-        "Sígueme para más historias",
-        video_size=(cfg["video_width"], cfg["video_height"]),
-        duration=cta_duration,
-        cfg=cfg
-    ).set_start(cta_start)
+        cfg["cta_texto"], video_size=tamano, duration=cta_duration, cfg=cfg
+    ).set_start(video.duration - cta_duration).crossfadein(0.3)
 
-    final = CompositeVideoClip(
-        [video, subtitle_clip, title_clip, cta_clip],
-        size=(cfg["video_width"], cfg["video_height"])
-    ).set_duration(video.duration)
+    capas = [video, subtitle_clip, title_clip, cta_clip]
+
+    if cfg.get("barra_progreso"):
+        capas.append(crear_barra_progreso(tamano, video.duration, cfg))
+
+    final = CompositeVideoClip(capas, size=tamano).set_duration(video.duration)
 
     # 🧪 MODO PRUEBA — comenta esta línea para producción
     #final = final.subclip(0, 3)  # solo primeros 3 segundos
@@ -676,6 +844,14 @@ def main():
     os.makedirs(dir_proyecto, exist_ok=True)
 
     shutil.copy(cfg['audio_file'], f"{dir_proyecto}{cfg['video_name']}.mp3")
+
+    # Subtítulos para subir a YouTube / Meta (mejoran la indexación)
+    if cfg.get("exportar_srt"):
+        exportar_srt(
+            words,
+            f"{dir_proyecto}{cfg['video_name']}.srt",
+            cfg.get("srt_palabras_por_linea", 6),
+        )
 
     dir_images_IA = f'{dir_proyecto}images_IA/'
     os.makedirs(dir_images_IA, exist_ok=True)
