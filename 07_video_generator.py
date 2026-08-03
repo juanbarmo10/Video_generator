@@ -105,6 +105,12 @@ CONFIG = {
     # Color de palabras inactivas (contexto)
     "inactive_color": (255, 255, 255),  # Blanco
 
+    # ── CTA final ─────────────────────────────────────────────
+    # Posición vertical del CTA (0.0 = arriba, 1.0 = abajo).
+    # Máximo 0.72: más abajo lo tapan el caption y los botones de Reels/TikTok.
+    "cta_y_ratio": 0.70,
+    "cta_duration": 3,                  # segundos que dura el CTA al final
+
     # ── Configuración de Fondos de Subtítulos ─────────────────
     "subtitle_bg_mode": "none",         # Opciones: "full" (rectángulo ancho), "text" (sigue las letras), "none" (sin fondo)
     "subtitle_bg_color": (0, 0, 0),     # RGB del fondo de subtítulos
@@ -112,11 +118,19 @@ CONFIG = {
     "subtitle_bg_padding": 0,          # Margen del fondo ajustado al texto
     
     # ── Configuración de Títulos ──────────────────────────────
-    "title_position": ("center", 20),   # Posición (X, Y)
+    # y=200 es el borde de la zona segura: por encima queda tapado por la UI
+    # de Reels/TikTok (~130px) y de Shorts (~110px).
+    "title_position": ("center", 200),  # Posición (X, Y)
     "title_bg_mode": "text",            # Opciones: "full", "text", "none"
     "title_bg_color": (193, 89, 57),    # RGB del fondo del título
-    "title_bg_opacity": 10,            # 0=transparente, 255=opaco
+    # Antes 10: con el bug de to_mask() el rojo (193) mandaba y se veía al 76%.
+    # Ya corregido, 10 sería invisible — 170 reproduce la banda que se veía.
+    "title_bg_opacity": 170,            # 0=transparente, 255=opaco
     "title_bg_padding": 10,             # Margen del fondo ajustado al texto
+    # El título quemado los 40s spoileaba la historia en el frame 0.
+    # Ahora solo abre el video y se va con fade.
+    "title_duration": 2.5,              # segundos que dura el título en pantalla
+    "title_fadeout": 0.4,               # fade de salida del título
 
     # ── Animación de imágenes ─────────────────────────────────
     # Factor de zoom (1.0 = sin zoom, 1.05 = zoom suave, 1.15 = zoom pronunciado)
@@ -283,6 +297,28 @@ def create_video(image_paths: list[str], audio_path: str, cfg: dict):
 
 
 # ══════════════════════════════════════════════════════════════
+# 🎭  OVERLAYS RGBA → CLIP CON TRANSPARENCIA
+# ══════════════════════════════════════════════════════════════
+
+def rgba_a_clip(make_frame, duration: float, fps: int) -> VideoClip:
+    """Convierte una función que devuelve frames RGBA en un clip con transparencia.
+
+    ⚠️ OJO CON to_mask(): en moviepy 1.0.3 la firma es `to_mask(self, canal=0)` y
+    el canal 0 es el ROJO, no el alfa:
+
+        newclip = self.fl_image(lambda pic: 1.0 * pic[:, :, canal] / 255)
+
+    Con el default (canal=0) la transparencia la gobierna el rojo del texto, así que
+    el contorno negro (0,0,0,255) queda con alfa 0 y NO SE DIBUJA NUNCA, y un fondo
+    (193,89,57) con alfa 10 se ve al 76% de opacidad. Hay que pedir canal=3.
+    """
+    clip_rgba = VideoClip(make_frame, duration=duration)
+    mask      = clip_rgba.to_mask(canal=3)                      # 3 = alfa
+    clip_rgb  = clip_rgba.fl_image(lambda im: im[:, :, :3])
+    return clip_rgb.set_mask(mask).set_fps(fps)
+
+
+# ══════════════════════════════════════════════════════════════
 # 📝  SUBTÍTULOS DINÁMICOS (por palabra)
 # ══════════════════════════════════════════════════════════════
 
@@ -431,25 +467,9 @@ def create_dynamic_subtitles(words: list[dict], video_size: tuple, duration: flo
 
     def make_frame(t):
         return create_subtitle_frame(words, t, width, height, cfg, font)
-    # Creamos el clip manteniendo los 4 canales (RGBA)
-    clip_rgba = VideoClip(make_frame, duration=duration)
 
-    # Separamos el canal Alpha para usarlo como máscara
-    # Esto convierte el clip de (H, W, 4) a (H, W, 3) y le asigna su transparencia aparte
-    mask = clip_rgba.to_mask()
-
-    # 2. Convertimos el clip a RGB (quita el 4to canal para que sea shape (..., 3))
-    # Usamos un lambda para forzar la conversión de cada frame a RGB
-    clip_rgb = clip_rgba.fl_image(lambda image: image[:,:,:3])
-
-    # 3. Le asignamos la máscara al clip de 3 canales
-    subtitle_clip = clip_rgb.set_mask(mask)
-
-    subtitle_clip = subtitle_clip.set_position(("center", y_pos))
-    # Agregar el alpha manualmente:
-    subtitle_clip = subtitle_clip.set_fps(cfg.get("fps", 15))
-
-    return subtitle_clip
+    subtitle_clip = rgba_a_clip(make_frame, duration, cfg.get("fps", 30))
+    return subtitle_clip.set_position(("center", y_pos))
 
 
 # ══════════════════════════════════════════════════════════════
@@ -541,25 +561,10 @@ def create_title_clip(title: str, video_size: tuple, duration: float, cfg: dict)
                       stroke_width=4, stroke_fill=(0, 0, 0, 255))
             y += font_size + 10
 
-        return np.array(img)#np.array(img.convert("RGB"))
+        return np.array(img)
 
-    # Creamos el clip manteniendo los 4 canales (RGBA)
-    clip_rgba = VideoClip(make_frame, duration=duration)
-
-    # Separamos el canal Alpha para usarlo como máscara
-    # Esto convierte el clip de (H, W, 4) a (H, W, 3) y le asigna su transparencia aparte
-    mask = clip_rgba.to_mask()
-
-    # 2. Convertimos el clip a RGB (quita el 4to canal para que sea shape (..., 3))
-    # Usamos un lambda para forzar la conversión de cada frame a RGB
-    clip_rgb = clip_rgba.fl_image(lambda image: image[:,:,:3])
-
-    # 3. Le asignamos la máscara al clip de 3 canales
-    clip = clip_rgb.set_mask(mask)
-
-    clip = clip.set_fps(cfg.get("fps", 30))
-    clip = clip.set_position(cfg.get("title_position", ("center", 0)))
-    return clip
+    clip = rgba_a_clip(make_frame, duration, cfg.get("fps", 30))
+    return clip.set_position(cfg.get("title_position", ("center", 0)))
 
 def create_cta_clip(text: str, video_size: tuple, duration: float, cfg: dict) -> VideoClip:
     """Overlay de CTA que aparece en los últimos segundos del video."""
@@ -580,27 +585,13 @@ def create_cta_clip(text: str, video_size: tuple, duration: float, cfg: dict) ->
         y = 5
         draw.text((x, y), text, font=font, fill=(255, 220, 0, 255),
                 stroke_width=6, stroke_fill=(0, 0, 0, 255))
-        return np.array(img)#np.array(img.convert("RGB"))
+        return np.array(img)
 
+    clip = rgba_a_clip(make_frame, duration, cfg.get("fps", 30))
 
-    # Creamos el clip manteniendo los 4 canales (RGBA)
-    clip_rgba = VideoClip(make_frame, duration=duration)
-
-    # Separamos el canal Alpha para usarlo como máscara
-    # Esto convierte el clip de (H, W, 4) a (H, W, 3) y le asigna su transparencia aparte
-    # 1. Extraemos la máscara del clip que tiene transparencia
-    mask = clip_rgba.to_mask()
-
-    # 2. Convertimos el clip a RGB (quita el 4to canal para que sea shape (..., 3))
-    # Usamos un lambda para forzar la conversión de cada frame a RGB
-    clip_rgb = clip_rgba.fl_image(lambda image: image[:,:,:3])
-
-    # 3. Le asignamos la máscara al clip de 3 canales
-    clip = clip_rgb.set_mask(mask)
-
-    clip = clip.set_position(("center", int(height * 0.82)))
-    clip = clip.set_fps(cfg.get("fps", 30))
-    return clip
+    # A 0.82 el CTA caía debajo de la UI de Reels (~420px) y TikTok (~480px).
+    # cta_y_ratio lo sube a la zona segura de las tres plataformas.
+    return clip.set_position(("center", int(height * cfg["cta_y_ratio"])))
 
 
 # ══════════════════════════════════════════════════════════════
@@ -647,15 +638,19 @@ def main():
     # ── Paso 5: Componer video final ──────────────────────────
     print("🎞️  Componiendo video final...")
 
-    cta_duration = 3  # segundos que dura el CTA
+    cta_duration = cfg["cta_duration"]
     cta_start = video.duration - cta_duration
 
+    # El título ya no dura todo el video: aparece al inicio y se va con fade.
+    # Antes se quedaba los 40s y, como suele resumir el desenlace, spoileaba
+    # la historia desde el frame 0.
+    title_duration = min(cfg["title_duration"], video.duration)
     title_clip = create_title_clip(
         cfg["video_title"],
         video_size=(cfg["video_width"], cfg["video_height"]),
-        duration=video.duration,
+        duration=title_duration,
         cfg=cfg
-    )
+    ).crossfadeout(cfg["title_fadeout"])
 
     cta_clip = create_cta_clip(
         "Sígueme para más historias",

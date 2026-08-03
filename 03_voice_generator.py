@@ -15,8 +15,14 @@ output = "voice.mp3"
 
 # ========================================================================== #
 
+if not elevenlabs_api_key:
+    raise SystemExit("❌ Falta ELEVENLABS_API_KEY en el .env")
+
 with open(path_script, "r", encoding="utf-8") as f:
-    script = f.read()
+    script = f.read().strip()
+
+if not script:
+    raise SystemExit(f"❌ '{path_script}' está vacío — el paso 01 no generó guion")
 
 voice_id = "l1zE9xgNpUTaQCZzpNJa"
 #voice_id = "QhRZzy7zvGun8cV3aJaM"
@@ -39,16 +45,29 @@ data = {
     }
 }
 
-response = requests.post(url, json=data, headers=headers)
+response = requests.post(url, json=data, headers=headers, timeout=180)
 
-print(response.status_code)
-print(response.text)
+# ⚠️ Este paso DEBE abortar con código != 0 si falla.
+# Antes solo imprimía el error y salía con 0: `set -e` de run_pipeline.sh no lo
+# detectaba y los pasos 04/07 seguían usando el voice.mp3 del tema ANTERIOR,
+# produciendo un video con la narración equivocada marcado como ✅ Completado.
+if response.status_code != 200:
+    raise SystemExit(
+        f"❌ ElevenLabs falló ({response.status_code}): {response.text[:300]}"
+    )
 
-if response.status_code == 200:
-    with open(output, "wb") as f:
-        f.write(response.content)
-else:
-    print("Error en ElevenLabs:", response.text)
+# Un 200 con cuerpo diminuto significa audio corrupto o truncado: también aborta,
+# porque un mp3 vacío deja el voice.mp3 viejo intacto o rompe el paso 07.
+MIN_BYTES = 10_000  # ~90 palabras narradas pesan ~500 KB
+if len(response.content) < MIN_BYTES:
+    raise SystemExit(
+        f"❌ ElevenLabs devolvió {len(response.content)} bytes — audio inválido"
+    )
+
+with open(output, "wb") as f:
+    f.write(response.content)
+
+print(f"✅ Voz generada: '{output}' ({len(response.content) // 1024} KB)")
 
 
 
