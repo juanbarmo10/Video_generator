@@ -41,3 +41,6 @@ fonts/*.zip
 
 # Cache de fotos reales convertidas a 9:16 (paso 07)
 .cache_fotos_reales/
+
+# Temporales de moviepy (se cuelan si se hace git add durante un render)
+*TEMP_MPY*
