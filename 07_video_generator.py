@@ -167,6 +167,13 @@ CONFIG = {
     # 33% extra. Con fuentes de 720x1280 no bajes de 0.85 o se ve pixelado.
     "recorte_escala_min": 0.85,
 
+    # Margen que se recorta a las ilustraciones IA para eliminar el borde de
+    # pergamino. Pedirle a Flux "no paper border, no frame" NO funciona: los
+    # modelos de difusión responden mal a las instrucciones negativas y siguen
+    # dibujando el marco. Recortarlo aquí es determinista y gratis.
+    # Solo se aplica a images_IA/: las fotos reales ya vienen a sangre.
+    "recorte_borde_pct": 0.08,          # 8% por lado (medido: el marco llega al 7%)
+
     # ── Barra de progreso ─────────────────────────────────────
     # Le dice al espectador "esto es corto, aguanta". Sube la tasa de completado.
     "barra_progreso": True,
@@ -457,16 +464,27 @@ def crear_planos_de_imagen(img_path: str, idx: int, n_planos: int,
     crossfade = cfg["crossfade_duration"]
     escala_min = cfg["recorte_escala_min"]
 
+    # Las fotos reales ya vienen a sangre; el borde de pergamino solo lo tienen
+    # las ilustraciones de Flux.
+    es_ilustracion = CACHE_FOTOS not in img_path
+    margen = cfg.get("recorte_borde_pct", 0) if es_ilustracion else 0
+
     planos = []
     for k in range(n_planos):
         cy, escala = ENCUADRES[(idx * 2 + k) % len(ENCUADRES)]
         escala = max(escala, escala_min)
 
-        clip = (
-            ImageClip(img_path)
-            .set_duration(dur_plano + crossfade)   # extra para solapar el crossfade
-            .resize(height=int(target_h / escala))
-        )
+        clip = ImageClip(img_path).set_duration(dur_plano + crossfade)
+
+        # Recortar el marco de pergamino antes de encuadrar
+        if margen > 0:
+            w, h = clip.size
+            clip = clip.crop(
+                x1=int(w * margen), y1=int(h * margen),
+                x2=int(w * (1 - margen)), y2=int(h * (1 - margen)),
+            )
+
+        clip = clip.resize(height=int(target_h / escala))
 
         # Si el ancho resultante es menor al objetivo, escalar por ancho
         if clip.size[0] < target_w:
