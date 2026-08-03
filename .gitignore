@@ -38,3 +38,6 @@ __pycache__/
 
 # Zips de fuentes (ya están extraídas en fonts/)
 fonts/*.zip
+
+# Cache de fotos reales convertidas a 9:16 (paso 07)
+.cache_fotos_reales/

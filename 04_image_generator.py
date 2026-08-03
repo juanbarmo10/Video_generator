@@ -1,6 +1,7 @@
 #%%
 
 import os
+import re
 import requests
 import random
 import time
@@ -37,18 +38,29 @@ historic illustration style,
 no text, no watermark
 """
 
+# ⚠️ Este es el BASE_PROMPT ACTIVO (Python se queda con la última definición;
+# el de arriba es código muerto).
+#
+# Cambios respecto a la versión anterior:
+# - "full-bleed edge-to-edge": el borde de pergamino desperdiciaba ~8% de pantalla
+#   y hacía que el video se leyera como un póster metido dentro del teléfono.
+# - "clean well-formed hands": Flux dev NO acepta negative_prompt (es un modelo
+#   destilado sin CFG), así que las protecciones de anatomía tienen que ir aquí.
+# - "no text, no letters, no numbers": Flux no sabe escribir. Sin esto salían
+#   documentos con garabatos ilegibles como primer frame del video.
 BASE_PROMPT = """
 vintage editorial illustration, colored ink drawing,
-aged parchment paper background, warm beige paper texture,
+aged parchment paper texture, warm beige tones,
 
 bold flat colors on figures and objects,
 hand-drawn outlines, minimal shading, no depth,
-flat perspective, stylized figures,
+flat perspective, stylized figures, clean well-formed hands,
 
 historic illustration style,
 
+full-bleed edge-to-edge composition, no paper border, no frame, no margins,
 9:16 vertical composition optimized for mobile,
-no text, no watermark
+no text, no letters, no numbers, no signage, no watermark
 """
 
 # 🎥 estilos de cámara (para variedad)
@@ -127,6 +139,21 @@ Reglas:
 - Optimiza para modelo de imágenes
 - Escribe en inglés
 
+🚫 REGLAS VISUALES (el modelo de imágenes NO sabe escribir):
+- PROHIBIDO centrar una escena en documentos, contratos, cartas, periódicos,
+  pantallas, carteles, letreros, pizarras, libros abiertos o cualquier superficie
+  con texto legible. Sale texto inventado ilegible y arruina la toma.
+- Si la historia gira sobre un documento, muestra la REACCIÓN humana, no el papel:
+  ❌ "close-up of a contract being signed with a fountain pen"
+  ✅ "a man in a suit stares at an empty desk, shoulders slumped, window behind him"
+
+👤 REGLAS DE COMPOSICIÓN (retención en vertical):
+- Al menos 4 de las escenas deben mostrar ROSTROS HUMANOS con emoción clara.
+- La ESCENA 1 debe ser un PRIMER PLANO de un rostro con emoción legible: es el
+  primer fotograma del video y decide si el espectador se queda.
+- Al menos 2 escenas más deben ser primer plano (close-up), no plano general.
+- Evita figuras de espaldas o muy lejanas: no transmiten emoción.
+
 🚨 REGLAS DE MODERACIÓN (CRÍTICO):
 - NUNCA uses: bodies, corpses, dead, death, dying, violence, violent, blood,
   gore, victims, murder, terror, terrified, cowering, panic, destruction,
@@ -159,9 +186,21 @@ Texto:
         ]
     )
 
-    scenes_json = json.loads(response.choices[0].message.content)
+    # extract_context() sí se protegía del JSON mal formado; esto no. Un bloque
+    # ```json al inicio abortaba el tema entero con el guion, la voz y las 6
+    # llamadas del paso 02 ya pagadas.
+    raw = response.choices[0].message.content.strip()
+    raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw).strip()
 
-    scenes = [s["scene"] for s in scenes_json]
+    try:
+        scenes_json = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"❌ Las escenas no vinieron en JSON válido: {exc}\n{raw[:400]}")
+
+    scenes = [s["scene"] for s in scenes_json if s.get("scene")]
+
+    if not scenes:
+        raise SystemExit(f"❌ El JSON de escenas vino vacío o sin clave 'scene':\n{raw[:400]}")
 
     print("\n🧩 Escenas generadas:")
     for i, s in enumerate(scenes):
@@ -306,20 +345,44 @@ def generate_image(prompt, seed, idx, output_dir="images_IA"):
     print("⏱️ Timeout esperando imagen")
     return None
 
+# ── Resolución de las imágenes ────────────────────────────────────────────
+# Antes 720x1280: el paso 07 las escalaba a 1080x1920 (+50%) y encima les
+# aplicaba zoom, con un pico real de ampliación de ~1.7x. Se veían blandas.
+# fal cobra Flux dev por megapíxel, así que esto es un trade-off de costo:
+#   720x1280  = 0.92 MP · 1.0x costo · upscale 1.50x (malo)
+#   832x1472  = 1.22 MP · 1.3x costo · upscale 1.30x (equilibrio)  ← elegido
+#   1088x1920 = 2.09 MP · 2.3x costo · upscale 1.00x (ideal)
+# Si subes a 1088x1920, baja también "zoom_max" del paso 07 a 1.08 y
+# "recorte_escala_min" a 0.75 para aprovechar la resolución extra.
+IMAGE_WIDTH  = 832
+IMAGE_HEIGHT = 1472
+
+# Seed base. Cada escena usa SEED_BASE + i*977 para que sea reproducible pero
+# distinta entre escenas (ver generate_images_from_script).
+SEED_BASE = 12345
+
+# Mínimo de imágenes para que el video tenga sentido. Con menos, aborta el tema
+# en vez de entregar un video degradado en silencio.
+MIN_IMAGENES = 6
+
+
 def generate_image(prompt, seed, idx, output_dir="images_IA"):
-    """Genera imagen con Flux Schnell via fal.ai"""
-    
+    """Genera imagen con Flux dev via fal.ai"""
+
     try:
         result = fal_client.run(
-            "fal-ai/flux/dev", #schnell
+            "fal-ai/flux/dev",
             arguments={
                 "prompt": prompt,
-                "negative_prompt": "deformed hands, extra fingers, missing fingers, bad anatomy, distorted limbs, mutated hands, fused fingers, poorly drawn hands, extra limbs",
+                # OJO: `negative_prompt` NO va aquí. Flux dev es un modelo
+                # destilado sin guidance clásico y el endpoint no lo expone en su
+                # schema: el que había antes se ignoraba silenciosamente. Las
+                # restricciones de anatomía viven ahora en BASE_PROMPT.
                 "image_size": {
-                    "width": 720,
-                    "height": 1280   # 9:16 exacto, igual que antes
+                    "width": IMAGE_WIDTH,
+                    "height": IMAGE_HEIGHT   # 9:16
                 },
-                "num_inference_steps": 28,  # Schnell es muy rápido
+                "num_inference_steps": 28,
                 "num_images": 1,
                 "seed": seed,
                 "enable_safety_checker": False  # para evitar falsos positivos
@@ -369,12 +432,14 @@ def generate_images_from_script(script, n_scenes=6):
     scenes = generate_visual_scenes(script, n_scenes, context=context)
 
     tasks = []
-    seed = 12345
     with ThreadPoolExecutor(max_workers=3) as executor:
         for i, scene in enumerate(scenes):
             prompt = build_prompt(scene, context=context)
+            # Seed distinta por escena, pero determinista: con la seed fija que
+            # había antes, las 8 imágenes salían con composiciones parecidas
+            # entre sí — justo lo contrario de la variedad que retiene.
             tasks.append((i, executor.submit(
-                generate_image, prompt, seed, i, output
+                generate_image, prompt, SEED_BASE + i * 977, i, output
             )))
 
     image_paths = [None] * len(scenes)
@@ -383,7 +448,21 @@ def generate_images_from_script(script, n_scenes=6):
         if result:
             image_paths[i] = result
 
-    return [p for p in image_paths if p]
+    generadas = [p for p in image_paths if p]
+
+    # Antes esto devolvía lo que hubiera. Si 5 de 8 fallaban, el paso 04 salía
+    # con éxito y el paso 07 armaba un video con 3 imágenes de 13s cada una.
+    if len(generadas) < MIN_IMAGENES:
+        raise SystemExit(
+            f"❌ Solo se generaron {len(generadas)}/{len(scenes)} imágenes "
+            f"(mínimo {MIN_IMAGENES}) — el video quedaría inservible"
+        )
+
+    if len(generadas) < len(scenes):
+        print(f"⚠️  {len(scenes) - len(generadas)} imágenes fallaron — "
+              f"el ritmo del video se resiente")
+
+    return generadas
 
 # ▶️ EJECUCIÓN
 if __name__ == "__main__":

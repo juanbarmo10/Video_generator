@@ -4,6 +4,7 @@
 
 import os
 import re
+import json
 from openai import OpenAI
 from dotenv import load_dotenv
 import shutil
@@ -275,19 +276,89 @@ def save_image_list(descriptions: list, output_dir="social_posts"):
     print(f"✅ Guardado: {path}")
 
 def generate_title(script: str) -> str:
-    """Genera un título corto y preciso basado en el script."""
+    """Genera el texto que va quemado en pantalla los primeros segundos.
+
+    ⚠️ NO es un resumen. Antes lo era, y como el resumen de una historia es su
+    desenlace, el video abría con el spoiler escrito ("MEMO OCHOA PERDIÓ PSG POR
+    VISA") antes de que el narrador dijera una palabra. Ahora abre la pregunta.
+    """
     response = client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model="gpt-4.1",
         messages=[
             {"role": "system", "content": (
-                "Genera un título corto (máximo 6 palabras) para un video basado en este script. "
-                "Solo el título, sin comillas, sin puntuación al final, sin explicaciones."
+                "Escribes ganchos para videos verticales. Máximo 7 palabras.\n"
+                "PROHIBIDO revelar el desenlace: tu trabajo es CREAR la pregunta "
+                "en la cabeza del espectador, no responderla.\n"
+                "Debe dar contexto suficiente para intrigar, pero dejar el "
+                "resultado en el aire.\n"
+                "Ejemplo con la historia de un fichaje que se cayó por un trámite:\n"
+                "  MAL:  'Ochoa perdió el PSG por una visa'  (cuenta el final)\n"
+                "  BIEN: 'El PSG ya lo había fichado'        (abre la pregunta)\n"
+                "Solo el texto, sin comillas, sin punto final, sin explicaciones."
             )},
             {"role": "user", "content": script}
         ],
         max_tokens=30
     )
     return response.choices[0].message.content.strip()
+
+
+def generate_youtube_metadata(script: str, research: str) -> dict:
+    """Genera título, descripción, tags y comentario fijado para YouTube Shorts.
+
+    El pipeline generaba posts para Twitter, Threads, Instagram y Facebook, y
+    NADA para YouTube — que es justo donde falta alcance. Para un canal nuevo el
+    título es la principal señal de clasificación temática y la única palanca de
+    búsqueda: subir un Short sin metadata es subirlo a ciegas.
+    """
+    response = client.chat.completions.create(
+        model="gpt-4.1",
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": (
+                "Eres experto en SEO de YouTube Shorts en español latino. "
+                "Devuelve SOLO un objeto json con estas claves:\n"
+                '- "titulo": máximo 70 caracteres. La ENTIDAD PRINCIPAL (persona, '
+                'equipo, lugar) va al inicio porque es la señal temática que lee '
+                'el algoritmo. Genera curiosidad SIN revelar el desenlace. '
+                'Sin clickbait falso.\n'
+                '- "descripcion": 2 frases de contexto + 3 hashtags de nicho + #Shorts\n'
+                '- "tags": lista de 12 strings, mezclando términos amplios y de nicho\n'
+                '- "comentario_fijado": una pregunta abierta para fijar en '
+                'comentarios y arrancar la conversación'
+            )},
+            {"role": "user", "content": f"SCRIPT:\n{script}\n\nINVESTIGACIÓN:\n{research}"}
+        ],
+        max_tokens=700
+    )
+
+    try:
+        return json.loads(response.choices[0].message.content)
+    except json.JSONDecodeError:
+        print("⚠️  Metadata de YouTube no vino en JSON válido — se omite")
+        return {}
+
+
+def save_youtube_metadata(meta: dict, output_dir="social_posts") -> None:
+    """Guarda la metadata en un .txt listo para copiar y pegar al subir."""
+    if not meta:
+        return
+
+    path = f"{output_dir}/05_youtube.txt"
+    tags = meta.get("tags", [])
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("=== YOUTUBE SHORTS ===\n\n")
+        f.write(f"TÍTULO ({len(meta.get('titulo', ''))}/70 caracteres):\n")
+        f.write(f"{meta.get('titulo', '')}\n\n")
+        f.write("DESCRIPCIÓN:\n")
+        f.write(f"{meta.get('descripcion', '')}\n\n")
+        f.write("TAGS (separados por coma):\n")
+        f.write(f"{', '.join(tags) if isinstance(tags, list) else tags}\n\n")
+        f.write("COMENTARIO A FIJAR:\n")
+        f.write(f"{meta.get('comentario_fijado', '')}\n")
+
+    print(f"✅ Guardado: {path}")
 
 def save_to_env(key: str, value: str, env_path: str = ".env") -> None:
     """Actualiza o agrega una variable en el archivo .env."""
@@ -307,9 +378,30 @@ def save_to_env(key: str, value: str, env_path: str = ".env") -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"  ✓ {key} guardado en {env_path}: '{value}'")
 
+def clean_output_dir(output_dir="social_posts") -> None:
+    """Borra los posts de la corrida anterior.
+
+    Los pasos 04, 05 y 06 ya limpiaban su carpeta; este no. Si un tema generaba
+    menos archivos que el anterior, quedaban mezclados los de dos temas.
+    """
+    if not os.path.isdir(output_dir):
+        return
+
+    borrados = 0
+    for file_name in os.listdir(output_dir):
+        if file_name.lower().endswith(".txt"):
+            os.remove(os.path.join(output_dir, file_name))
+            borrados += 1
+
+    if borrados:
+        print(f"🧹 {borrados} posts previos eliminados de '{output_dir}'")
+
+
 def main():
     print("📖 Leyendo script...")
     script = read_script("script.txt")
+
+    clean_output_dir()
 
     print("🔍 Investigando historia real...")
     research = research_real_history(script)
@@ -321,7 +413,10 @@ def main():
     save_posts(posts, research)
     print(f"\n🎉 Publicaciones guardadas en /social_posts")
 
-    # Título del video → .env
+    print("\n📺 Generando metadata de YouTube Shorts...")
+    save_youtube_metadata(generate_youtube_metadata(script, research))
+
+    # Gancho de pantalla del video → .env (lo consume el paso 07)
     titulo = generate_title(script)
     save_to_env("TITULO_VIDEO", titulo)
 

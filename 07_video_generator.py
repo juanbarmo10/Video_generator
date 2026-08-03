@@ -24,7 +24,7 @@ import shutil
 import math
 import random
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from moviepy.editor import (
     AudioFileClip, ImageClip, VideoClip, ColorClip,
     CompositeVideoClip, concatenate_videoclips
@@ -148,9 +148,15 @@ CONFIG = {
     # Cada imagen se parte en N encuadres distintos (Ken Burns sobre regiones
     # diferentes) para multiplicar los cortes SIN generar más imágenes.
     # Antes: 8 imágenes / 38s = 1 corte cada 4.9s — ritmo de diapositivas.
-    # Con 3: 24 planos / 38s = 1 corte cada 1.6s, que es el rango que retiene.
-    # Poner 1 restaura el comportamiento anterior.
-    "planos_por_imagen": 3,
+    #
+    # El número de planos se calcula solo a partir de "duracion_plano_objetivo",
+    # porque tanto la duración del audio como la cantidad de imágenes cambian
+    # (las fotos reales suman a la secuencia). Con un valor fijo, un guion corto
+    # + fotos reales daba cortes de 0.9s, que marean.
+    "duracion_plano_objetivo": 1.8,     # segundos por corte (1.5-2.5 retiene)
+    # Override manual: None = automático. Poner 1 restaura el comportamiento
+    # anterior (un plano por imagen, sin sub-planos).
+    "planos_por_imagen": None,
     # Escala mínima de los recortes. Ojo: 0.75 significa ampliar la imagen un
     # 33% extra. Con fuentes de 720x1280 no bajes de 0.85 o se ve pixelado.
     "recorte_escala_min": 0.85,
@@ -173,6 +179,20 @@ CONFIG = {
     # tenemos de Whisper, así que es gratis.
     "exportar_srt": True,
     "srt_palabras_por_linea": 6,
+
+    # ── Fotos reales mezcladas con las ilustraciones ──────────
+    # El paso 05 ya descarga fotos reales de Wikimedia/DuckDuckGo y hasta ahora
+    # solo se usaban en el carrusel. Para historia y deporte una foto real vale
+    # más que diez ilustraciones IA: da prueba, credibilidad y rompe la
+    # monotonía de estilo (8 imágenes con la misma paleta cansan la vista).
+    "usar_fotos_reales": True,
+    "fotos_reales_dir": "source_images",
+    "fotos_reales_max": 2,              # cuántas intercalar (0 = ninguna)
+    # Dónde caen, como fracción de la secuencia (0.0 = inicio, 1.0 = final).
+    # Se evita el arranque: ahí queremos el primer plano ilustrado del gancho.
+    "fotos_reales_posiciones": (0.45, 0.80),
+    # Tinte cálido para que la foto no choque con el estilo pergamino (0 = nada)
+    "fotos_reales_tinte": 0.18,
 }
 
 
@@ -191,10 +211,98 @@ def load_images(images_dir: str) -> list[str]:
     ])
     if not files:
         raise FileNotFoundError(f"No se encontraron imágenes .png en '{images_dir}'")
-    
+
     paths = [os.path.join(images_dir, f) for f in files]
     print(f"🖼️  {len(paths)} imágenes cargadas desde '{images_dir}'")
     return paths
+
+
+CACHE_FOTOS = ".cache_fotos_reales"
+
+
+def preparar_fotos_reales(cfg: dict) -> list[str]:
+    """Convierte las fotos reales del paso 05 (1080x1080) a 9:16 verticales.
+
+    El fondo se rellena con la propia foto ampliada y desenfocada, así no
+    aparecen barras negras ni hay que recortar la cara del protagonista.
+    Devuelve las rutas ya listas en el cache; [] si no hay fotos.
+    """
+    origen = cfg["fotos_reales_dir"]
+    if not os.path.isdir(origen):
+        return []
+
+    fotos = sorted(
+        f for f in os.listdir(origen)
+        if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))
+    )
+    if not fotos:
+        return []
+
+    # El cache es del tema EN CURSO: hay que vaciarlo o se cuelan fotos del anterior
+    if os.path.isdir(CACHE_FOTOS):
+        shutil.rmtree(CACHE_FOTOS)
+    os.makedirs(CACHE_FOTOS, exist_ok=True)
+
+    target_w, target_h = cfg["video_width"], cfg["video_height"]
+    tinte = cfg["fotos_reales_tinte"]
+    listas = []
+
+    for i, nombre in enumerate(fotos[: cfg["fotos_reales_max"]]):
+        try:
+            foto = Image.open(os.path.join(origen, nombre)).convert("RGB")
+        except Exception as exc:
+            print(f"⚠️  No se pudo abrir '{nombre}': {exc}")
+            continue
+
+        # Fondo: la misma foto ampliada a cubrir el frame y desenfocada
+        ratio = max(target_w / foto.width, target_h / foto.height)
+        fondo = foto.resize(
+            (int(foto.width * ratio), int(foto.height * ratio)), Image.LANCZOS
+        )
+        izq = (fondo.width - target_w) // 2
+        arr = (fondo.height - target_h) // 2
+        fondo = fondo.crop((izq, arr, izq + target_w, arr + target_h))
+        fondo = fondo.filter(ImageFilter.GaussianBlur(28))
+        fondo = ImageEnhance.Brightness(fondo).enhance(0.55)
+
+        # Primer plano: la foto completa escalada al ancho, centrada
+        escala = target_w / foto.width
+        frente = foto.resize(
+            (target_w, int(foto.height * escala)), Image.LANCZOS
+        )
+        fondo.paste(frente, (0, (target_h - frente.height) // 2))
+
+        # Tinte cálido para acercarla al look pergamino de las ilustraciones
+        if tinte > 0:
+            capa = Image.new("RGB", (target_w, target_h), (232, 196, 140))
+            fondo = Image.blend(fondo, capa, tinte)
+
+        destino = os.path.join(CACHE_FOTOS, f"real_{i}.png")
+        fondo.save(destino, "PNG")
+        listas.append(destino)
+
+    if listas:
+        print(f"📷  {len(listas)} fotos reales preparadas desde '{origen}'")
+    return listas
+
+
+def intercalar_fotos_reales(ilustraciones: list[str], fotos: list[str],
+                            cfg: dict) -> list[str]:
+    """Inserta las fotos reales en posiciones fijas de la secuencia."""
+    if not fotos:
+        return ilustraciones
+
+    secuencia = list(ilustraciones)
+    posiciones = cfg["fotos_reales_posiciones"]
+
+    # De atrás hacia adelante para que los índices ya calculados no se corran
+    for foto, frac in sorted(
+        zip(fotos, posiciones), key=lambda par: par[1], reverse=True
+    ):
+        idx = max(1, min(len(secuencia), round(len(ilustraciones) * frac)))
+        secuencia.insert(idx, foto)
+
+    return secuencia
 
 
 # ══════════════════════════════════════════════════════════════
@@ -277,6 +385,30 @@ ENCUADRES = [
 ]
 
 
+def repartir_planos(n_images: int, total_duration: float, cfg: dict) -> list[int]:
+    """Decide cuántos sub-planos recibe cada imagen para acercarse al ritmo objetivo.
+
+    Se calcula sobre la duración real del audio y la cantidad real de imágenes
+    (que varía: las fotos reales suman a la secuencia). Con un número fijo, un
+    guion corto + fotos reales daba cortes de 0.9s.
+    """
+    override = cfg.get("planos_por_imagen")
+    if override:
+        return [max(1, int(override))] * n_images
+
+    objetivo = cfg.get("duracion_plano_objetivo", 1.8)
+    total_planos = max(n_images, round(total_duration / objetivo))
+
+    base, resto = divmod(total_planos, n_images)
+    # Las imágenes que reciben el plano extra se reparten a lo largo de la
+    # secuencia, no todas al principio.
+    reparto = [base] * n_images
+    for j in range(resto):
+        reparto[round(j * n_images / resto) % n_images] += 1
+
+    return reparto
+
+
 def crear_planos_de_imagen(img_path: str, idx: int, n_planos: int,
                            dur_plano: float, cfg: dict) -> list:
     """Parte UNA imagen en varios planos con encuadre y movimiento distintos.
@@ -341,20 +473,24 @@ def create_video(image_paths: list[str], audio_path: str, cfg: dict):
     target_h = cfg["video_height"]
     crossfade = cfg["crossfade_duration"]
 
-    n_planos = max(1, cfg.get("planos_por_imagen", 1))
-    total_planos = n_images * n_planos
+    planos_por_img = repartir_planos(n_images, total_duration, cfg)
+    total_planos = sum(planos_por_img)
     dur_plano = total_duration / total_planos
 
-    print(f"🎬  Creando video: {n_images} imágenes × {n_planos} planos = "
-          f"{total_planos} cortes × {dur_plano:.2f}s = {total_duration:.2f}s total")
+    print(f"🎬  Creando video: {n_images} imágenes → {total_planos} cortes × "
+          f"{dur_plano:.2f}s = {total_duration:.2f}s total")
     if dur_plano > 3.0:
-        print(f"⚠️   {dur_plano:.1f}s por plano es lento para vertical "
-              f"(el rango que retiene es 1.5-2.5s) — sube 'planos_por_imagen'")
+        print(f"⚠️   {dur_plano:.1f}s por corte es lento para vertical "
+              f"(el rango que retiene es 1.5-2.5s)")
 
     clips = []
+    plano_global = 0
     for i, img_path in enumerate(image_paths):
-        for k, clip in enumerate(crear_planos_de_imagen(img_path, i, n_planos, dur_plano, cfg)):
-            clips.append(clip.set_start((i * n_planos + k) * dur_plano))
+        for k, clip in enumerate(
+            crear_planos_de_imagen(img_path, i, planos_por_img[i], dur_plano, cfg)
+        ):
+            clips.append(clip.set_start(plano_global * dur_plano))
+            plano_global += 1
 
     # Aplicar crossfade entre clips consecutivos
     if crossfade > 0 and len(clips) > 1:
@@ -777,6 +913,10 @@ def main():
 
     # ── Paso 1: Cargar imágenes ───────────────────────────────
     images = load_images(cfg["images_dir"])
+
+    # Intercalar fotos reales del paso 05 (credibilidad + contraste visual)
+    if cfg.get("usar_fotos_reales") and cfg.get("fotos_reales_max", 0) > 0:
+        images = intercalar_fotos_reales(images, preparar_fotos_reales(cfg), cfg)
 
     # ── Paso 2: Crear video base (imágenes + audio) ───────────
     video = create_video(images, cfg["audio_file"], cfg)

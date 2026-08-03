@@ -894,13 +894,30 @@ Extra: guarda si Whisper no transcribe nada, y aviso en consola si un plano dura
 
 ---
 
-### Fase 3 — Calidad de imagen y gancho (medio día, sube el costo por tema)
+### ✅ Fase 3 — Calidad de imagen y gancho — APLICADA
 
-- [ ] **BUG-06** — generar a 832×1472 (o 1088×1920) y bajar `zoom_max`
-- [ ] **BUG-12 / BUG-13** — prohibir escenas con texto, exigir rostros, quitar el borde de pergamino
-- [ ] **BUG-11** — seed variable por escena
-- [ ] **Parte 2 § A** — gancho de pantalla + metadata de YouTube
-- [ ] **Parte 2 § C** — mezclar fotos reales en el video
+- [x] **BUG-06** — `IMAGE_WIDTH/HEIGHT` = 832×1472 (antes 720×1280). Sube el costo
+      de fal ~1.3× por imagen; ver la tabla de BUG-06 si quieres 1088×1920
+- [x] **BUG-09** — JSON de escenas tolerante a ```` ```json ```` + error claro
+- [x] **BUG-10** — `MIN_IMAGENES = 6`; aborta en vez de entregar un video degradado
+- [x] **BUG-11** — seed `SEED_BASE + i*977` por escena
+- [x] **BUG-12** — fuera el `negative_prompt` (Flux dev lo ignoraba); anatomía al `BASE_PROMPT`
+- [x] **BUG-13** — prohibido centrar escenas en texto; escena 1 obligatoriamente
+      primer plano de rostro; mínimo 4 escenas con rostros
+- [x] **BUG-17** — el paso 02 limpia `social_posts/` antes de escribir
+- [x] **Parte 2 § A** — `generate_title()` reescrito para NO spoilear +
+      `generate_youtube_metadata()` → `social_posts/05_youtube.txt`
+- [x] **Parte 2 § C** — `preparar_fotos_reales()` + `intercalar_fotos_reales()`:
+      las fotos del paso 05 entran al video convertidas a 9:16 con fondo
+      desenfocado de la propia imagen y tinte cálido
+- [x] **Ritmo adaptativo** — `repartir_planos()` calcula los cortes desde
+      `duracion_plano_objetivo` (1.8 s) en vez de un número fijo
+
+> ⚠️ **Lo de la Fase 3 que NO está verificado end-to-end:** los cambios del paso 04
+> (resolución, seed, prompts) solo se pueden comprobar regenerando imágenes en fal,
+> y eso cuesta dinero real. Compilan y la lógica está revisada, pero **el primer
+> tema que corras completo es la prueba**. Córrelo con un `PROYECTO` de prueba
+> aislado antes del lote, y revisa que la escena 1 salga con un rostro.
 
 ---
 
