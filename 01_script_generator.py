@@ -2,7 +2,8 @@
 from dotenv import load_dotenv
 import os
 from openai import OpenAI
-import requests
+
+from estado import sellar_estado, reset_costo, registrar_openai, con_reintentos
 
 load_dotenv()
 
@@ -10,6 +11,7 @@ load_dotenv()
 # ========================================================================== #
 
 TEMA = os.environ.get("TEMA")
+PROYECTO = os.environ.get("PROYECTO")
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
 # ========================================================================== #
@@ -70,21 +72,38 @@ FORMATO DE SALIDA:
 Solo el guion. Sin títulos, sin explicaciones, sin comillas.
 """
 
-response = client.chat.completions.create(
-    model="gpt-4.1",
-    messages=[
-    {"role": "system", "content": (
-        "Eres un periodista riguroso que escribe como guionista. "
-        "Nunca inventas ni exageras. Si un hecho real ya es sorprendente, "
-        "lo cuentas tal cual — eso es suficiente. "
-        "Preferirías no escribir nada antes que distorsionar la verdad."
-    )},
-    {"role": "user", "content": prompt}
-]
+# El paso 01 abre el tema: reinicia el contador de costo.
+reset_costo()
+
+response = con_reintentos(
+    lambda: client.chat.completions.create(
+        model="gpt-4.1",
+        messages=[
+            {"role": "system", "content": (
+                "Eres un periodista riguroso que escribe como guionista. "
+                "Nunca inventas ni exageras. Si un hecho real ya es sorprendente, "
+                "lo cuentas tal cual — eso es suficiente. "
+                "Preferirías no escribir nada antes que distorsionar la verdad."
+            )},
+            {"role": "user", "content": prompt}
+        ]
+    ),
+    etiqueta="guion (gpt-4.1)"
 )
+
+registrar_openai(response, "gpt-4.1", "guion")
 
 script = response.choices[0].message.content
 print(script)
+print(f"\n📏 {len(script.split())} palabras (objetivo: 65-75)")
 
 with open("script.txt", "w", encoding="utf-8") as f:
     f.write(script)
+
+# Sello del tema en curso. Los archivos de la raíz (script.txt, voice.mp3,
+# images_IA/...) son estado global compartido: si un paso falla a mitad, los
+# siguientes seguirían trabajando con los datos del tema ANTERIOR sin notarlo.
+# Los pasos 03, 04 y 07 comparan contra este archivo antes de tocar nada.
+if PROYECTO:
+    sellar_estado(PROYECTO, TEMA or "")
+    print(f"🔖 Estado sellado: {PROYECTO}")

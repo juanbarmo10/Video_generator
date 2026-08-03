@@ -140,24 +140,29 @@ def search_duckduckgo(query: str) -> list[str]:
         print(f"    DuckDuckGo error: {exc}")
     return []
 
-def resize_for_social(src: Path, out_dir: Path) -> None:
+def resize_for_social(src: Path) -> None:
+    """Recorta la imagen a 1080x1080 sobrescribiendo el original.
+
+    Antes recibía `out_dir.parent` y reconstruía la ruta como
+    `out_dir/"source_images"/nombre`, que solo funcionaba porque --out valía
+    justo "source_images". Con cualquier otro valor escribía en otra carpeta.
+    """
     img = Image.open(src).convert("RGB")
     target_w, target_h = 1080, 1080
-    
+
     # Escalar manteniendo proporción hasta cubrir el cuadrado
     ratio = max(target_w / img.width, target_h / img.height)
     new_w = int(img.width * ratio)
     new_h = int(img.height * ratio)
     img = img.resize((new_w, new_h), Image.LANCZOS)
-    
+
     # Crop centrado
     left = (new_w - target_w) // 2
     top  = (new_h - target_h) // 2
     img  = img.crop((left, top, left + target_w, top + target_h))
-    
-    dest = out_dir / "source_images" / src.name
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    img.save(dest, "JPEG", quality=90)
+
+    src.parent.mkdir(parents=True, exist_ok=True)
+    img.save(src, "JPEG", quality=90)
 
 def is_relevant(query: str, result: dict) -> bool:
     """Verifica que el resultado tenga relación con el query."""
@@ -224,7 +229,7 @@ def process(entries: list[tuple[str, str]], out_dir: Path) -> None:
                 used_titles.add(title)
                 size_kb = dest.stat().st_size // 1024
                 print(f"  ✓ Saved → {dest}  ({size_kb} KB)")
-                resize_for_social(dest, out_dir.parent)
+                resize_for_social(dest)
                 downloaded = True
                 break
             time.sleep(DELAY)
@@ -239,7 +244,7 @@ def process(entries: list[tuple[str, str]], out_dir: Path) -> None:
                     print(f"    ⚠ Imagen con posibles derechos: {url[:60]}")
                     if download(url, dest):
                         print(f"  ✓ Guardado desde DuckDuckGo → {dest}")
-                        resize_for_social(dest, out_dir.parent)
+                        resize_for_social(dest)
                         downloaded = True
                         break
                 if downloaded:

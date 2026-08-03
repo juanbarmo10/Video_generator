@@ -32,7 +32,12 @@ from moviepy.editor import (
 from faster_whisper import WhisperModel
 from dotenv import load_dotenv
 
+from estado import verificar_estado
+
 load_dotenv()
+
+# Aborta si voice.mp3 / images_IA son de otro tema (ver estado.py)
+verificar_estado("paso 07")
 # ══════════════════════════════════════════════════════════════
 # ⚙️  CONFIGURACIÓN CENTRAL — Ajusta todo aquí
 # ══════════════════════════════════════════════════════════════

@@ -11,7 +11,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import fal_client
 
+from estado import (verificar_estado, registrar_openai,
+                    registrar_imagen_fal, resumen_costo)
+
 load_dotenv()
+
+# Aborta si script.txt es de otro tema (ver estado.py)
+verificar_estado("paso 04")
 
 # ========================================================================== #
 
@@ -93,6 +99,8 @@ def extract_context(script: str) -> dict | None:
                 Texto: {script}"""}
         ]
     )
+
+    registrar_openai(response, "gpt-4.1", "contexto")
 
     try:
         context = json.loads(response.choices[0].message.content)
@@ -185,6 +193,8 @@ Texto:
             }
         ]
     )
+
+    registrar_openai(response, "gpt-4.1", "escenas")
 
     # extract_context() sí se protegía del JSON mal formado; esto no. Un bloque
     # ```json al inicio abortaba el tema entero con el guion, la voz y las 6
@@ -398,6 +408,7 @@ def generate_image(prompt, seed, idx, output_dir="images_IA"):
         with open(file_path, "wb") as f:
             f.write(img_data)
 
+        registrar_imagen_fal(IMAGE_WIDTH, IMAGE_HEIGHT)
         print(f"✅ Imagen guardada: {file_path}")
         return file_path
 
@@ -471,6 +482,7 @@ if __name__ == "__main__":
 
     images = generate_images_from_script(script, n_scenes=8)
 
+    print(resumen_costo())
     print("\n📁 Imágenes generadas:")
     for img in images:
         print(img)

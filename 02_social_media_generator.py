@@ -10,10 +10,15 @@ from dotenv import load_dotenv
 import shutil
 from pathlib import Path
 
+from estado import verificar_estado, registrar_openai, resumen_costo
+
 load_dotenv()
 
 # ========================================================================== #
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# Aborta si script.txt es de otro tema (ver estado.py)
+verificar_estado("paso 02")
 
 PROYECTO = os.environ.get("PROYECTO")
 
@@ -48,6 +53,7 @@ def research_real_history(script: str) -> str:
         #tools=[{"type": "web_search_preview"}],
         max_tokens=800
     )
+    registrar_openai(response, "gpt-4.1", "investigación")
     return response.choices[0].message.content
 
 def generate_posts(script: str, research: str) -> dict:
@@ -146,6 +152,7 @@ Reglas:
             max_tokens=1500
         )
         
+        registrar_openai(response, "gpt-4.1", f"post {platform}")
         results[platform] = response.choices[0].message.content
 
     return results
@@ -234,6 +241,8 @@ def generate_image_descriptions(instagram_content: str, script: str) -> list:
         max_tokens=120
     )
 
+    registrar_openai(response, "gpt-4.1", "queries imagen")
+
     raw = response.choices[0].message.content.strip()
 
     lines = [
@@ -300,6 +309,7 @@ def generate_title(script: str) -> str:
         ],
         max_tokens=30
     )
+    registrar_openai(response, "gpt-4.1", "gancho")
     return response.choices[0].message.content.strip()
 
 
@@ -331,6 +341,7 @@ def generate_youtube_metadata(script: str, research: str) -> dict:
         ],
         max_tokens=700
     )
+    registrar_openai(response, "gpt-4.1", "metadata youtube")
 
     try:
         return json.loads(response.choices[0].message.content)
@@ -430,6 +441,7 @@ def main():
 
     shutil.copytree("social_posts", f"proyectos/{PROYECTO}/social_posts", dirs_exist_ok=True)
     print(f"\n✍️  Respaldo guardado en proyectos/{PROYECTO}/social_posts")
+    print(resumen_costo())
 
 if __name__ == "__main__":
     main()

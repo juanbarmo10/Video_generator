@@ -38,10 +38,21 @@ update_env() {
 echo "🗂️  $TOTAL temas encontrados. Iniciando..."
 echo "============================================"
 
-while IFS=',' read -r PROYECTO TEMA || [[ -n "$PROYECTO" ]]; do
+while IFS=',' read -r PROYECTO TEMA EXTRA || [[ -n "$PROYECTO" ]]; do
     # Saltar líneas vacías o incompletas: correr el pipeline con estas variables
     # vacías es lo que creaba 'proyectos//social_posts' y 'video_None.mp4'
     if [[ -z "${PROYECTO// /}" || -z "${TEMA// /}" ]]; then
+        continue
+    fi
+
+    # Una coma de más (p. ej. "Mundial11,Maradona,") metía todos los campos
+    # sobrantes en $TEMA, que quedaba como "Maradona," y ensuciaba el guion.
+    # Capturar $EXTRA aparte permite detectarlo en vez de tragárselo.
+    if [[ -n "${EXTRA// /}" ]]; then
+        echo "❌ Fila malformada (más de 2 campos): '$PROYECTO,$TEMA,$EXTRA'" >&2
+        echo "   El formato es PROYECTO,TEMA — quita la coma sobrante." >&2
+        echo "$PROYECTO,$TEMA" >> "$FAILED_FILE"
+        FAILED=$((FAILED + 1))
         continue
     fi
 

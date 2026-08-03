@@ -5,7 +5,12 @@ import os
 import subprocess
 import requests
 
+from estado import verificar_estado, registrar_elevenlabs, resumen_costo
+
 load_dotenv()
+
+# Aborta si script.txt es de otro tema (ver estado.py)
+verificar_estado("paso 03")
 
 # ========================================================================== #
 elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY")
@@ -75,6 +80,7 @@ with open(output, "wb") as f:
     f.write(response.content)
 
 print(f"✅ Voz generada: '{output}' ({len(response.content) // 1024} KB)")
+registrar_elevenlabs(len(script))
 
 
 def duracion(path: str) -> float:

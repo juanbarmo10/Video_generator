@@ -921,14 +921,27 @@ Extra: guarda si Whisper no transcribe nada, y aviso en consola si un plano dura
 
 ---
 
-### Fase 4 — Robustez y operación (1 día)
+### ✅ Fase 4 — Robustez y operación — APLICADA (código)
 
-- [ ] **BUG-09 / BUG-10** — JSON robusto + mínimo de imágenes
-- [ ] **BUG-16 / BUG-17 / BUG-18** — limpieza de deuda
-- [ ] `git init` + `.gitignore` + `requirements.txt`
-- [ ] Sello `.estado_actual` contra mezcla de temas
-- [ ] Contador de costo por tema
-- [ ] Calendario de publicación 1/día + registro de métricas a las 24 h y 7 días
+- [x] **BUG-09 / BUG-10** — JSON robusto + mínimo de imágenes *(entró en Fase 3)*
+- [x] **BUG-16** — `resize_for_social()` recibe la ruta destino en vez de reconstruirla
+- [x] **BUG-17** — el paso 02 limpia `social_posts/` *(entró en Fase 3)*
+- [x] **BUG-18** — fila `Mundial11,Maradona,` corregida en `temas.csv`, y `run_all.sh`
+      ahora **rechaza** filas con más de 2 campos en vez de tragárselas
+- [x] `git init` + `.gitignore` (excluye `.env`) + `.env.example` + `requirements.txt`
+- [x] Sello `.estado_actual` — nuevo módulo [estado.py](estado.py). El paso 01 sella el
+      `PROYECTO`; los pasos 02, 03, 04 y 07 abortan si los archivos de la raíz son de otro tema
+- [x] Contador de costo por tema en `.costo_actual.json` (OpenAI por tokens, fal por
+      megapíxel, ElevenLabs por carácter). Los pasos 02 y 04 lo imprimen al terminar
+- [x] `con_reintentos()` con backoff exponencial (aplicado al paso 01)
+- [ ] **Pendiente tuyo:** calendario de publicación 1/día + registro de métricas a 24 h y 7 días
+
+> Los precios de `PRECIOS_OPENAI`, `PRECIO_FAL_POR_MP` y `PRECIO_ELEVENLABS_POR_CHAR` en
+> `estado.py` son de mayo 2026 y **están puestos a mano**: si cambian las tarifas, el contador
+> miente. Trátalo como orden de magnitud, no como factura.
+>
+> `con_reintentos()` solo envuelve la llamada del paso 01. Extenderlo a las 7 llamadas del paso 02
+> y las 2 del paso 04 es mecánico y queda pendiente.
 
 ---
 
