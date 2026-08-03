@@ -20,6 +20,7 @@ Archivos necesarios:
 """
 
 import os
+import re
 import shutil
 import math
 import random
@@ -193,6 +194,14 @@ CONFIG = {
     "usar_fotos_reales": True,
     "fotos_reales_dir": "source_images",
     "fotos_reales_max": 2,              # cuántas intercalar (0 = ninguna)
+    # De qué queries salen las fotos que entran al video. El paso 02 obliga a que
+    # "la primera y la última descripción" contengan al protagonista, así que
+    # img_0 y la última son las únicas con el protagonista garantizado. Las del
+    # medio son entidades secundarias (estadios, otros equipos) y meter una foto
+    # irrelevante es PEOR que no meter ninguna: rompe la credibilidad justo
+    # cuando la foto real estaba ahí para darla.
+    # None = usar todas (comportamiento viejo).
+    "fotos_reales_solo_extremos": True,
     # Dónde caen, como fracción de la secuencia (0.0 = inicio, 1.0 = final).
     # Se evita el arranque: ahí queremos el primer plano ilustrado del gancho.
     "fotos_reales_posiciones": (0.45, 0.80),
@@ -236,12 +245,35 @@ def preparar_fotos_reales(cfg: dict) -> list[str]:
     if not os.path.isdir(origen):
         return []
 
-    fotos = sorted(
-        f for f in os.listdir(origen)
-        if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))
-    )
+    # Solo archivos con el patrón que escribe el paso 05 (img_N.ext). Cualquier
+    # cosa dejada a mano en source_images/ (fotos personales, documentos) NO
+    # entra al video: acaba quemada en contenido que se publica.
+    PATRON_PIPELINE = re.compile(r"^img_(\d+)\.(jpg|jpeg|png|webp)$", re.IGNORECASE)
+
+    coincidencias = [
+        (int(m.group(1)), f)
+        for f in os.listdir(origen)
+        if (m := PATRON_PIPELINE.match(f))
+    ]
+
+    ajenos = [f for f in os.listdir(origen)
+              if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))
+              and not PATRON_PIPELINE.match(f)]
+    if ajenos:
+        print(f"⚠️  Ignorando {len(ajenos)} archivo(s) ajenos al pipeline en "
+              f"'{origen}': {', '.join(ajenos[:3])}")
+
+    # img_10 va después de img_2, no antes (sorted() de strings es lexicográfico)
+    fotos = [f for _, f in sorted(coincidencias)]
     if not fotos:
         return []
+
+    # Quedarse solo con las que tienen al protagonista garantizado por el prompt
+    # del paso 02 (la primera y la última query). Las intermedias son entidades
+    # secundarias y suelen traer fotos genéricas sin relación con la historia.
+    if cfg.get("fotos_reales_solo_extremos") and len(fotos) > 2:
+        fotos = [fotos[0], fotos[-1]]
+        print(f"🎯 Solo las fotos de las queries con protagonista: {fotos}")
 
     # El cache es del tema EN CURSO: hay que vaciarlo o se cuelan fotos del anterior
     if os.path.isdir(CACHE_FOTOS):

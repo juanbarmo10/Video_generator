@@ -12,14 +12,22 @@ Usage:
 """
 
 import re
+import os
 import sys
 import time
+import base64
 import argparse
 from pathlib import Path
 import requests
 from ddgs import DDGS
 from PIL import Image
 import io
+from openai import OpenAI
+from dotenv import load_dotenv
+
+from estado import registrar_openai
+
+load_dotenv()
 
 # ── Config ────────────────────────────────────────────────────────────────────
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
@@ -28,7 +36,21 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; ImageBot/1.0"}
 DOWNLOAD_HEADERS = {**HEADERS, "Referer": "https://commons.wikimedia.org/"}
 DELAY = 7.0          # seconds between requests (be polite)
 THUMB_WIDTH = 1200   # px – request a reasonably large thumbnail
+
+# ── Validación visual ─────────────────────────────────────────────────────────
+# is_relevant() solo mira el título y la URL del resultado, así que una foto
+# puede pasar el filtro y no tener nada que ver: en Mundial16 entró al video un
+# partido genérico entre dos equipos que no eran ni el PSG ni el América.
+# Meter una foto irrelevante es PEOR que no meter ninguna — la foto real estaba
+# ahí justamente para dar credibilidad.
+# Esto mira la imagen de verdad y la rechaza si no corresponde. Cuesta ~1 llamada
+# barata por imagen descargada (se envía reescalada a 512px para abaratarla).
+VALIDAR_CON_VISION = True
+VISION_MODELO = "gpt-4.1"
+VISION_MAX_PX = 512          # lado mayor al que se reescala antes de enviar
 # ─────────────────────────────────────────────────────────────────────────────
+
+_openai = OpenAI(api_key=os.getenv("OPENAI_API_KEY")) if os.getenv("OPENAI_API_KEY") else None
 
 
 
@@ -164,6 +186,69 @@ def resize_for_social(src: Path) -> None:
     src.parent.mkdir(parents=True, exist_ok=True)
     img.save(src, "JPEG", quality=90)
 
+def _imagen_a_data_url(path: Path, max_px: int = VISION_MAX_PX) -> str:
+    """Reescala la imagen y la codifica en base64 para mandarla al modelo."""
+    img = Image.open(path).convert("RGB")
+    img.thumbnail((max_px, max_px), Image.LANCZOS)
+
+    buffer = io.BytesIO()
+    img.save(buffer, "JPEG", quality=80)
+    b64 = base64.b64encode(buffer.getvalue()).decode("ascii")
+    return f"data:image/jpeg;base64,{b64}"
+
+
+def validar_con_vision(path: Path, query: str) -> bool:
+    """¿La imagen muestra realmente lo que pide la query?
+
+    Ante cualquier fallo (sin API key, error de red, respuesta rara) devuelve
+    True: es un filtro de calidad, no una guarda de seguridad. Bloquear el
+    pipeline porque el validador se cayó sería peor que dejar pasar una foto.
+    """
+    if not VALIDAR_CON_VISION or _openai is None:
+        return True
+
+    try:
+        response = _openai.chat.completions.create(
+            model=VISION_MODELO,
+            max_tokens=5,
+            messages=[
+                {"role": "system", "content": (
+                    "Verificas si una foto es utilizable para ilustrar una "
+                    "búsqueda. Responde SOLO 'SI' o 'NO'.\n\n"
+                    "Responde NO solo si la foto es CLARAMENTE ajena:\n"
+                    "- muestra otra persona, lugar, equipo o época\n"
+                    "- es un retrato o foto personal sin relación con el tema\n"
+                    "- es un documento, pasaporte, captura de pantalla, mapa, "
+                    "gráfico, logo o escudo suelto\n"
+                    "- es una imagen de stock genérica sin relación\n\n"
+                    "Responde SI si el contexto encaja, AUNQUE el sujeto esté "
+                    "lejos, de espaldas, borroso o no se le vea la cara. Una "
+                    "foto de un partido con los colores y el estadio correctos "
+                    "es utilizable aunque no se distingan los rostros.\n"
+                    "No exijas certeza de identidad: exige que la escena "
+                    "pertenezca al mundo de la búsqueda."
+                )},
+                {"role": "user", "content": [
+                    {"type": "text", "text": f"Se buscó: «{query}». ¿La foto corresponde?"},
+                    {"type": "image_url",
+                     "image_url": {"url": _imagen_a_data_url(path), "detail": "low"}},
+                ]},
+            ],
+        )
+        registrar_openai(response, VISION_MODELO, "validación visual")
+
+        veredicto = response.choices[0].message.content.strip().upper()
+        aprobada = veredicto.startswith("SI") or veredicto.startswith("SÍ")
+
+        if not aprobada:
+            print(f"    🚫 Descartada por visión: no corresponde a '{query}'")
+        return aprobada
+
+    except Exception as exc:
+        print(f"    ⚠️  Validación visual falló ({type(exc).__name__}) — se acepta la foto")
+        return True
+
+
 def is_relevant(query: str, result: dict) -> bool:
     """Verifica que el resultado tenga relación con el query."""
     keywords = set(query.lower().split())
@@ -227,6 +312,14 @@ def process(entries: list[tuple[str, str]], out_dir: Path) -> None:
             print(f"  ↓ {title[:70]}")
             if download(url, dest):
                 used_titles.add(title)
+
+                # Mirar la imagen de verdad antes de quedársela: si no
+                # corresponde, se borra y se prueba con la siguiente candidata.
+                if not validar_con_vision(dest, query):
+                    dest.unlink(missing_ok=True)
+                    time.sleep(DELAY)
+                    continue
+
                 size_kb = dest.stat().st_size // 1024
                 print(f"  ✓ Saved → {dest}  ({size_kb} KB)")
                 resize_for_social(dest)
@@ -243,6 +336,11 @@ def process(entries: list[tuple[str, str]], out_dir: Path) -> None:
                 for url in search_duckduckgo(q):
                     print(f"    ⚠ Imagen con posibles derechos: {url[:60]}")
                     if download(url, dest):
+                        # DuckDuckGo es donde entra la mayor parte de la basura:
+                        # aquí la validación visual es la que más aporta.
+                        if not validar_con_vision(dest, query):
+                            dest.unlink(missing_ok=True)
+                            continue
                         print(f"  ✓ Guardado desde DuckDuckGo → {dest}")
                         resize_for_social(dest)
                         downloaded = True
@@ -250,7 +348,8 @@ def process(entries: list[tuple[str, str]], out_dir: Path) -> None:
                 if downloaded:
                     break
             if not downloaded:
-                print("  ✗ No encontrado en ninguna fuente")
+                print("  ✗ No encontrado en ninguna fuente — "
+                      "el video seguirá sin esta foto real")
 
         time.sleep(DELAY)
 

@@ -371,9 +371,19 @@ IMAGE_HEIGHT = 1472
 # distinta entre escenas (ver generate_images_from_script).
 SEED_BASE = 12345
 
+# ── Cuántas escenas generar ───────────────────────────────────────────────
+# Bajado de 8 a 6 para COMPENSAR la subida de resolución de BUG-06. fal cobra
+# por megapíxel, así que lo que importa es el total, no el número de imágenes:
+#   antes:  8 x 0.92 MP (720x1280)  = 7.37 MP
+#   ahora:  6 x 1.22 MP (832x1472)  = 7.35 MP   ← mismo gasto, +33% de nitidez
+# El ritmo del video NO se resiente: repartir_planos() del paso 07 calcula los
+# cortes desde la duración del audio, no desde el número de imágenes (con 6 u 8
+# imágenes salen los mismos 14 cortes de 1.86s), y además entran 2 fotos reales.
+N_ESCENAS = 6
+
 # Mínimo de imágenes para que el video tenga sentido. Con menos, aborta el tema
 # en vez de entregar un video degradado en silencio.
-MIN_IMAGENES = 6
+MIN_IMAGENES = 5
 
 
 def generate_image(prompt, seed, idx, output_dir="images_IA"):
@@ -480,7 +490,7 @@ if __name__ == "__main__":
     with open(path_script, "r", encoding="utf-8") as f:
         script = f.read()
 
-    images = generate_images_from_script(script, n_scenes=8)
+    images = generate_images_from_script(script, n_scenes=N_ESCENAS)
 
     print(resumen_costo())
     print("\n📁 Imágenes generadas:")

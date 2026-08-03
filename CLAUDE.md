@@ -103,6 +103,12 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
   (⚠ posibles derechos de autor). `DELAY = 7.0s` entre requests para no ser bloqueado, así que este paso
   es el más lento del pipeline. Cada imagen se recorta a 1080×1080 sobrescribiendo el original. Vacía
   `source_images/` (jpg, jpeg, png, webp) antes de descargar.
+  **`validar_con_vision()`** mira cada imagen descargada con `gpt-4.1` y la descarta si no corresponde
+  a la query, probando con la siguiente candidata (`is_relevant()` solo miraba título y URL, y dejaba
+  pasar fotos sin ninguna relación). Ante cualquier fallo acepta la foto: es filtro de calidad, no
+  guarda de seguridad. Se desactiva con `VALIDAR_CON_VISION = False`.
+  ⚠️ **No dejes archivos a mano en `source_images/`**: el paso 06 la lee entera para el carrusel de
+  Instagram. El paso 07 sí filtra por el patrón `img_N.ext`, pero el 06 no.
 - **06** — Slide 1 = portada (hook), slides intermedios = cuerpo, slide final = CTA sobre
   `perfil/historia_profile.png` (obligatorio, se pasa con `--profile`). Filtros de imagen y borde
   configurables en `CONFIG`. Marca de agua `@chistoricas3` arriba a la izquierda. Limpia

@@ -945,6 +945,52 @@ Extra: guarda si Whisper no transcribe nada, y aviso en consola si un plano dura
 
 ---
 
+### ✅ Fase 5 — Costo de fal y calidad de las fotos reales — APLICADA
+
+**El costo de fal NO sube por los cortes.** `crear_planos_de_imagen()` recorta la *misma* imagen en
+varios encuadres: 8 → 19 cortes se hizo con exactamente las mismas 8 imágenes. Lo que subió el costo
+fue la resolución de BUG-06. Y como fal cobra por **megapíxel**, lo que importa es el total:
+
+| Configuración | MP/tema | vs. original |
+|---|---|---|
+| 8 imgs @ 720×1280 (antes de todo) | 7.37 | 100 % |
+| 8 imgs @ 832×1472 (Fase 3) | 9.80 | 133 % |
+| **6 imgs @ 832×1472 (ahora)** | **7.35** | **100 %** |
+| 6 imgs @ 1088×1920 | 12.53 | 170 % |
+| 5 imgs @ 832×1472 | 6.12 | 83 % |
+
+- [x] **`N_ESCENAS` 8 → 6** en el paso 04 (`MIN_IMAGENES` 6 → 5). Vuelve al gasto original
+      conservando el +33 % de nitidez. **El ritmo no se resiente**: `repartir_planos()` calcula los
+      cortes desde la duración del audio, no desde el número de imágenes — con 6 u 8 salen los
+      mismos 14 cortes de 1.86 s.
+
+**Palancas de costo, de mayor a menor efecto:** número de temas por mes ≫ `N_ESCENAS` ≈ resolución
+≫ todo lo demás. `duracion_plano_objetivo`, `planos_por_imagen` y las fotos reales cuestan **cero**.
+
+#### Fotos reales irrelevantes
+
+- [x] **`fotos_reales_solo_extremos`** (paso 07) — solo entran al video las fotos de la primera y la
+      última query, que son las únicas donde el paso 02 obliga a incluir al protagonista
+- [x] **`validar_con_vision()`** (paso 05) — mira la imagen de verdad con `gpt-4.1` y, si no
+      corresponde, la borra y prueba con la siguiente candidata. Se aplica también al fallback de
+      DuckDuckGo, que es por donde entra casi toda la basura. La imagen se manda reescalada a 512 px
+      con `detail: "low"` para abaratar la llamada. Si falla (sin API key, error de red) **acepta la
+      foto**: es un filtro de calidad, no una guarda de seguridad, y no debe bloquear el pipeline.
+- [x] **Filtro por patrón `img_N.ext`** (paso 07) — lo que se deje a mano en `source_images/` ya no
+      puede llegar al video
+
+Calibración verificada 4/4: acepta una foto de partido con el sujeto lejano y contexto correcto;
+rechaza un retrato personal, un documento y una foto válida contra la query equivocada. El primer
+prompt era demasiado estricto (rechazaba fotos buenas donde no se distinguía la cara).
+
+> ⚠️ **`source_images/` tenía dos archivos personales** — `pasaporte_paula.jpeg` y un retrato
+> familiar antiguo guardado como `img_5.jpg`. El segundo pasaba todos los filtros porque **usa el
+> nombre que genera el pipeline**, y con `solo_extremos` habría entrado al video. Revisa esa carpeta:
+> el paso 06 la lee para el carrusel de Instagram y el 07 para el video. Ninguno de los dos está en
+> git (`source_images/` está en `.gitignore`), pero sí podían acabar publicados.
+
+---
+
 ### Cómo medir si funcionó
 
 Antes de tocar nada, anota de los 16 videos actuales: **retención media**, **% de espectadores que
