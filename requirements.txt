@@ -1,0 +1,24 @@
+# Entorno conda: ai_video_bot (Python 3.11)
+#   source /home/juanb/miniforge3/etc/profile.d/conda.sh && conda activate ai_video_bot
+#   pip install -r requirements.txt
+
+# ⚠️ moviepy DEBE quedarse en 1.0.3: la 2.x cambia la API (`from moviepy.editor import ...`)
+# y rompe los pasos 07 y 08 completos.
+moviepy==1.0.3
+
+# Video / imagen
+Pillow>=10.0
+numpy>=1.24
+faster-whisper>=1.0
+
+# APIs
+openai>=1.0
+fal-client>=0.4
+requests>=2.31
+python-dotenv>=1.0
+
+# Descarga de imágenes reales (paso 05)
+ddgs>=6.0
+
+# Binario externo requerido (no se instala con pip):
+#   ffmpeg / ffprobe  →  sudo apt install ffmpeg

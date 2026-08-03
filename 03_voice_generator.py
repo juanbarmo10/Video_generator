@@ -1,0 +1,223 @@
+
+#%%
+from dotenv import load_dotenv
+import os
+from openai import OpenAI
+import requests
+
+load_dotenv()
+
+# ========================================================================== #
+elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY")
+
+path_script= "script.txt"
+output = "voice.mp3"
+
+# ========================================================================== #
+
+with open(path_script, "r", encoding="utf-8") as f:
+    script = f.read()
+
+voice_id = "l1zE9xgNpUTaQCZzpNJa"
+#voice_id = "QhRZzy7zvGun8cV3aJaM"
+url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+
+headers = {
+    "xi-api-key": elevenlabs_api_key,
+    "Content-Type": "application/json",
+    "accept": "audio/mpeg"
+}
+
+data = {
+    "text": script,
+    "model_id": "eleven_multilingual_v2",
+    "voice_settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.75,
+        "style": 0.7,
+        "use_speaker_boost": True
+    }
+}
+
+response = requests.post(url, json=data, headers=headers)
+
+print(response.status_code)
+print(response.text)
+
+if response.status_code == 200:
+    with open(output, "wb") as f:
+        f.write(response.content)
+else:
+    print("Error en ElevenLabs:", response.text)
+
+
+
+# """
+# 🎙️ GENERADOR DE VOZ — Google Cloud Text-to-Speech
+# Lee script.txt → genera voice.mp3
+# API key desde .env — sin necesidad de service account
+# """
+
+# import os
+# import json
+# import base64
+# import requests
+# from dotenv import load_dotenv
+
+# load_dotenv()
+
+# # ══════════════════════════════════════════════════════════════
+# # ⚙️  CONFIGURACIÓN
+# # ══════════════════════════════════════════════════════════════
+
+# CONFIG = {
+#     "input_file":  "script.txt",
+#     "output_file": "voice.mp3",
+
+#     # Voces recomendadas en español — masculinas, narración:
+#     #
+#     # Neural2 (mejor calidad, 1M chars/mes gratis):
+#     #   "es-US-Neural2-B"  → grave, neutro latinoamericano   ← prueba este primero
+#     #   "es-US-Neural2-C"  → femenina
+#     #   "es-ES-Neural2-B"  → masculina, acento España
+#     #
+#     # Wavenet (muy buena calidad, 1M chars/mes gratis):
+#     #   "es-US-Wavenet-B"  → masculina, latinoamericano
+#     #   "es-US-Wavenet-C"  → femenina, latinoamericano
+#     #
+#     # Standard (calidad básica, 4M chars/mes gratis):
+#     #   "es-US-Standard-B" → masculina, latinoamericano
+#     #
+#     "voice_name":     "es-US-Neural2-B",
+#     "language_code":  "es-US",
+
+#     # Velocidad: 0.25 (muy lento) → 1.0 (normal) → 4.0 (muy rápido)
+#     "speaking_rate": 0.95,
+
+#     # Tono: -20.0 (muy grave) → 0.0 (normal) → 20.0 (muy agudo)
+#     "pitch": -2.0,
+
+#     # Volumen: -96.0 → 0.0 (normal) → 16.0
+#     "volume_gain_db": 0.0,
+# }
+
+# # ══════════════════════════════════════════════════════════════
+# # 🎙️  GENERACIÓN
+# # ══════════════════════════════════════════════════════════════
+
+# def generate_voice(cfg: dict = CONFIG):
+#     api_key = os.getenv("GOOGLE_TTS_API_KEY")
+#     if not api_key:
+#         raise ValueError("Falta GOOGLE_TTS_API_KEY en el .env")
+
+#     with open(cfg["input_file"], "r", encoding="utf-8") as f:
+#         text = f.read().strip()
+
+#     if not text:
+#         raise ValueError(f"El archivo '{cfg['input_file']}' está vacío.")
+
+#     print(f"📄 Script: {len(text)} caracteres")
+#     print(f"🎙️  Voz: {cfg['voice_name']} | Velocidad: {cfg['speaking_rate']} | Tono: {cfg['pitch']}")
+
+#     url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={api_key}"
+
+#     payload = {
+#         "input": {"text": text},
+#         "voice": {
+#             "languageCode": cfg["language_code"],
+#             "name":         cfg["voice_name"],
+#         },
+#         "audioConfig": {
+#             "audioEncoding":  "MP3",
+#             "speakingRate":   cfg["speaking_rate"],
+#             "pitch":          cfg["pitch"],
+#             "volumeGainDb":   cfg["volume_gain_db"],
+#         }
+#     }
+
+#     response = requests.post(url, json=payload)
+
+#     if response.status_code != 200:
+#         raise Exception(f"❌ Error Google TTS: {response.status_code} — {response.text}")
+
+#     audio_base64 = response.json()["audioContent"]
+#     audio_bytes  = base64.b64decode(audio_base64)
+
+#     with open(cfg["output_file"], "wb") as f:
+#         f.write(audio_bytes)
+
+#     size_kb = os.path.getsize(cfg["output_file"]) / 1024
+#     print(f"✅ Audio guardado: '{cfg['output_file']}' ({size_kb:.1f} KB)")
+
+
+# # ══════════════════════════════════════════════════════════════
+# # 🧪  MODO PRUEBA — compara todas las voces masculinas
+# # ══════════════════════════════════════════════════════════════
+
+# def test_all_voices(cfg: dict = CONFIG):
+#     """Genera un sample con cada voz para que elijas la que más te guste."""
+
+#     api_key = os.getenv("GOOGLE_TTS_API_KEY")
+
+#     with open(cfg["input_file"], "r", encoding="utf-8") as f:
+#         sample = f.read().strip()[:300]  # primeras 300 letras para ahorrar cuota
+
+#     voices = [
+#         ("es-US-Neural2-B",  "es-US"),  # masculina Neural2 latinoam.
+#         ("es-US-Neural2-C",  "es-US"),  # femenina  Neural2 latinoam.
+#         ("es-US-Wavenet-B",  "es-US"),  # masculina Wavenet latinoam.
+#         ("es-US-Wavenet-C",  "es-US"),  # femenina  Wavenet latinoam.
+#         ("es-ES-Neural2-B",  "es-ES"),  # masculina Neural2 España
+#         ("es-US-Standard-B", "es-US"),  # masculina Standard latinoam.
+#     ]
+
+#     os.makedirs("voice_samples", exist_ok=True)
+#     url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={api_key}"
+
+#     print(f"🧪 Probando {len(voices)} voces...\n")
+
+#     for voice_name, lang in voices:
+#         payload = {
+#             "input": {"text": sample},
+#             "voice": {"languageCode": lang, "name": voice_name},
+#             "audioConfig": {
+#                 "audioEncoding": "MP3",
+#                 "speakingRate":  cfg["speaking_rate"],
+#                 "pitch":         cfg["pitch"],
+#             }
+#         }
+
+#         r = requests.post(url, json=payload)
+#         output = f"voice_samples/sample_{voice_name}.mp3"
+
+#         if r.status_code == 200:
+#             audio_bytes = base64.b64decode(r.json()["audioContent"])
+#             with open(output, "wb") as f:
+#                 f.write(audio_bytes)
+#             print(f"   ✅ {voice_name} → {output}")
+#         else:
+#             print(f"   ❌ {voice_name} → Error {r.status_code}")
+
+#     print(f"\n📁 Escucha los samples en 'voice_samples/' y elige tu favorita.")
+#     print(f"   Luego actualiza CONFIG['voice_name'] con tu elección.")
+
+
+# # ══════════════════════════════════════════════════════════════
+# # ▶️  EJECUCIÓN
+# # ══════════════════════════════════════════════════════════════
+
+# if __name__ == "__main__":
+#     import argparse
+
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument(
+#         "--test-voices",
+#         action="store_true",
+#         help="Genera samples de todas las voces disponibles para comparar"
+#     )
+#     args = parser.parse_args()
+
+#     if args.test_voices:
+#         test_all_voices()
+#     else:
+#         generate_voice()

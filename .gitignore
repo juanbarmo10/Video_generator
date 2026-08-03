@@ -1,0 +1,40 @@
+# ── SECRETOS — nunca commitear ────────────────────────────────
+# .env no es solo configuración: tiene las claves de OpenAI, ElevenLabs y fal
+# en texto plano, y además es estado mutable del pipeline (PROYECTO, TEMA).
+.env
+.env.*
+!.env.example
+
+# ── Salidas del pipeline (pesadas, regenerables) ──────────────
+videos/
+videos_no_music/
+proyectos/
+logs/
+carousel_slides/
+images_IA/
+images_IA_guidance/
+source_images/
+social_posts/
+voice_samples/
+
+# ── Estado del tema en curso ──────────────────────────────────
+script.txt
+voice.mp3
+*.mp3
+.estado_actual
+
+# ── Assets pesados que no cambian ─────────────────────────────
+music/
+
+# ── Python ────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+
+# ── Editor / SO ───────────────────────────────────────────────
+.vscode/
+.DS_Store
+
+# Zips de fuentes (ya están extraídas en fonts/)
+fonts/*.zip

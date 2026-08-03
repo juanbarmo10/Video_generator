@@ -1,0 +1,190 @@
+# CLAUDE.md
+
+Guía del proyecto para Claude Code. Escrita en español porque el proyecto, los prompts y los scripts están en español.
+
+## Qué es este proyecto
+
+Fábrica automatizada de contenido histórico viral para redes sociales. A partir de una lista de temas
+(`temas.csv`) genera, por cada tema y de punta a punta:
+
+- un guion de ~90-100 palabras (GPT-4.1),
+- narración en voz (ElevenLabs),
+- 8 imágenes ilustradas por IA (fal.ai / Flux dev),
+- un video vertical 9:16 con subtítulos animados palabra por palabra + música de fondo,
+- posts para Twitter/X, Threads, Instagram y Facebook,
+- un carrusel de Instagram (imágenes reales descargadas de Wikimedia/DuckDuckGo + texto quemado).
+
+La cuenta destino es `@chistoricas3` (la marca de agua está hardcodeada en el generador de carrusel).
+
+**No es un repositorio git.** No hay `requirements.txt` ni tests. Todo se corre a mano desde bash.
+
+## Cómo se ejecuta
+
+```bash
+# Lote completo: procesa todas las filas de temas.csv
+bash run_all.sh
+
+# Un solo tema (usa PROYECTO y TEMA del .env, o del entorno)
+bash run_pipeline.sh
+```
+
+El entorno es conda: `ai_video_bot` (Python 3.11). `run_all.sh` y `run_pipeline.sh` lo activan solos.
+Para correr un script suelto:
+
+```bash
+source /home/juanb/miniforge3/etc/profile.d/conda.sh && conda activate ai_video_bot
+PROYECTO=Prueba01 TEMA="Pelé" python 01_script_generator.py
+```
+
+Los scripts tienen celdas `#%%` — están pensados también para ejecución interactiva en VS Code.
+
+## Arquitectura del pipeline
+
+`run_all.sh` lee `temas.csv` → por cada fila escribe `PROYECTO`/`TEMA` en `.env`, los exporta y llama a
+`run_pipeline.sh`, que corre los 8 pasos en orden con `set -e` (cualquier fallo aborta el tema).
+Cada paso es un proceso Python independiente que se comunica con los demás **solo a través de archivos
+en la raíz del proyecto**. No hay imports entre scripts ni módulo compartido.
+
+| Paso | Script | Entrada | Salida | Servicio |
+|---|---|---|---|---|
+| 01 | [01_script_generator.py](01_script_generator.py) | `$TEMA` | `script.txt` | OpenAI `gpt-4.1` |
+| 02 | [02_social_media_generator.py](02_social_media_generator.py) | `script.txt` | `social_posts/*.txt`, `TITULO_VIDEO` en `.env` | OpenAI `gpt-4.1`, `gpt-4.1-mini` |
+| 03 | [03_voice_generator.py](03_voice_generator.py) | `script.txt` | `voice.mp3` | ElevenLabs `eleven_multilingual_v2` |
+| 04 | [04_image_generator.py](04_image_generator.py) | `script.txt` | `images_IA/scene_0..7.png` | OpenAI + fal.ai `fal-ai/flux/dev` |
+| 05 | [05_download_images.py](05_download_images.py) | `social_posts/images_to_download.txt` | `source_images/img_N.jpg` | Wikimedia Commons → DuckDuckGo |
+| 06 | [06_carrusel_generator.py](06_carrusel_generator.py) | `social_posts/03_instagram.txt` + `source_images/` | `carousel_slides/slide_NN_*.jpg` | Pillow (local) |
+| 07 | [07_video_generator.py](07_video_generator.py) | `images_IA/` + `voice.mp3` | `videos_no_music/video_$PROYECTO.mp4` | faster-whisper + moviepy (local) |
+| 08 | [08_music_mixer.py](08_music_mixer.py) | video sin música + `music/` | `videos/video_$PROYECTO.mp4` | moviepy (local) |
+
+Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` como respaldo permanente.
+
+### Detalles por paso que importan al editar
+
+- **01** — El prompt es el corazón del producto: reglas estrictas (nada de fechas, frases ≤12 palabras,
+  prohibido empezar con "En/Cuando/Fue/Era/Hubo", verificabilidad obligatoria). El system prompt insiste
+  en rigor periodístico. Si se toca, se cambia el tono de todos los videos.
+- **02** — Hace 6 llamadas a OpenAI: investigación histórica, 4 posts (uno por red), título y las 6 queries
+  de imagen. El formato de `03_instagram.txt` (párrafos separados por línea en blanco, sin etiquetas
+  "Slide N") es un contrato con el paso 06: si cambia el prompt, se rompe el parseo del carrusel.
+  `images_to_download.txt` usa el formato `img_N.jpg → query` que el paso 05 parsea con regex.
+- **03** — `voice_id = "l1zE9xgNpUTaQCZzpNJa"` hardcodeado. El resto del archivo (Google TTS) está
+  comentado. `03_voice_generator_free.py` es una alternativa con OpenAI TTS (`tts-1-hd`, voz `onyx`) y
+  un modo `--test-voices`; **no está en el pipeline**.
+- **04** — `extract_context()` saca personaje/época/apariencia del guion y ese contexto **sí** ancla tanto
+  las escenas como cada prompt de imagen (si el modelo no devuelve json usable, degrada a `None` y sigue
+  sin anclaje). Genera 8 escenas visuales en JSON con GPT y las manda a fal.ai en paralelo (3 workers,
+  seed fijo 12345). Tiene un bloque grande de moderación: `BANNED_WORDS` + `REPLACEMENTS` +
+  `sanitize_prompt()` reescriben palabras que disparan filtros (muerte, violencia, sangre). El
+  `BASE_PROMPT` activo es el segundo — *vintage editorial illustration* sobre pergamino. `PROMPT_MAX_CHARS`
+  (900) limita el prompt recortando **solo la escena**: el estilo base y el contexto van siempre completos.
+  Limpia `images_IA/*.png` antes de generar.
+- **05** — Busca primero en Wikimedia Commons (libre), y si falla cae a DuckDuckGo Images
+  (⚠ posibles derechos de autor). `DELAY = 7.0s` entre requests para no ser bloqueado, así que este paso
+  es el más lento del pipeline. Cada imagen se recorta a 1080×1080 sobrescribiendo el original. Vacía
+  `source_images/` (jpg, jpeg, png, webp) antes de descargar.
+- **06** — Slide 1 = portada (hook), slides intermedios = cuerpo, slide final = CTA sobre
+  `perfil/historia_profile.png` (obligatorio, se pasa con `--profile`). Filtros de imagen y borde
+  configurables en `CONFIG`. Marca de agua `@chistoricas3` arriba a la izquierda. Limpia
+  `carousel_slides/` antes de generar.
+- **07** — El más complejo. Transcribe `voice.mp3` con faster-whisper (`medium`, español) para obtener
+  timestamps **por palabra**, y renderiza los subtítulos como `VideoClip` dinámico: pares fijos de 2
+  palabras, la que se está pronunciando en amarillo (255,220,0). Las imágenes reciben zoom con easing
+  sinusoidal alternando in/out y crossfade de 0.5s. Todo el ajuste visual vive en el dict `CONFIG`.
+- **08** — Elige un mp3 aleatorio de `music/`, lo loopea al largo del video, lo baja a volumen 0.1 y lo
+  mezcla con la voz.
+
+## Variables de entorno (`.env`)
+
+Claves de API: `OPENAI_API_KEY`, `ELEVENLABS_API_KEY`, `FAL_KEY`, `LEONARDO_API_KEY` (ya no se usa),
+`FISH_API_KEY` (no se usa), `GOOGLE_TTS_API_KEY` (solo para el código comentado del paso 03).
+
+Parámetros de ejecución, **escritos por los scripts, no a mano**:
+- `PROYECTO` — nombre corto que da nombre a video y carpeta de respaldo. Lo escribe `run_all.sh`.
+- `TEMA` — tema del guion. Lo escribe `run_all.sh`.
+- `TITULO_VIDEO` — lo escribe el paso 02, lo consume el paso 07 como título en pantalla.
+
+`.env` es estado mutable del pipeline, no solo configuración. Nunca lo commitees ni lo publiques: tiene
+claves reales en texto plano.
+
+Los pasos 02, 06, 07 y 08 abortan de entrada si `PROYECTO` viene vacío (y el 07 también si falta
+`TITULO_VIDEO`), y `run_pipeline.sh` falla si no tiene `PROYECTO` y `TEMA`. Es intencional: correr sin
+esas variables ensucia el árbol de proyectos con rutas tipo `proyectos//` y `video_None.mp4`.
+
+## Estructura de archivos
+
+```
+temas.csv              # entrada del lote: PROYECTO,TEMA (con encabezado)
+script.txt             # ← guion del tema EN CURSO (se sobrescribe cada run)
+voice.mp3              # ← narración del tema EN CURSO
+social_posts/          # ← posts del tema EN CURSO
+images_IA/             # ← 8 imágenes IA del tema EN CURSO (scene_N.png)
+source_images/         # ← fotos reales descargadas del tema EN CURSO (img_N.jpg)
+carousel_slides/       # ← slides del tema EN CURSO
+videos_no_music/       # video_$PROYECTO.mp4 sin música
+videos/                # video_$PROYECTO.mp4 FINAL (entregable)
+proyectos/$PROYECTO/   # respaldo por tema: mp3, images_IA, source_images, social_posts, carousel_slides
+logs/                  # {PROYECTO}_{TEMA}.log por tema + failed.csv
+music/                 # mp3 royalty-free de fondo
+fonts/                 # BungeeSpice (subtítulos y carrusel), Cossette_Texte
+perfil/                # imagen de perfil y banner para el slide CTA
+```
+
+Scripts fuera del pipeline: `publisher.py` (publicación a Meta/Threads), `ink_filter.py` (convierte fotos
+reales a estilo tinta/pergamino, alternativa local al paso 04), `imagen_generator_source.py` (versión
+vieja del generador con Leonardo).
+
+## Convenciones del código
+
+- Todo en español: nombres de funciones en inglés a veces, pero prints, comentarios y prompts en español,
+  con emojis como marcadores de estado (✅ ❌ 🎬 ⏱️).
+- Cada script define un dict `CONFIG` al inicio con todos los parámetros ajustables y comentarios
+  explicando los rangos. **Si agregas un parámetro, va en `CONFIG`, no disperso en el código.**
+- Rutas relativas al directorio del proyecto: todos los scripts asumen que se corren desde
+  `/home/juanb/video_generator`.
+- Cada script es standalone con `if __name__ == "__main__"` y `load_dotenv()` al inicio.
+- Separadores visuales con `═` / `─` para dividir secciones dentro de un archivo.
+
+## Trampas conocidas (leer antes de tocar nada)
+
+1. **Los archivos de la raíz son estado global compartido.** `script.txt`, `voice.mp3`, `images_IA/`,
+   `source_images/`, `carousel_slides/` y `social_posts/` se sobrescriben en cada tema — solo existe el
+   tema en curso. Los pasos 04, 05 y 06 vacían su carpeta de salida antes de escribir, así que ya no se
+   filtran archivos de una corrida a la siguiente. **`social_posts/` sí se sobrescribe archivo por archivo
+   sin limpiar**: si un tema generara menos posts que el anterior, quedarían mezclados.
+   Los respaldos viejos en `proyectos/` conservan la basura previa a este arreglo (p. ej.
+   `proyectos/Mundial16/carousel_slides/` tiene `slide_06_cta.jpg` y `slide_07_cta.jpg`); limpiarlos es
+   manual. Los respaldos usan `copytree(dirs_exist_ok=True)`, o sea que **rehacer un `PROYECTO` existente
+   fusiona en vez de reemplazar**: borra la carpeta destino a mano si vas a reintentar un tema.
+2. **Funciones duplicadas: gana la segunda definición de Python.** En `04_image_generator.py` hay dos
+   `generate_image()` — la activa es la de fal.ai; la de Leonardo (líneas ~212-280) es código muerto. Igual
+   con `BASE_PROMPT` (gana el segundo) y con `parse_instagram_file()` en `06_carrusel_generator.py`.
+   Editar la primera copia no tiene ningún efecto.
+3. **A pesar del nombre del proyecto, las imágenes ya NO salen de Leonardo**, sino de fal.ai (Flux dev).
+4. El contexto del paso 04 depende de que GPT devuelva json con `personaje`, `epoca` y `estilo_visual`.
+   Si falla, verás `⚠️ Contexto incompleto` en el log y las imágenes de ese tema saldrán sin anclaje
+   (menos coherentes entre sí, pero el tema no aborta).
+5. Las carpetas sueltas `proyectos/social_posts`, `proyectos/carousel_slides` y `proyectos/source_images`
+   son basura de corridas viejas con `PROYECTO` vacío. Ya no se pueden volver a crear (hay guardas en los
+   pasos y en `run_pipeline.sh`), pero nadie las borró todavía.
+6. **moviepy está clavado en 1.0.3** (API `from moviepy.editor import ...`). Actualizar a 2.x rompe los
+   pasos 07 y 08 completos.
+7. El paso 07 solo lee `.png` de `images_IA/`; el 06 lee `.jpg/.jpeg/.png/.webp` de `source_images/`.
+   Ojo con las extensiones al agregar imágenes a mano.
+8. `temas.csv` tiene una fila con coma extra (`Mundial11,Maradona,`) que ensucia `$TEMA` (queda como
+   `Maradona,`, porque `read` mete todos los campos sobrantes en la última variable). El archivo debe
+   tener encabezado `PROYECTO,TEMA` — `run_all.sh` salta la primera línea y ahora ignora las vacías.
+9. `publisher.py` está incompleto respecto al resto: necesita `META_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`,
+   `INSTAGRAM_ACCOUNT_ID` y `THREADS_USER_ID` (no están en `.env`) y apunta a una carpeta `post_images/`
+   que no existe. La publicación hoy es manual.
+10. Cada tema cuesta dinero real: ~7 llamadas a GPT-4.1, 1 síntesis de ElevenLabs y 8 imágenes de fal.ai.
+    No corras `run_all.sh` para probar un cambio — usa un solo tema.
+
+## Al hacer cambios
+
+- Prueba con un tema aislado (`PROYECTO=Test01 TEMA="..." bash run_pipeline.sh`) antes del lote.
+- Para iterar solo en el video sin regenerar guion, voz e imágenes, corre `python 07_video_generator.py`
+  directamente con `TITULO_VIDEO` y `PROYECTO` exportados: reusa `images_IA/` y `voice.mp3` existentes.
+- El paso 07 con Whisper `medium` es lento (minutos). Para pruebas rápidas de layout, baja
+  `whisper_model` a `"tiny"` o descomenta el `final.subclip(0, 3)` de la línea 663.
+- Los logs por tema quedan en `logs/`; los temas que fallan se acumulan en `logs/failed.csv` con el mismo
+  formato de `temas.csv`, así que ese archivo se puede reusar directo como entrada para reintentar.

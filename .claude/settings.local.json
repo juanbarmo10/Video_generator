@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat /home/juanb/video_generator/temas.csv; echo \"---SCRIPT---\"; cat /home/juanb/video_generator/script.txt; echo \"---ENV KEYS---\"; sed 's/=.*/=<REDACTED>/' /home/juanb/video_generator/.env)",
+      "Bash(python -)",
+      "Bash(bash -c ' *)"
+    ],
+    "additionalDirectories": [
+      "/home/juanb/video_generator"
+    ]
+  }
+}
