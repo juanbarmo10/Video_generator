@@ -91,7 +91,10 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
   que retiene va a 170-190. El resto del archivo (Google TTS) está comentado.
   `03_voice_generator_free.py` es una alternativa con OpenAI TTS (`tts-1-hd`, voz `onyx`) y un modo
   `--test-voices`; **no está en el pipeline**.
-- **04** — `extract_context()` saca personaje/época/apariencia del guion y ese contexto **sí** ancla tanto
+- **04** — ⚠️ **Pedirle a Flux "no paper border, no frame" NO funciona**: los modelos de difusión
+  ignoran las instrucciones negativas y el marco de pergamino sale igual. Se recorta en el paso 07
+  con `recorte_borde_pct` (8 %), que es determinista. No pierdas tiempo peleándote con el prompt.
+  `extract_context()` saca personaje/época/apariencia del guion y ese contexto **sí** ancla tanto
   las escenas como cada prompt de imagen (si el modelo no devuelve json usable, degrada a `None` y sigue
   sin anclaje). Genera 8 escenas visuales en JSON con GPT y las manda a fal.ai en paralelo (3 workers,
   seed fijo 12345). Tiene un bloque grande de moderación: `BANNED_WORDS` + `REPLACEMENTS` +
@@ -154,6 +157,7 @@ esas variables ensucia el árbol de proyectos con rutas tipo `proyectos//` y `vi
 
 ```
 TODO.md                # auditoría de bugs + plan de crecimiento (documento de trabajo)
+metricas.csv           # una fila por video publicado: vistas 24h/7d, retención, comentarios
 estado.py              # módulo compartido: sello de tema, costo, reintentos
 requirements.txt       # moviepy==1.0.3 fijado; ffmpeg va aparte (apt)
 .env.example           # plantilla del .env (el .env real NO se commitea)

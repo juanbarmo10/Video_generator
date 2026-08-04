@@ -988,6 +988,48 @@ prompt era demasiado estricto (rechazaba fotos buenas donde no se distinguía la
 > nombre que genera el pipeline**, y con `solo_extremos` habría entrado al video. Revisa esa carpeta:
 > el paso 06 la lee para el carrusel de Instagram y el 07 para el video. Ninguno de los dos está en
 > git (`source_images/` está en `.gitignore`), pero sí podían acabar publicados.
+>
+> **Ya rescatados** en `~/fotos_rescatadas_video_generator/` (movidos, no borrados).
+
+---
+
+## Prueba end-to-end — `Test01` / Zinedine Zidane (3 ago 2026)
+
+Primera corrida completa de los 8 pasos con todo aplicado. **Exit 0.** Costó **$0.2329**
+(estimado: $0.267 — el contador de `estado.py` es fiable). fal fue el 79 % del gasto.
+
+| | Antes (`Mundial16`) | Después (`Test01`) |
+|---|---|---|
+| Duración | 34.3 s | **24.5 s** |
+| Velocidad de habla | 143 wpm | **162 wpm** |
+| Guion | 90 palabras | **66** |
+| Cortes visuales | 8 (1 cada 4.9 s) | **14 (1 cada 1.75 s)** |
+| Bitrate | 2 418 kbps (original) | **4 745 kbps** |
+| Sonoridad | −17.5 LUFS | **−14.1 LUFS** |
+| Metadata YouTube | no existía | título 67/70, 12 tags, comentario |
+
+**Lo que se confirmó funcionando:**
+
+- **El frame 0 cambió por completo.** Antes: un contrato con texto inventado ilegible. Ahora: primer
+  plano de Zidane con emoción legible. La regla de BUG-13 (escena 1 = close-up de rostro) se cumplió.
+- **El gancho ya no spoilea**: *"El insulto que detuvo al mejor del mundo"* abre la pregunta sin
+  contar el cabezazo.
+- **`validar_con_vision()` rechazó 3 fotos**: una de Zidane que no era del Mundial (se quedó con
+  `zidane wcf 2006.jpg`, la correcta) y dos del árbitro Elizondo, una de ellas una foto suya con
+  Kirchner. Sin el filtro, esas tres habrían entrado.
+- **La foto real que entró al video es la buena**: Zidane con la 10 de Francia en la final (seg. 12).
+- `repartir_planos()` con 6 ilustraciones + 2 fotos = 8 fuentes → 14 cortes de 1.75 s.
+
+**Lo que salió mal:**
+
+- ❌ **El borde de pergamino seguía ahí.** El `no paper border, no frame` que le puse al `BASE_PROMPT`
+  en la Fase 3 **no funciona**: los modelos de difusión ignoran las instrucciones negativas.
+  Corregido recortando 8 % en el paso 07 (`recorte_borde_pct`), que es determinista. Verificado.
+- ⚠️ **El guion coló un dato no verificable**: *"Su propia madre nunca volvió a ver aquel momento en
+  video"*. Las reglas del paso 01 lo prohíben explícitamente y el modelo se las saltó. **Revisa el
+  guion a mano antes de publicar**, o añade un paso de verificación factual.
+- ⚠️ Una escena salió con camiseta roja (ni Francia ni Italia). El anclaje de `extract_context()`
+  funciona en general pero no es perfecto.
 
 ---
 
@@ -999,6 +1041,82 @@ mismos tres números.
 
 Si la retención a 3 s sube y las vistas no, el problema es la metadata (Fase 3).
 Si ni siquiera sube la retención a 3 s, el problema es el gancho escrito, no el video.
+
+---
+
+## De dónde salen las métricas
+
+Todo el código está hecho. **Lo único que falta para saber si sirvió son los números**, y esos no
+los genera el pipeline: hay que sacarlos de cada plataforma.
+
+### YouTube Shorts — la fuente que más importa
+
+**A mano (empieza por aquí):** YouTube Studio → Contenido → Shorts → clic en un video → pestaña
+**Interacción**. Los tres números que importan:
+
+| Métrica | Dónde | Qué te dice |
+|---|---|---|
+| **Espectadores que se quedaron** | gráfico de retención, primeros segundos | Si cae >60 % antes del segundo 3, el problema es el gancho |
+| **Duración media de la reproducción** | pestaña Interacción | Divídela entre la duración total = % de retención |
+| **Vistas en las primeras 24 h** | pestaña Alcance | Si el gancho retiene pero esto no sube, el problema es la metadata |
+
+La **curva de retención** es la herramienta de diagnóstico real: te dice el **segundo exacto** donde
+se van. Caída en 0-2 s → gancho. Caída en 5-10 s → ritmo visual. Caída al final → el CTA sobra.
+
+**Automatizado (YouTube Data API v3 + Analytics API):** gratis, cuota de 10 000 unidades/día, de
+sobra. Requiere OAuth (no basta una API key, porque son datos privados del canal).
+
+```
+pip install google-api-python-client google-auth-oauthlib
+```
+
+- Alcance de OAuth: `https://www.googleapis.com/auth/yt-analytics.readonly`
+- Endpoint: `youtubeAnalytics.reports().query()` con
+  `metrics="views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage"`
+  y `dimensions="video"`
+- Para la curva de retención: `dimensions="elapsedVideoTimeRatio"` con
+  `metrics="audienceWatchRatio,relativeRetentionPerformance"` — **esta es la buena**
+
+### Instagram y Facebook
+
+**A mano:** app → Perfil → gráfico de estadísticas → Contenido. Para Reels miras *Reproducciones*,
+*Retención* y *Interacciones*.
+
+**Automatizado:** Instagram Graph API, `GET /{ig-media-id}/insights` con
+`metric=plays,reach,saved,shares,total_interactions`. Requiere cuenta **Business o Creator**
+vinculada a una página de Facebook, más un token de acceso de larga duración.
+
+⚠️ Aquí ya tienes medio camino hecho y roto: [publisher.py](publisher.py) espera
+`META_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`, `INSTAGRAM_ACCOUNT_ID` y `THREADS_USER_ID`, que **no están
+en el `.env`**. Los mismos credenciales sirven para publicar y para leer métricas: si vas a montar
+uno, monta los dos.
+
+### Lo mínimo viable, y es una hoja de cálculo
+
+No montes nada automatizado todavía. Con 16 videos publicados, la API es sobreingeniería: tardas
+más en resolver el OAuth que en copiar los números a mano.
+
+Crea `metricas.csv` en el repo con una fila por video:
+
+```
+PROYECTO,fecha_publicacion,plataforma,vistas_24h,vistas_7d,retencion_pct,pct_llega_3s,comentarios
+```
+
+Rellénalo **una vez** con los 16 videos viejos → ese es tu baseline. Después una fila por video
+nuevo. Con 5 videos nuevos ya vas a ver si la retención a 3 s se movió, que es la única pregunta
+que importa ahora mismo.
+
+**Cuándo automatizar:** cuando llenar la hoja te lleve más de 10 minutos por semana, o cuando pases
+de ~50 videos. Antes de eso no compensa.
+
+### La trampa de medir mal
+
+Los 16 videos actuales se renderizaron el mismo día (16:27 → 21:27 del 14 de junio). Si también se
+publicaron en bloque, su rendimiento está contaminado por la canibalización entre ellos: no son un
+baseline limpio.
+
+Para que la comparación signifique algo, los videos nuevos van **1 por día, a la misma hora**, y se
+comparan contra la mediana de los viejos, no contra el mejor ni el peor.
 
 ---
 
