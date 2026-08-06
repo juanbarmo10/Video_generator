@@ -26,6 +26,13 @@ PRECIOS_OPENAI = {
     "gpt-4.1":      {"in": 2.00, "out": 8.00},
     "gpt-4.1-mini": {"in": 0.40, "out": 1.60},
 }
+
+# Anthropic (agosto 2026). Los tokens de "thinking" se facturan como salida.
+PRECIOS_ANTHROPIC = {
+    "claude-opus-5":   {"in": 5.00, "out": 25.00},
+    "claude-sonnet-5": {"in": 3.00, "out": 15.00},
+    "claude-haiku-4-5": {"in": 1.00, "out": 5.00},
+}
 # fal.ai Flux dev cobra por megapíxel generado
 PRECIO_FAL_POR_MP = 0.025
 # ElevenLabs, aproximado por carácter en el plan Creator
@@ -139,6 +146,22 @@ def registrar_openai(response, modelo: str, concepto: str = "") -> None:
 
     usd = (uso.prompt_tokens / 1e6 * precio["in"]
            + uso.completion_tokens / 1e6 * precio["out"])
+    registrar_costo(f"{modelo} {concepto}".strip(), usd)
+
+
+def registrar_anthropic(response, modelo: str, concepto: str = "") -> None:
+    """Registra el costo de una respuesta de la API de Anthropic.
+
+    Los tokens de thinking van dentro de output_tokens, así que ya quedan
+    contabilizados sin hacer nada especial.
+    """
+    precio = PRECIOS_ANTHROPIC.get(modelo)
+    uso = getattr(response, "usage", None)
+    if not precio or uso is None:
+        return
+
+    usd = (uso.input_tokens / 1e6 * precio["in"]
+           + uso.output_tokens / 1e6 * precio["out"])
     registrar_costo(f"{modelo} {concepto}".strip(), usd)
 
 

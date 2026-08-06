@@ -84,9 +84,17 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
   1. `verificar_reglas_mecanicas()` — Python puro, gratis: cuenta palabras, mide la primera frase,
      busca fechas, inicios prohibidos y muletillas (`se dice`, `al parecer`…). **A un LLM no se le
      pide que cuente palabras**: lo hace mal y cobra por hacerlo mal.
-  2. `evaluar_con_critico()` — segundo modelo con rol adversarial (`modelo_critico` en `CONFIG`) que
-     solo juzga lo que necesita criterio: verificabilidad de cada afirmación, spoiler en la primera
-     frase, línea narrativa única. Devuelve `nota` 0-10 + `afirmaciones_dudosas`.
+  2. `evaluar_con_critico()` — segundo modelo con rol adversarial que solo juzga lo que necesita
+     criterio: verificabilidad de cada afirmación, spoiler en la primera frase, línea narrativa
+     única. Devuelve `nota` 0-10 + `afirmaciones_dudosas`.
+     **Corre en OTRO proveedor a propósito** (`claude-opus-5` vía el SDK `anthropic`): un modelo de
+     la misma familia que el generador comparte sus puntos ciegos. `critico_proveedor: "auto"` usa
+     Anthropic si hay `ANTHROPIC_API_KEY` y **cae a `gpt-4.1` si no**, así que la clave es opcional
+     y el pipeline nunca se rompe por su ausencia. En el lado Anthropic el JSON se fuerza con
+     structured outputs (`output_config.format`), no por prompt.
+     ⚠️ En Opus 5 el thinking está **on por defecto** y `critico_max_tokens` limita
+     thinking + respuesta *juntos*: si se queda corto, el JSON sale truncado. `critico_effort`
+     (`medium`) es la palanca de costo real.
 
   Si no pasa, **reescribe pasándole los fallos concretos** hasta `intentos_max` (3). Si ninguno pasa,
   usa el mejor con un aviso ruidoso (`abortar_si_ninguno_pasa` lo cambia a abortar).
@@ -150,8 +158,9 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
 
 ## Variables de entorno (`.env`)
 
-Claves de API: `OPENAI_API_KEY`, `ELEVENLABS_API_KEY`, `FAL_KEY`, `LEONARDO_API_KEY` (ya no se usa),
-`FISH_API_KEY` (no se usa), `GOOGLE_TTS_API_KEY` (solo para el código comentado del paso 03).
+Claves de API: `OPENAI_API_KEY`, `ELEVENLABS_API_KEY`, `FAL_KEY`, `ANTHROPIC_API_KEY` (**opcional** —
+si está, el crítico del paso 01 corre en Claude; si no, cae a `gpt-4.1`), `LEONARDO_API_KEY` (ya no se
+usa), `FISH_API_KEY` (no se usa), `GOOGLE_TTS_API_KEY` (solo para el código comentado del paso 03).
 
 Parámetros de ejecución, **escritos por los scripts, no a mano**:
 - `PROYECTO` — nombre corto que da nombre a video y carpeta de respaldo. Lo escribe `run_all.sh`.

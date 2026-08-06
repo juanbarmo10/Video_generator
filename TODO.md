@@ -1081,6 +1081,43 @@ Sobre un tema de $0.23 es un 7 %.
 > `afirmacion_dudosa`, así que no bloqueó. Baja el listón de lo que bloquea subiendo `nota_minima`
 > a 9, o **sigue leyendo el guion antes de publicar**. Esto reduce mucho el riesgo, no lo elimina.
 
+### Crítico en otro proveedor (3 ago 2026)
+
+El crítico ahora corre en **`claude-opus-5`** (SDK `anthropic`), no en GPT. La razón no es que un
+modelo sea mejor: es que **un modelo de la misma familia que el generador comparte sus puntos
+ciegos**. Si `gpt-4.1` se cree una afirmación inventada al escribirla, tiende a creérsela al
+revisarla. Otro proveedor falla de otra forma, y ahí está el valor de la segunda opinión.
+
+`critico_proveedor: "auto"` usa Anthropic si hay `ANTHROPIC_API_KEY` y **cae a `gpt-4.1` si no**,
+así que la clave es opcional y el pipeline nunca se rompe por su ausencia.
+
+**Costo por tema (3 intentos), medido sobre una crítica real de 626 tokens de entrada y 311 de salida:**
+
+| Crítico | $/tema | vs. un tema de $0.23 |
+|---|---|---|
+| `claude-haiku-4-5` | $0.0065 | **más barato que el crítico anterior** |
+| `gpt-4.1` (anterior) | $0.0112 | — |
+| `claude-sonnet-5` (intro, hasta 31-ago-2026) | $0.0131 | +0.8 % |
+| `claude-sonnet-5` | $0.0196 | +3.6 % |
+| **`claude-opus-5`** (elegido) | **$0.0327** | **+9 %** |
+
+Detalles que importan al tocarlo:
+
+- El JSON se fuerza con **structured outputs** (`output_config.format`), no por prompt: el modelo no
+  puede devolver otra forma.
+- En Opus 5 el **thinking está on por defecto** y `critico_max_tokens` (4096) limita
+  thinking + respuesta *juntos*. Si se queda corto, el JSON sale truncado.
+- `critico_effort` (`medium`) es la palanca de costo real, no el modelo. Súbelo si ves fallos de
+  criterio antes de cambiar de modelo.
+- Los clasificadores de Anthropic pueden declinar una petición: devuelve HTTP 200 con
+  `stop_reason: "refusal"` y `content` vacío. Se comprueba **antes** de leer `content`.
+
+> ⚠️ **Sin verificar contra la API.** No hay `ANTHROPIC_API_KEY` en este entorno, así que la ruta
+> Anthropic **no se ha ejecutado ni una vez**: compila, el despacho por proveedor está probado y el
+> respaldo a OpenAI está verificado (sigue cazando el dato de la madre, nota 5/10). Pero la primera
+> corrida con clave es la prueba real — mira que el JSON no venga truncado y ajusta
+> `critico_max_tokens` si hiciera falta.
+
 ---
 
 ## De dónde salen las métricas

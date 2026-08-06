@@ -32,7 +32,8 @@ import re
 import unicodedata
 from openai import OpenAI
 
-from estado import sellar_estado, reset_costo, registrar_openai, con_reintentos
+from estado import (sellar_estado, reset_costo, registrar_openai,
+                    registrar_anthropic, con_reintentos)
 
 load_dotenv()
 
@@ -41,22 +42,50 @@ load_dotenv()
 TEMA = os.environ.get("TEMA")
 PROYECTO = os.environ.get("PROYECTO")
 openai_api_key = os.getenv("OPENAI_API_KEY")
+anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
 
 if not openai_api_key:
     raise SystemExit("❌ Falta OPENAI_API_KEY en el .env")
 
 client = OpenAI(api_key=openai_api_key)
 
+# Cliente de Anthropic solo si hay clave: sin ella el crítico cae a OpenAI.
+anthropic_client = None
+if anthropic_api_key:
+    try:
+        import anthropic
+        anthropic_client = anthropic.Anthropic(api_key=anthropic_api_key)
+    except ImportError:
+        print("⚠️  Hay ANTHROPIC_API_KEY pero falta el paquete: pip install anthropic")
+
 # ========================================================================== #
 
 CONFIG = {
     # ── Modelos ───────────────────────────────────────────────
     "modelo_guionista": "gpt-4.1",
-    # El crítico necesita criterio para juzgar verificabilidad histórica: no lo
-    # bajes a un modelo pequeño para ahorrar, es justo donde hace falta cabeza.
-    # Si algún día quieres un crítico de OTRO proveedor (juicio menos
-    # correlacionado con el del generador), este es el único punto a tocar.
-    "modelo_critico": "gpt-4.1",
+
+    # 🔀 El crítico corre en OTRO PROVEEDOR a propósito. Un modelo de la misma
+    # familia que el generador comparte sus puntos ciegos: si gpt-4.1 se cree
+    # una afirmación inventada al escribirla, tiende a creérsela al revisarla.
+    # Un modelo distinto falla de otra forma, y ahí está el valor.
+    #
+    # "auto" usa Anthropic si hay ANTHROPIC_API_KEY y cae a OpenAI si no,
+    # así el pipeline nunca se rompe por falta de una clave.
+    "critico_proveedor": "auto",            # "auto" | "anthropic" | "openai"
+    "modelo_critico_anthropic": "claude-opus-5",
+    "modelo_critico_openai": "gpt-4.1",     # el respaldo, mismo proveedor
+    # Costo por tema con 3 intentos, medido sobre una crítica real
+    # (626 tokens de entrada, 311 de salida):
+    #   claude-haiku-4-5  $0.0065   ← más barato que el crítico actual
+    #   gpt-4.1           $0.0112
+    #   claude-sonnet-5   $0.0196
+    #   claude-opus-5     $0.0327   ← +9% sobre un tema de $0.23
+    # El effort es la palanca de costo real en Opus 5: "medium" rinde muy bien
+    # en tareas acotadas como esta. Súbelo a "high" si ves fallos de criterio.
+    "critico_effort": "medium",             # low | medium | high | xhigh | max
+    # En Opus 5 el thinking está ON por defecto y max_tokens limita
+    # thinking + respuesta JUNTOS: si se queda corto, el JSON sale truncado.
+    "critico_max_tokens": 4096,
 
     # ── Bucle de calidad ──────────────────────────────────────
     "intentos_max": 3,          # generación + crítica por intento
@@ -228,32 +257,104 @@ Devuelve SOLO un objeto json con esta forma exacta:
 Sé concreto: "la frase X no se puede verificar" sirve; "podría mejorarse" no."""
 
 
-def evaluar_con_critico(script: str, tema: str, cfg: dict = CONFIG) -> dict:
-    """Somete el guion a un segundo modelo que solo busca fallos."""
+# Esquema de la respuesta del crítico. En Anthropic se aplica con structured
+# outputs (el modelo NO puede devolver otra forma); en OpenAI se pide por prompt.
+ESQUEMA_CRITICA = {
+    "type": "object",
+    "properties": {
+        "nota": {"type": "integer"},
+        "aprobado": {"type": "boolean"},
+        "afirmaciones_dudosas": {"type": "array", "items": {"type": "string"}},
+        "problemas": {"type": "array", "items": {"type": "string"}},
+        "que_arreglar": {"type": "string"},
+    },
+    "required": ["nota", "aprobado", "afirmaciones_dudosas",
+                 "problemas", "que_arreglar"],
+    "additionalProperties": False,
+}
+
+
+def proveedor_critico(cfg: dict = CONFIG) -> str:
+    """Resuelve qué proveedor usa el crítico ('anthropic' u 'openai')."""
+    elegido = cfg.get("critico_proveedor", "auto")
+    if elegido == "anthropic":
+        if anthropic_client is None:
+            raise SystemExit(
+                "❌ critico_proveedor='anthropic' pero falta ANTHROPIC_API_KEY en el .env"
+            )
+        return "anthropic"
+    if elegido == "openai":
+        return "openai"
+    return "anthropic" if anthropic_client else "openai"
+
+
+def _mensaje_critico(script: str, tema: str) -> str:
+    return (f"TEMA DEL VIDEO: {tema or '(libre)'}\n\n"
+            f"GUION A REVISAR:\n{script}")
+
+
+def _criticar_con_anthropic(script: str, tema: str, cfg: dict) -> str:
+    """Crítico en Claude. Devuelve el JSON como texto."""
+    modelo = cfg["modelo_critico_anthropic"]
+
+    respuesta = con_reintentos(
+        lambda: anthropic_client.messages.create(
+            model=modelo,
+            max_tokens=cfg["critico_max_tokens"],
+            system=SYSTEM_CRITICO,
+            output_config={
+                "effort": cfg["critico_effort"],
+                "format": {"type": "json_schema", "schema": ESQUEMA_CRITICA},
+            },
+            messages=[{"role": "user", "content": _mensaje_critico(script, tema)}],
+        ),
+        etiqueta=f"crítico ({modelo})",
+    )
+
+    registrar_anthropic(respuesta, modelo, "crítica del guion")
+
+    # Los clasificadores pueden declinar: devuelve HTTP 200 con stop_reason
+    # 'refusal' y content vacío, así que hay que mirarlo ANTES de leer content.
+    if respuesta.stop_reason == "refusal":
+        raise ValueError("el crítico declinó revisar este guion")
+
+    return next(b.text for b in respuesta.content if b.type == "text")
+
+
+def _criticar_con_openai(script: str, tema: str, cfg: dict) -> str:
+    modelo = cfg["modelo_critico_openai"]
+
     respuesta = con_reintentos(
         lambda: client.chat.completions.create(
-            model=cfg["modelo_critico"],
+            model=modelo,
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": SYSTEM_CRITICO},
-                {"role": "user", "content": (
-                    f"TEMA DEL VIDEO: {tema or '(libre)'}\n\n"
-                    f"GUION A REVISAR:\n{script}"
-                )},
+                {"role": "user", "content": _mensaje_critico(script, tema)},
             ],
             max_tokens=800,
         ),
-        etiqueta=f"crítico ({cfg['modelo_critico']})",
+        etiqueta=f"crítico ({modelo})",
     )
 
-    registrar_openai(respuesta, cfg["modelo_critico"], "crítica del guion")
+    registrar_openai(respuesta, modelo, "crítica del guion")
+    return respuesta.choices[0].message.content
+
+
+def evaluar_con_critico(script: str, tema: str, cfg: dict = CONFIG) -> dict:
+    """Somete el guion a un modelo de otro proveedor que solo busca fallos."""
+    proveedor = proveedor_critico(cfg)
 
     try:
-        veredicto = json.loads(respuesta.choices[0].message.content)
-    except json.JSONDecodeError:
+        if proveedor == "anthropic":
+            crudo = _criticar_con_anthropic(script, tema, cfg)
+        else:
+            crudo = _criticar_con_openai(script, tema, cfg)
+        veredicto = json.loads(crudo)
+    except Exception as exc:
         # Si el crítico se rompe, no bloqueamos el pipeline: es control de
         # calidad, no una guarda de seguridad. Se avisa y se deja pasar.
-        print("⚠️  El crítico no devolvió json válido — se acepta el guion")
+        print(f"⚠️  El crítico falló ({type(exc).__name__}: {exc}) — se acepta el guion")
         return {"nota": cfg["nota_minima"], "aprobado": True,
                 "afirmaciones_dudosas": [], "problemas": [], "que_arreglar": ""}
 

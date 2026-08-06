@@ -13,6 +13,8 @@ faster-whisper>=1.0
 
 # APIs
 openai>=1.0
+# Opcional: crítico del guion en otro proveedor (paso 01). Ver ANTHROPIC_API_KEY.
+anthropic>=0.120
 fal-client>=0.4
 requests>=2.31
 python-dotenv>=1.0
