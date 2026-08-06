@@ -1026,8 +1026,8 @@ Primera corrida completa de los 8 pasos con todo aplicado. **Exit 0.** Costó **
   en la Fase 3 **no funciona**: los modelos de difusión ignoran las instrucciones negativas.
   Corregido recortando 8 % en el paso 07 (`recorte_borde_pct`), que es determinista. Verificado.
 - ⚠️ **El guion coló un dato no verificable**: *"Su propia madre nunca volvió a ver aquel momento en
-  video"*. Las reglas del paso 01 lo prohíben explícitamente y el modelo se las saltó. **Revisa el
-  guion a mano antes de publicar**, o añade un paso de verificación factual.
+  video"*. Las reglas del paso 01 lo prohíben explícitamente y el modelo se las saltó.
+  → **RESUELTO**: ver la sección de control de calidad, abajo.
 - ⚠️ Una escena salió con camiseta roja (ni Francia ni Italia). El anclaje de `extract_context()`
   funciona en general pero no es perfecto.
 
@@ -1041,6 +1041,45 @@ mismos tres números.
 
 Si la retención a 3 s sube y las vistas no, el problema es la metadata (Fase 3).
 Si ni siquiera sube la retención a 3 s, el problema es el gancho escrito, no el video.
+
+---
+
+## ✅ Control de calidad del guion (3 ago 2026)
+
+Respuesta al fallo de la prueba: un segundo modelo audita el guion y, si no pasa, se reescribe.
+Dos capas a propósito:
+
+1. **`verificar_reglas_mecanicas()`** — Python, gratis, infalible. Palabras, longitud de la primera
+   frase, inicios prohibidos, fechas, muletillas (`se dice`, `al parecer`, `supuestamente`…),
+   frases largas. Clasifica en **graves** (fuerzan reescritura) y **leves** (van como feedback).
+   A un LLM no se le pide que cuente palabras: lo hace mal y cobra por hacerlo mal.
+2. **`evaluar_con_critico()`** — segundo modelo con rol de verificador escéptico. Solo juzga lo que
+   necesita criterio: verificabilidad de cada afirmación, spoiler en la primera frase, línea
+   narrativa única, drama honesto. Devuelve `nota` 0-10 + `afirmaciones_dudosas` textuales.
+
+El bucle reescribe pasándole **los fallos concretos**, no reintenta a ciegas. Configurable en
+`CONFIG`: `intentos_max` (3), `nota_minima` (7), `modelo_critico`, `abortar_si_ninguno_pasa`.
+
+**Verificado sobre el guion que falló.** El crítico le puso 4/10 y marcó 3 afirmaciones dudosas —
+la de la madre y dos más que no había detectado a ojo (atribuirle estados mentales a Zidane).
+
+**Bucle completo sobre el mismo tema**, 3 intentos hasta converger:
+
+| Intento | Nota | Qué pasó |
+|---|---|---|
+| 1 | baja | **Se inventó una historia entera**: un tal Serge Chiesa expulsado de un Mundial juvenil por un cabezazo, y una relación causal con Zidane. Falso de principio a fin |
+| 2 | 4/10 | 6 afirmaciones dudosas (que nunca fue capitán antes — falso; escenas privadas en el túnel) |
+| 3 | **8/10** | ✅ Aprobado. Primera frase de 8 palabras, y se apoya en hechos documentados (el cuarto árbitro, la repetición televisiva) |
+
+Sin este control, el intento 1 se habría publicado como historia real.
+
+**Coste:** 2 llamadas por intento → **$0.0193** en el peor caso frente a $0.0030 sin control.
+Sobre un tema de $0.23 es un 7 %.
+
+> ⚠️ **No es infalible.** El guion aprobado dice *"Zidane se marchó sin medalla"* y el propio crítico
+> anotó que sí recibió la de subcampeón — pero lo clasificó como `problema` (estilo) y no como
+> `afirmacion_dudosa`, así que no bloqueó. Baja el listón de lo que bloquea subiendo `nota_minima`
+> a 9, o **sigue leyendo el guion antes de publicar**. Esto reduce mucho el riesgo, no lo elimina.
 
 ---
 

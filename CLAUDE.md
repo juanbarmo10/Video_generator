@@ -79,6 +79,18 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
   "En/Cuando/Fue/Era/Hubo", verificabilidad obligatoria). El system prompt insiste en rigor
   periodístico. Si se toca, se cambia el tono de todos los videos. También sella `.estado_actual` y
   reinicia el contador de costo.
+  **Control de calidad en dos capas** (`escribir_guion_con_control()`), porque el generador no se
+  audita bien a sí mismo:
+  1. `verificar_reglas_mecanicas()` — Python puro, gratis: cuenta palabras, mide la primera frase,
+     busca fechas, inicios prohibidos y muletillas (`se dice`, `al parecer`…). **A un LLM no se le
+     pide que cuente palabras**: lo hace mal y cobra por hacerlo mal.
+  2. `evaluar_con_critico()` — segundo modelo con rol adversarial (`modelo_critico` en `CONFIG`) que
+     solo juzga lo que necesita criterio: verificabilidad de cada afirmación, spoiler en la primera
+     frase, línea narrativa única. Devuelve `nota` 0-10 + `afirmaciones_dudosas`.
+
+  Si no pasa, **reescribe pasándole los fallos concretos** hasta `intentos_max` (3). Si ninguno pasa,
+  usa el mejor con un aviso ruidoso (`abortar_si_ninguno_pasa` lo cambia a abortar).
+  Cuesta 2 llamadas por intento: **~$0.019 en el peor caso frente a $0.003 sin control**.
 - **02** — Hace 7 llamadas a OpenAI: investigación histórica, 4 posts (uno por red), gancho de pantalla,
   metadata de YouTube y las 6 queries de imagen. El formato de `03_instagram.txt` (párrafos separados
   por línea en blanco, sin etiquetas "Slide N") es un contrato con el paso 06: si cambia el prompt, se
