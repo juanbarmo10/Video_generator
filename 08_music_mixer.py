@@ -144,7 +144,9 @@ def mix_music(cfg: dict) -> None:
     os.makedirs(os.path.dirname(cfg["video_output"]), exist_ok=True)
 
     cmd = [
-        "ffmpeg", "-y", "-loglevel", "error", "-stats",
+        # -nostdin: ver la nota del paso 03. ffmpeg lee stdin por defecto y se come
+        # los bytes del pipe de temas.csv que run_all.sh está recorriendo.
+        "ffmpeg", "-nostdin", "-y", "-loglevel", "error", "-stats",
         "-i", entrada,
         "-stream_loop", "-1", "-i", musica,   # loopea la música hasta cubrir el video
         "-filter_complex", filtro,

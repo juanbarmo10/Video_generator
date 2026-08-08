@@ -269,6 +269,14 @@ vieja del generador con Leonardo).
     `conda activate` responde `CondaError: Run 'conda init' before 'conda activate'`. La guarda
     `if [ -z "$BASH_VERSION" ]; then exec bash "$0" "$@"; fi` va **antes de cualquier sintaxis de
     bash** y tiene que ser POSIX puro. `run_all.sh` y `run_pipeline.sh` la llevan.
+12. **El lote lee `temas.csv` por el descriptor 9, nunca por stdin.** Si el `while read` toma la
+    lista por stdin, cualquier proceso hijo que lea de ahí se **come bytes de la lista de temas**.
+    `ffmpeg` lo hace: sondea stdin buscando teclas interactivas (`q` para abortar). En un lote real
+    esto mutiló casi todos los `PROYECTO` — `Historia02`→`a02`, `Historia04`→`04`,
+    `Historia07`→`oria07` — y con ellos los nombres de video, respaldo y log. El síntoma engaña:
+    parece que alguien editó el CSV a mitad de corrida. Tres defensas, todas puestas:
+    `done 9< <(tail ...)` con `read <&9`, `run_pipeline.sh </dev/null`, y **`-nostdin` en las dos
+    llamadas a ffmpeg** (pasos 03 y 08). Si agregas otra llamada a ffmpeg, ponle `-nostdin`.
 9. `publisher.py` está incompleto respecto al resto: necesita `META_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`,
    `INSTAGRAM_ACCOUNT_ID` y `THREADS_USER_ID` (no están en `.env`) y apunta a una carpeta `post_images/`
    que no existe. La publicación hoy es manual.

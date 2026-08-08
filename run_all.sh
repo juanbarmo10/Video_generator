@@ -61,7 +61,14 @@ update_env() {
 echo "🗂️  $TOTAL temas encontrados. Iniciando..."
 echo "============================================"
 
-while IFS=',' read -r PROYECTO TEMA EXTRA || [[ -n "$PROYECTO" ]]; do
+# ⚠️  El CSV se lee por el descriptor 9, NO por stdin.
+# Con stdin, cualquier proceso hijo que lea de ahí se COME bytes de la lista de
+# temas. ffmpeg (pasos 03 y 08) sondea stdin buscando teclas interactivas, y así
+# se perdieron las primeras letras de casi todos los PROYECTO de un lote entero:
+# "Historia02" → "a02", "Historia04" → "04", "Historia07" → "oria07".
+# El descriptor 9 es inalcanzable para los hijos; el </dev/null de abajo es el
+# segundo cinturón.
+while IFS=',' read -r PROYECTO TEMA EXTRA <&9 || [[ -n "$PROYECTO" ]]; do
     # Saltar líneas vacías o incompletas: correr el pipeline con estas variables
     # vacías es lo que creaba 'proyectos//social_posts' y 'video_None.mp4'
     if [[ -z "${PROYECTO// /}" || -z "${TEMA// /}" ]]; then
@@ -103,7 +110,7 @@ while IFS=',' read -r PROYECTO TEMA EXTRA || [[ -n "$PROYECTO" ]]; do
 
     export PROYECTO TEMA
 
-    if bash run_pipeline.sh >> "$LOG_FILE" 2>&1; then
+    if bash run_pipeline.sh </dev/null >> "$LOG_FILE" 2>&1; then
         echo "    ✅ Completado"
         SUCCESS=$((SUCCESS + 1))
     else
@@ -113,7 +120,7 @@ while IFS=',' read -r PROYECTO TEMA EXTRA || [[ -n "$PROYECTO" ]]; do
         FAILED=$((FAILED + 1))
     fi
 
-done < <(tail -n +2 "$TEMAS_FILE")
+done 9< <(tail -n +2 "$TEMAS_FILE")
 
 echo ""
 echo "============================================"

@@ -96,7 +96,10 @@ if VELOCIDAD != 1.0:
     temporal = "voice_tempo.mp3"
 
     resultado = subprocess.run([
-        "ffmpeg", "-y", "-loglevel", "error",
+        # -nostdin: sin esto ffmpeg sondea stdin buscando teclas interactivas y se
+        # COME bytes del pipe con el que run_all.sh lee temas.csv. Así se perdieron
+        # las primeras letras de los PROYECTO ("Historia02" → "a02").
+        "ffmpeg", "-nostdin", "-y", "-loglevel", "error",
         "-i", output,
         "-filter:a", f"atempo={VELOCIDAD}",
         "-b:a", "192k",
