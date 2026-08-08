@@ -1,6 +1,17 @@
 #!/bin/bash
 
-source /home/juanb/miniforge3/etc/profile.d/conda.sh
+# Re-ejecutar con bash si se invocó con `sh`: en Ubuntu /bin/sh es dash, que no
+# tiene `source` ni `[[ ]]`. Debe ser POSIX puro y estar antes de todo lo demás.
+if [ -z "$BASH_VERSION" ]; then
+    exec bash "$0" "$@"
+fi
+
+CONDA_SH="/home/juanb/miniforge3/etc/profile.d/conda.sh"
+if [[ ! -f "$CONDA_SH" ]]; then
+    echo "❌ No encuentro conda en '$CONDA_SH'." >&2
+    exit 1
+fi
+source "$CONDA_SH"
 
 set -e  # Detener si cualquier comando falla
 

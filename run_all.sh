@@ -1,7 +1,30 @@
 #!/bin/bash
 
-source /home/juanb/miniforge3/etc/profile.d/conda.sh
-conda activate ai_video_bot
+# ── Re-ejecutar con bash si se invocó con `sh` ──────────────────────────
+# En Ubuntu /bin/sh es dash, que NO tiene `source`. Con `sh run_all.sh` el
+# shebang se ignora, el source de conda falla en silencio, la función `conda`
+# nunca se define y `conda activate` llama al binario real, que responde
+# "CondaError: Run 'conda init' before 'conda activate'".
+# Este bloque debe ser POSIX puro y estar ANTES de cualquier sintaxis de bash.
+if [ -z "$BASH_VERSION" ]; then
+    exec bash "$0" "$@"
+fi
+
+CONDA_SH="/home/juanb/miniforge3/etc/profile.d/conda.sh"
+if [[ ! -f "$CONDA_SH" ]]; then
+    echo "❌ No encuentro conda en '$CONDA_SH'." >&2
+    echo "   Corrige la ruta en run_all.sh o instala miniforge." >&2
+    exit 1
+fi
+
+source "$CONDA_SH"
+if ! conda activate ai_video_bot; then
+    echo "❌ No se pudo activar el entorno 'ai_video_bot'." >&2
+    echo "   Compruébalo con: conda env list" >&2
+    exit 1
+fi
+
+cd /home/juanb/video_generator
 
 TEMAS_FILE="temas.csv"
 LOG_DIR="logs"
@@ -42,6 +65,14 @@ while IFS=',' read -r PROYECTO TEMA EXTRA || [[ -n "$PROYECTO" ]]; do
     # Saltar líneas vacías o incompletas: correr el pipeline con estas variables
     # vacías es lo que creaba 'proyectos//social_posts' y 'video_None.mp4'
     if [[ -z "${PROYECTO// /}" || -z "${TEMA// /}" ]]; then
+        continue
+    fi
+
+    # Encabezado repetido: `tail -n +2` salta solo la PRIMERA línea, así que un
+    # segundo "PROYECTO,TEMA" pegado por error se procesaba como tema real y
+    # generaba un video sobre "TEMA" en proyectos/PROYECTO/.
+    if [[ "${PROYECTO^^}" == "PROYECTO" && "${TEMA^^}" == "TEMA" ]]; then
+        echo "ℹ️  Encabezado repetido en la línea $((CURRENT + 2)) — se salta"
         continue
     fi
 

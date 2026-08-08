@@ -260,9 +260,15 @@ vieja del generador con Leonardo).
 7. El paso 07 lee `.png` de `images_IA/` **y** (vía `preparar_fotos_reales()`) `.jpg/.jpeg/.png/.webp`
    de `source_images/`; el 06 lee las mismas extensiones de `source_images/`.
 8. `temas.csv` debe tener encabezado `PROYECTO,TEMA` y exactamente 2 campos por fila. `run_all.sh`
-   salta la primera línea, ignora las vacías y **rechaza las filas con más de 2 campos** (antes una
+   salta la primera línea, ignora las vacías, **rechaza las filas con más de 2 campos** (antes una
    coma extra como `Mundial11,Maradona,` ensuciaba `$TEMA`, porque `read` mete los campos sobrantes en
-   la última variable).
+   la última variable) y **salta los encabezados repetidos** (`tail -n +2` solo quita el primero, así
+   que un `PROYECTO,TEMA` pegado dos veces se procesaba como un tema real).
+11. **Los `.sh` se re-ejecutan solos con bash.** En Ubuntu `/bin/sh` es `dash`, que no tiene `source`
+    ni `[[ ]]`: con `sh run_all.sh` el shebang se ignora, el `source` de conda falla en silencio y
+    `conda activate` responde `CondaError: Run 'conda init' before 'conda activate'`. La guarda
+    `if [ -z "$BASH_VERSION" ]; then exec bash "$0" "$@"; fi` va **antes de cualquier sintaxis de
+    bash** y tiene que ser POSIX puro. `run_all.sh` y `run_pipeline.sh` la llevan.
 9. `publisher.py` está incompleto respecto al resto: necesita `META_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`,
    `INSTAGRAM_ACCOUNT_ID` y `THREADS_USER_ID` (no están en `.env`) y apunta a una carpeta `post_images/`
    que no existe. La publicación hoy es manual.
