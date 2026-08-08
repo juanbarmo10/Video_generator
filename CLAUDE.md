@@ -101,16 +101,25 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
   Cuesta 2 llamadas por intento: **~$0.019 en el peor caso frente a $0.003 sin control**.
 - **02** — Hace 6 llamadas a OpenAI. Produce **UN solo texto publicable**, `descripcion.txt`, porque
   el mismo reel se sube a Facebook, Instagram, TikTok y YouTube con la misma descripción y programar
-  una semana en Metricool tiene que ser abrir un archivo por video, no dos. Seis secciones:
-  título de YouTube (≤70 chars), pie del reel para las 4 redes, hashtags, descripción larga tipo
-  Facebook (300-400 palabras), 12 tags y comentario para fijar.
+  una semana en Metricool tiene que ser abrir un archivo por video, no dos. Cinco secciones:
+  título de YouTube (≤70 chars), pie del reel para las 4 redes, descripción larga tipo Facebook,
+  12 tags de YouTube y comentario para fijar.
   ⚠️ El pie del reel **no puede nombrar ninguna red ni función que no exista en todas** ("desliza",
   "link en bio", "guarda este post"). Máx. 600 chars contando hashtags.
+  **Los hashtags van repetidos bajo CADA una de las dos descripciones y sin encabezado propio**, a
+  propósito: así se selecciona descripción + hashtags de una pasada y se pegan juntos. No es
+  duplicación por descuido.
   Siguen siendo **dos llamadas distintas** a GPT (`generar_descripcion_general()` y
   `generar_descripcion_detallada()`); la fusión ocurre al escribir, en `escribir_descripcion()`.
   Los hashtags se separan del pie con `separar_hashtags()`, en Python: recorre las líneas desde el
   final y toma las que solo tienen tokens que empiezan por `#`. Si no hay, avisa y deja la sección
   vacía en vez de romperse.
+  **`LIMITE_DESCRIPCION_LARGA = 1999`** es un tope duro del bloque *descripción larga + hashtags*.
+  El prompt pide ≤1700 chars para que casi nunca haga falta recortar, pero **el que garantiza el
+  límite es `recortar_a_limite()`, en Python** — a un LLM no se le pide que cuente caracteres.
+  Recorta conservando **siempre el último párrafo** (ahí está la pregunta que invita a comentar) y
+  salvando del resto las frases que quepan. A nivel de párrafo entero se perdían 490 chars para
+  ahorrar 53; por frases se pierden ~150.
 
   El resto de `social_posts/` son **insumos internos, no textos para copiar y pegar**:
   `carrusel.txt` (paso 06), `images_to_download.txt` (paso 05, formato `img_N.jpg → query`),

@@ -126,11 +126,14 @@ def generar_descripcion_detallada(script: str, research: str) -> dict:
                 'PRINCIPAL (persona, equipo, lugar) va al inicio porque es la señal '
                 'temática que lee el algoritmo. Genera curiosidad SIN revelar el '
                 'desenlace. Sin clickbait falso.\n'
-                '- "descripcion": 300-400 palabras. Tono emotivo y reflexivo, como una '
-                'historia que vale la pena compartir. Incluye el contexto histórico '
-                'adicional de la investigación que no cabe en el video. Termina con una '
-                'pregunta que genere debate. Sirve tanto para la descripción de YouTube '
-                'como para el post largo de Facebook.\n'
+                '- "descripcion": entre 250 y 300 palabras, y NUNCA más de 1700 '
+                'caracteres: debajo se le pegan los hashtags y el bloque entero tiene '
+                'un tope de 1999. Tono emotivo y reflexivo, como una historia que vale '
+                'la pena compartir. Incluye el contexto histórico adicional de la '
+                'investigación que no cabe en el video. Separa en párrafos con una línea '
+                'en blanco. El ÚLTIMO párrafo cierra con una pregunta que genere debate '
+                '(si hay que recortar, es el que se conserva). Sirve tanto para la '
+                'descripción de YouTube como para el post largo de Facebook.\n'
                 '- "tags": lista de 12 strings, mezclando términos amplios y de nicho\n'
                 '- "comentario_fijado": una pregunta abierta para fijar en comentarios'
             )},
@@ -296,6 +299,11 @@ def generate_image_descriptions(instagram_content: str, script: str) -> list:
 ARCHIVO_DESCRIPCION = "descripcion.txt"
 ARCHIVO_CARRUSEL = "carrusel.txt"          # insumo del paso 06
 
+# Tope duro del bloque "descripción larga + hashtags", que es como se pega.
+# El prompt pide menos para que el recorte casi nunca haga falta, pero el que
+# garantiza el límite es Python: a un LLM no se le pide que cuente caracteres.
+LIMITE_DESCRIPCION_LARGA = 1999
+
 
 def separar_hashtags(texto: str) -> tuple[str, str]:
     """Parte la descripción general en (cuerpo, hashtags).
@@ -324,6 +332,61 @@ def separar_hashtags(texto: str) -> tuple[str, str]:
     return cuerpo, hashtags
 
 
+def _cortar_en_frase(texto: str, espacio: int) -> str:
+    """El trozo más largo de `texto` que quepa en `espacio` y acabe en punto."""
+    if espacio <= 0:
+        return ""
+    if len(texto) <= espacio:
+        return texto
+    corte = max(texto.rfind(s, 0, espacio + 1) for s in (". ", "! ", "? ", "… "))
+    return texto[:corte + 1].strip() if corte > 0 else ""
+
+
+def recortar_a_limite(descripcion: str, hashtags: str, limite: int) -> str:
+    """Recorta la descripción para que 'descripción + hashtags' quepa en `limite`.
+
+    Dos reglas, en este orden:
+    1. **El último párrafo se conserva siempre**: cierra con la pregunta que invita
+       a comentar, y es lo que menos conviene perder.
+    2. De los anteriores se guardan los que quepan enteros, y del primero que no
+       quepa se salva la parte que termine en punto. Recortar por párrafos enteros
+       tiraba 490 caracteres para ahorrar 53; por frases se pierde lo justo.
+    """
+    cola = f"\n\n{hashtags}" if hashtags else ""
+    disponible = limite - len(cola)
+    texto = descripcion.strip()
+
+    if len(texto) <= disponible:
+        return texto
+
+    parrafos = [p.strip() for p in re.split(r"\n\s*\n", texto) if p.strip()]
+
+    # Un solo bloque: no hay último párrafo que proteger, se corta por frases.
+    if len(parrafos) < 2:
+        return _cortar_en_frase(texto, disponible)
+
+    ultimo = parrafos[-1]
+    reservado = len(ultimo) + 2                      # el "\n\n" que lo separa
+    elegidos, largo = [], 0
+
+    for p in parrafos[:-1]:
+        sep = 2 if elegidos else 0
+        if largo + sep + len(p) + reservado <= disponible:
+            elegidos.append(p)
+            largo += sep + len(p)
+            continue
+        # No cabe entero: salvar las frases que quepan y parar.
+        trozo = _cortar_en_frase(p, disponible - reservado - largo - sep)
+        if trozo:
+            elegidos.append(trozo)
+        break
+
+    if not elegidos:                                 # ni una frase cabe con el último
+        return _cortar_en_frase(ultimo, disponible) or ultimo[:disponible].strip()
+
+    return "\n\n".join(elegidos + [ultimo])
+
+
 def escribir_descripcion(ruta: str, general: str, detallada: dict) -> None:
     """Escribe el único archivo publicable, con todo lo que hace falta para
     programar el video de una sentada.
@@ -342,6 +405,16 @@ def escribir_descripcion(ruta: str, general: str, detallada: dict) -> None:
     if not hashtags:
         print("⚠️  La descripción general vino sin hashtags — revísala a mano")
 
+    # Los hashtags van repetidos bajo CADA descripción y sin encabezado propio,
+    # para poder seleccionar descripción + hashtags de una pasada y pegarlos
+    # juntos con la que se vaya a usar ese día.
+    larga = recortar_a_limite(detallada.get("descripcion", ""), hashtags,
+                              LIMITE_DESCRIPCION_LARGA)
+    bloque_largo = f"{larga}\n\n{hashtags}" if hashtags else larga
+    if len(bloque_largo) > LIMITE_DESCRIPCION_LARGA:
+        print(f"⚠️  La descripción larga + hashtags mide {len(bloque_largo)} "
+              f"caracteres (tope {LIMITE_DESCRIPCION_LARGA}) — acórtala a mano")
+
     def seccion(f, encabezado: str, cuerpo: str) -> None:
         f.write(f"{encabezado}\n")
         f.write("─" * 60 + "\n")
@@ -350,10 +423,11 @@ def escribir_descripcion(ruta: str, general: str, detallada: dict) -> None:
     with open(ruta, "w", encoding="utf-8") as f:
         seccion(f, f"TÍTULO ({len(titulo)}/70 caracteres)", titulo)
         # El pie del reel va arriba: es lo que más se copia al programar.
-        seccion(f, "DESCRIPCIÓN GENERAL (pie del reel — las 4 redes)", cuerpo_general)
-        seccion(f, "HASHTAGS (van con el pie del reel)", hashtags)
-        seccion(f, "DESCRIPCIÓN LARGA (YouTube y Facebook)",
-                detallada.get("descripcion", "").strip())
+        seccion(f, "DESCRIPCIÓN GENERAL (pie del reel — las 4 redes)",
+                f"{cuerpo_general}\n\n{hashtags}" if hashtags else cuerpo_general)
+        seccion(f, f"DESCRIPCIÓN LARGA (YouTube y Facebook) "
+                   f"— {len(bloque_largo)}/{LIMITE_DESCRIPCION_LARGA} caracteres",
+                bloque_largo)
         seccion(f, "TAGS DE YOUTUBE (separados por coma)",
                 ", ".join(tags) if isinstance(tags, list) else tags)
         f.write("COMENTARIO A FIJAR\n")

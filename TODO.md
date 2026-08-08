@@ -1316,16 +1316,25 @@ parseo de `carrusel.txt` del paso 06.
 `descripcion_general.txt` + `descripcion_detallada.txt` → **`descripcion.txt`**, un solo archivo.
 Programar una semana en Metricool tiene que ser abrir un archivo por video, no dos.
 
-Seis secciones, con el pie del reel arriba porque es lo que más se copia:
+Cinco secciones, con el pie del reel arriba porque es lo que más se copia:
 
 ```
 TÍTULO (58/70 caracteres)
-DESCRIPCIÓN GENERAL (pie del reel — las 4 redes)
-HASHTAGS (van con el pie del reel)
-DESCRIPCIÓN LARGA (YouTube y Facebook)
+DESCRIPCIÓN GENERAL (pie del reel — las 4 redes)   ← + hashtags debajo
+DESCRIPCIÓN LARGA (YouTube y Facebook) — n/1999    ← + hashtags debajo
 TAGS DE YOUTUBE (separados por coma)
 COMENTARIO A FIJAR
 ```
+
+**Los hashtags van repetidos bajo cada descripción y sin encabezado propio.** Así se selecciona
+descripción + hashtags de una pasada y se pegan juntos, con la que se vaya a usar ese día.
+
+**Tope de 1999 caracteres** en el bloque *descripción larga + hashtags*. El prompt pide ≤1700 para
+que casi nunca haga falta recortar, pero el que garantiza el límite es `recortar_a_limite()`, en
+Python. Conserva **siempre el último párrafo** — ahí está la pregunta que invita a comentar — y del
+resto salva las frases que quepan. Recortando párrafos enteros se perdían 490 caracteres para
+ahorrar 53; por frases se pierden ~150. De los 8 temas del lote, 4 cabían tal cual y 4 se
+recortaron entre 147 y 236 caracteres.
 
 Siguen siendo **dos llamadas distintas** a GPT: la fusión ocurre al escribir, en
 `escribir_descripcion()`. Los hashtags se separan del pie con `separar_hashtags()` — Python puro,
