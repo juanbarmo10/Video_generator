@@ -1196,6 +1196,182 @@ comparan contra la mediana de los viejos, no contra el mejor ni el peor.
 
 ---
 
+## Pendientes (8 ago 2026)
+
+Estado tras el primer lote real con el pipeline auditado (`Historia01`–`Historia08`).
+Ordenado por lo que bloquea publicar, no por dificultad.
+
+### 🔴 Bloquean el lote actual
+
+**P-01 · Saldo de fal.ai agotado — 2 temas sin video.**
+`Historia07` (Galeón) y `Historia08` (Einstein) abortaron en el paso 04:
+```
+❌ Error generando imagen 1: User is locked. Reason: Exhausted balance.
+❌ Solo se generaron 0/6 imágenes (mínimo 5) — el video quedaría inservible
+```
+El corte fue limpio: no se gastó de más y no quedó un video a medias. `logs/failed.csv` ya
+tiene las dos filas con los nombres corregidos, así que sirve tal cual como `temas.csv` para
+reintentar. **Recargar antes de correr cualquier lote nuevo.**
+
+**P-02 · 5 de 6 guiones NO pasaron el control de calidad.**
+Y eso es ya el mejor de 3 intentos, con reescritura guiada por los fallos concretos.
+
+| Tema | Nota | Qué le objetó el crítico |
+|---|---:|---|
+| Historia02 Eclipse | **3/10** | narra *"dos ejércitos **lidian** bajo el mismo sol"* — se comió que eran **lidios**, y sale así en la voz |
+| Historia05 San Lorenzo | 4/10 | *"el festival de parrilladas más popular de Roma"* |
+| Historia06 Surrealismo | 4/10 | *"juró que podía hipnotizar a una ciudad entera"* |
+| Historia01, Historia03 | 5/10 | afirmaciones sin fuente verificable |
+| Historia04 Robin Hood | ✅ | el único aprobado |
+
+**El problema no está en el paso 01: entró por `temas.csv`.** `2016`, `Eclipse`, `Odisea` y
+`Surrealismo` son categorías, no historias. El único que pasó es el único que era un personaje
+con un relato concreto. Es exactamente lo que advierte
+[INSTRUCCIONES_CHATGPT.md](INSTRUCCIONES_CHATGPT.md): *"UNA SOLA LÍNEA NARRATIVA. Un incidente
+concreto con principio y final, no la biografía de alguien."*
+El crítico está funcionando — está avisando de un problema aguas arriba. **Acción: elegir los
+temas del próximo lote con esas instrucciones, y no publicar los 5 sin leerlos.**
+
+### 🟠 Calidad del producto
+
+**P-03 · Títulos de YouTube por encima de 70 caracteres.**
+4 de 8 (`Historia01` 77, `Historia03` 71, `Historia05` 74, `Historia07` 74). El paso 02 avisa
+pero no corrige, así que salen igual y YouTube los recorta en la búsqueda. Opciones: reintentar
+la llamada pidiendo acortar, o cortar en el último límite de palabra que quepa. Reintentar es
+mejor — truncar deja títulos que terminan a media idea.
+
+**P-04 · El crítico de Anthropic nunca se ha ejecutado.**
+No hay `ANTHROPIC_API_KEY` en el `.env`, así que `critico_proveedor: "auto"` siempre cayó a
+`gpt-4.1` — es decir, **el generador y el crítico son el mismo modelo y comparten puntos ciegos**.
+Ese es justo el fallo que la separación de proveedor debía evitar. Al poner la clave, vigilar en
+la primera corrida que el JSON no salga truncado: en Opus 5 el thinking está on por defecto y
+`critico_max_tokens` limita thinking + respuesta juntos.
+
+### 🟡 Tiempo y costo
+
+Medido sobre `Historia01` (13m 41s de punta a punta) y `.costo_actual.json` ($0.24827).
+
+**Los pasos 05 y 07 son el 91% del tiempo.** El 05 (4m 56s) está casi todo **dormido**:
+`DELAY = 7.0` uniforme, aplicado en cuatro puntos, más un ciclo extra por cada foto que el filtro
+de visión rechaza. El 07 (7m 34s) sí trabaja, pero el techo es el hardware: **i5-7200U, 2 núcleos
+de 2016**, corriendo whisper `medium` y 766 frames compuestos en Python con PIL.
+
+**El 74% del costo es fal.ai**: 6 imágenes × $0.0306 (832×1472 = 1.225 MP × $0.025/MP).
+OpenAI son $0.052 (21%), de los cuales $0.023 es el control de calidad del guion — bien gastados.
+ElevenLabs, $0.012 (5%).
+
+| Palanca | Gana | Riesgo |
+|---|---|---|
+| `DELAY` distinto por fuente en el paso 05 (1.5s Wikimedia / 7s DuckDuckGo) | ~3 min/video, **~25 min por lote** | bajo — Wikimedia tiene API pública; el que bloquea es DDG |
+| whisper `medium` → `small` | 1-2 min/video | hay que revisar el `.srt`, que sí se publica |
+| `gpt-4.1-mini` en las llamadas mecánicas (queries, contexto, gancho, validación visual) | $0.0066/video | bajo — son tareas de extracción, no de criterio |
+| 6 → 5 imágenes | $0.031/video (12%) | 5 imágenes para 14 cortes empieza a repetirse |
+
+**P-05 · Hallazgo SIN CONFIRMAR sobre el composite del paso 07.**
+Los dos `CompositeVideoClip` (líneas ~555 y ~1028) se construyen sin `bg_color`, lo que hace que
+moviepy monte **un composite paralelo entero solo para la máscara alfa** — que el mp4 final no usa.
+Medí hasta 2× de mejora, y solo aparece si se corrigen **los dos a la vez**. Pero **no me fío del
+número**: las mediciones corrieron peleando por los mismos 4 hilos que el render del lote, y dos
+benchmarks se contradijeron. **Re-medir con la máquina quieta antes de tocar nada.**
+
+**P-06 · Paralelizar los temas — la palanca grande, y está bloqueada por diseño.**
+El paso 05 es red (dormido) y el 07 es CPU: se solaparían perfecto. Pero `run_all.sh` es serial
+porque `script.txt`, `voice.mp3` e `images_IA/` son **estado global en la raíz**; dos temas a la
+vez se pisan. Habilitarlo exige un directorio de trabajo por tema. Es el cambio más grande del
+proyecto y el que más tiempo ahorra: el lote pasaría de ~1h50m a ~50 min.
+
+### ⚪ Limpieza y deuda
+
+**P-07 · Basura de corridas viejas en `proyectos/`.** Siguen ahí `proyectos/social_posts/`,
+`proyectos/carousel_slides/`, `proyectos/source_images/` (de cuando `PROYECTO` iba vacío) y
+`proyectos/T1/`. Ya no se pueden volver a crear — hay guardas en los pasos y en `run_pipeline.sh` —
+pero nadie las ha borrado. Los 16 respaldos `Mundial*` conservan además slides obsoletos.
+
+**P-08 · Los 16 Mundial no tienen `descripcion.txt` ni `.srt`.** Son anteriores a la
+reestructuración del paso 02, así que el paso 09 los marca incompletos, y con razón. No vale la
+pena regenerarlos: si se republican, se reescribe el texto a mano.
+
+**P-09 · `metricas.csv` está vacío.** Tiene las 16 filas de baseline con `notas` puesto, pero
+ni una sola vista, retención ni `pct_llega_3s`. **Sin esa línea base no se puede saber si algo de
+todo esto funcionó.** Es media hora de copiar de YouTube Studio.
+
+**P-10 · Preguntas abiertas que cambian el alcance.**
+- ¿Se sigue usando el carrusel de Instagram? Si no, el paso 06 y `carrusel.txt` salen del pipeline
+  (ahorra $0.004 y 8s por tema, y quita el contrato frágil de formato con el paso 02).
+- ¿El plan de Metricool incluye API de publicación o importación masiva por CSV? Si sí, se puede
+  automatizar la programación desde `publicar/calendario.csv`.
+
+**P-11 · `publisher.py` sigue incompleto.** Le faltan `META_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`,
+`INSTAGRAM_ACCOUNT_ID` y `THREADS_USER_ID`, y apunta a `post_images/`, que no existe. La
+publicación es manual.
+
+**P-12 · No hay tests.** Todo se valida a mano corriendo un tema. Lo más rentable serían pruebas
+puras, sin red: `separar_hashtags()`, `repartir_planos()`, `verificar_reglas_mecanicas()` y el
+parseo de `carrusel.txt` del paso 06.
+
+---
+
+## ✅ Fusión de los textos publicables (8 ago 2026)
+
+`descripcion_general.txt` + `descripcion_detallada.txt` → **`descripcion.txt`**, un solo archivo.
+Programar una semana en Metricool tiene que ser abrir un archivo por video, no dos.
+
+Seis secciones, con el pie del reel arriba porque es lo que más se copia:
+
+```
+TÍTULO (58/70 caracteres)
+DESCRIPCIÓN GENERAL (pie del reel — las 4 redes)
+HASHTAGS (van con el pie del reel)
+DESCRIPCIÓN LARGA (YouTube y Facebook)
+TAGS DE YOUTUBE (separados por coma)
+COMENTARIO A FIJAR
+```
+
+Siguen siendo **dos llamadas distintas** a GPT: la fusión ocurre al escribir, en
+`escribir_descripcion()`. Los hashtags se separan del pie con `separar_hashtags()` — Python puro,
+recorre las líneas desde el final y toma las que solo tienen tokens que empiezan por `#`. Probado
+contra los 4 textos reales del lote y contra los casos límite (sin hashtags, repartidos en dos
+líneas, texto vacío).
+
+El paso 09 acepta los dos archivos viejos como alternativa (`textos_legado`) para no marcar
+incompletos los respaldos anteriores, y **borra ambos formatos del destino antes de copiar**, para
+que rehacer un paquete no deje el archivo viejo al lado del nuevo.
+
+Los 9 respaldos ya producidos se migraron sin gastar una sola llamada, reconstruyendo el archivo
+desde `metadata.json` + `descripcion_general.txt` con la misma función del paso 02.
+
+---
+
+## ✅ ffmpeg se comía los nombres de los temas (8 ago 2026)
+
+Del primer lote real salieron `proyectos/a02/`, `proyectos/04/`, `proyectos/oria07/`. De 8 temas,
+6 perdieron las primeras letras del `PROYECTO`, y con ellas los nombres de video, respaldo y log.
+
+**Causa:** `run_all.sh` leía `temas.csv` por **stdin**, y ese stdin lo heredan todos los procesos
+hijos. **ffmpeg lee stdin por defecto**, byte a byte, buscando teclas interactivas (la `q` para
+abortar). Cada video terminado se comía unos bytes de la lista, y el siguiente `read` arrancaba a
+media palabra. Reproducido en aislado:
+
+```
+── sin redirigir stdin        ── con stdin redirigido
+  P='Historia01'                P='Historia01'
+  P='ria02'                     P='Historia02'
+  P='ria03'                     P='Historia03'
+```
+
+Engaña mucho: el síntoma parece que alguien editó el CSV a mitad de corrida.
+
+**Tres defensas, todas puestas:**
+1. El CSV se lee por el descriptor `9` (`done 9< <(tail ...)` con `read <&9`) — inalcanzable para
+   los hijos.
+2. `run_pipeline.sh` se invoca con `</dev/null`.
+3. **`-nostdin` en las dos llamadas a ffmpeg** (pasos 03 y 08). Si se añade otra, ponerle `-nostdin`.
+
+Los 6 proyectos afectados se renombraron (carpeta, mp3, srt, video sin música, video final, log) y
+se corrigió `logs/failed.csv`, que tenía `oria07,Galeón` y así no servía para reintentar.
+
+---
+
 ## Anexo — Evidencia medida
 
 Comandos ejecutados sobre los archivos reales el 2026-08-02.

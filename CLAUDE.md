@@ -62,7 +62,7 @@ en la raíz del proyecto**.
 | Paso | Script | Entrada | Salida | Servicio |
 |---|---|---|---|---|
 | 01 | [01_script_generator.py](01_script_generator.py) | `$TEMA` | `script.txt`, `.estado_actual` | OpenAI `gpt-4.1` |
-| 02 | [02_social_media_generator.py](02_social_media_generator.py) | `script.txt` | `social_posts/*.txt` (incl. `05_youtube.txt`), `TITULO_VIDEO` en `.env` | OpenAI `gpt-4.1` |
+| 02 | [02_social_media_generator.py](02_social_media_generator.py) | `script.txt` | `social_posts/descripcion.txt` + insumos internos, `TITULO_VIDEO` en `.env` | OpenAI `gpt-4.1` |
 | 03 | [03_voice_generator.py](03_voice_generator.py) | `script.txt` | `voice.mp3` (acelerado ×1.10) | ElevenLabs `eleven_multilingual_v2` + ffmpeg |
 | 04 | [04_image_generator.py](04_image_generator.py) | `script.txt` | `images_IA/scene_0..7.png` | OpenAI + fal.ai `fal-ai/flux/dev` |
 | 05 | [05_download_images.py](05_download_images.py) | `social_posts/images_to_download.txt` | `source_images/img_N.jpg` | Wikimedia Commons → DuckDuckGo |
@@ -99,12 +99,18 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
   Si no pasa, **reescribe pasándole los fallos concretos** hasta `intentos_max` (3). Si ninguno pasa,
   usa el mejor con un aviso ruidoso (`abortar_si_ninguno_pasa` lo cambia a abortar).
   Cuesta 2 llamadas por intento: **~$0.019 en el peor caso frente a $0.003 sin control**.
-- **02** — Hace 6 llamadas a OpenAI. Produce **solo DOS textos publicables**, porque el mismo reel se
-  sube a Facebook, Instagram, TikTok y YouTube con la misma descripción:
-  - `descripcion_general.txt` — pie del reel para las 4 redes. **No puede nombrar ninguna red ni
-    función que no exista en todas** ("desliza", "link en bio", "guarda este post"). Máx. 600 chars.
-  - `descripcion_detallada.txt` — título de YouTube (≤70 chars), descripción larga tipo Facebook
-    (300-400 palabras), 12 tags y comentario para fijar.
+- **02** — Hace 6 llamadas a OpenAI. Produce **UN solo texto publicable**, `descripcion.txt`, porque
+  el mismo reel se sube a Facebook, Instagram, TikTok y YouTube con la misma descripción y programar
+  una semana en Metricool tiene que ser abrir un archivo por video, no dos. Seis secciones:
+  título de YouTube (≤70 chars), pie del reel para las 4 redes, hashtags, descripción larga tipo
+  Facebook (300-400 palabras), 12 tags y comentario para fijar.
+  ⚠️ El pie del reel **no puede nombrar ninguna red ni función que no exista en todas** ("desliza",
+  "link en bio", "guarda este post"). Máx. 600 chars contando hashtags.
+  Siguen siendo **dos llamadas distintas** a GPT (`generar_descripcion_general()` y
+  `generar_descripcion_detallada()`); la fusión ocurre al escribir, en `escribir_descripcion()`.
+  Los hashtags se separan del pie con `separar_hashtags()`, en Python: recorre las líneas desde el
+  final y toma las que solo tienen tokens que empiezan por `#`. Si no hay, avisa y deja la sección
+  vacía en vez de romperse.
 
   El resto de `social_posts/` son **insumos internos, no textos para copiar y pegar**:
   `carrusel.txt` (paso 06), `images_to_download.txt` (paso 05, formato `img_N.jpg → query`),
@@ -194,7 +200,7 @@ requirements.txt       # moviepy==1.0.3 fijado; ffmpeg va aparte (apt)
 temas.csv              # entrada del lote: PROYECTO,TEMA (con encabezado, 2 campos exactos)
 script.txt             # ← guion del tema EN CURSO (se sobrescribe cada run)
 voice.mp3              # ← narración del tema EN CURSO (ya acelerada ×1.10)
-social_posts/          # ← posts del tema EN CURSO (incl. 05_youtube.txt)
+social_posts/          # ← descripcion.txt del tema EN CURSO + insumos internos
 images_IA/             # ← 8 imágenes IA del tema EN CURSO (scene_N.png, 832×1472)
 source_images/         # ← fotos reales descargadas del tema EN CURSO (img_N.jpg)
 carousel_slides/       # ← slides del tema EN CURSO
@@ -212,9 +218,13 @@ perfil/                # imagen de perfil y banner para el slide CTA
 
 **[09_paquete_publicacion.py](09_paquete_publicacion.py)** no es un paso del pipeline: se corre
 UNA VEZ después de `run_all.sh`. Junta en `publicar/<TEMA>/` el video (con hardlink, cero espacio
-extra), el `.srt`, un `.txt` por plataforma y el carrusel, y escribe `publicar/calendario.csv` con
+extra), el `.srt`, `descripcion.txt` y el carrusel, y escribe `publicar/calendario.csv` con
 las fechas repartidas. Marca los temas incompletos y los guiones que **no** pasaron el control de
 calidad del paso 01 (que deja su veredicto en `proyectos/$PROYECTO/calidad_guion.json`).
+Acepta `descripcion_general.txt` + `descripcion_detallada.txt` como alternativa (`textos_legado`)
+para no marcar como incompletos los respaldos anteriores a la fusión, y **borra los dos formatos del
+destino antes de copiar**, para que rehacer un paquete no deje el archivo viejo al lado del nuevo.
+Sin `--solo` empaqueta **todo** lo que haya en `videos/`, incluidos los lotes viejos.
 
 Scripts fuera del pipeline: `publisher.py` (publicación a Meta/Threads), `ink_filter.py` (convierte fotos
 reales a estilo tinta/pergamino, alternativa local al paso 04), `imagen_generator_source.py` (versión

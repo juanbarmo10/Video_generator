@@ -291,46 +291,83 @@ def generate_image_descriptions(instagram_content: str, script: str) -> list:
 
     return lines[:6]
 
-# Los DOS archivos que se publican. El resto de lo que hay en social_posts/ son
+# EL archivo que se publica. El resto de lo que hay en social_posts/ son
 # insumos internos de otros pasos, no textos para copiar y pegar.
-ARCHIVO_GENERAL = "descripcion_general.txt"
-ARCHIVO_DETALLADA = "descripcion_detallada.txt"
+ARCHIVO_DESCRIPCION = "descripcion.txt"
 ARCHIVO_CARRUSEL = "carrusel.txt"          # insumo del paso 06
 
 
-def guardar_descripciones(general: str, detallada: dict, carrusel: str,
-                          research: str, output_dir="social_posts") -> None:
-    """Escribe los 2 archivos publicables + los insumos internos."""
-    os.makedirs(output_dir, exist_ok=True)
+def separar_hashtags(texto: str) -> tuple[str, str]:
+    """Parte la descripción general en (cuerpo, hashtags).
 
-    # ── 1/2: la que sirve para las cuatro redes ───────────────
-    with open(f"{output_dir}/{ARCHIVO_GENERAL}", "w", encoding="utf-8") as f:
-        f.write(general.strip() + "\n")
-    print(f"✅ Guardado: {output_dir}/{ARCHIVO_GENERAL}")
+    El prompt pide los hashtags en la última línea, pero el modelo a veces los
+    reparte en dos. Se recorren las líneas desde el final y se toman como
+    hashtags todas las que solo contienen tokens que empiezan por '#'.
 
-    # ── 2/2: título de YouTube + descripción larga + tags ─────
+    Si no hay ninguna, devuelve (texto, "") — el archivo sale sin sección de
+    hashtags en vez de romperse.
+    """
+    lineas = texto.strip().split("\n")
+    corte = len(lineas)
+
+    for i in range(len(lineas) - 1, -1, -1):
+        tokens = lineas[i].split()
+        if not tokens:                       # línea en blanco: sigue mirando
+            continue
+        if all(t.startswith("#") for t in tokens):
+            corte = i
+        else:
+            break
+
+    cuerpo = "\n".join(lineas[:corte]).strip()
+    hashtags = " ".join(" ".join(lineas[corte:]).split())
+    return cuerpo, hashtags
+
+
+def escribir_descripcion(ruta: str, general: str, detallada: dict) -> None:
+    """Escribe el único archivo publicable, con todo lo que hace falta para
+    programar el video de una sentada.
+
+    Todo en UN archivo a propósito: programar una semana en Metricool significa
+    abrir el texto de cada video una vez, no dos.
+    """
     tags = detallada.get("tags", [])
     titulo = detallada.get("titulo", "")
+    cuerpo_general, hashtags = separar_hashtags(general)
 
     # YouTube corta el título en la búsqueda pasados ~70 caracteres. El modelo
     # se pasa de vez en cuando, así que se avisa en vez de truncar a ciegas.
     if len(titulo) > 70:
         print(f"⚠️  El título tiene {len(titulo)}/70 caracteres — acórtalo a mano")
+    if not hashtags:
+        print("⚠️  La descripción general vino sin hashtags — revísala a mano")
 
-    with open(f"{output_dir}/{ARCHIVO_DETALLADA}", "w", encoding="utf-8") as f:
-        f.write(f"TÍTULO ({len(titulo)}/70 caracteres)\n")
+    def seccion(f, encabezado: str, cuerpo: str) -> None:
+        f.write(f"{encabezado}\n")
         f.write("─" * 60 + "\n")
-        f.write(f"{titulo}\n\n\n")
-        f.write("DESCRIPCIÓN (YouTube y Facebook)\n")
-        f.write("─" * 60 + "\n")
-        f.write(f"{detallada.get('descripcion', '').strip()}\n\n\n")
-        f.write("TAGS (separados por coma)\n")
-        f.write("─" * 60 + "\n")
-        f.write(f"{', '.join(tags) if isinstance(tags, list) else tags}\n\n\n")
+        f.write(f"{cuerpo}\n\n\n")
+
+    with open(ruta, "w", encoding="utf-8") as f:
+        seccion(f, f"TÍTULO ({len(titulo)}/70 caracteres)", titulo)
+        # El pie del reel va arriba: es lo que más se copia al programar.
+        seccion(f, "DESCRIPCIÓN GENERAL (pie del reel — las 4 redes)", cuerpo_general)
+        seccion(f, "HASHTAGS (van con el pie del reel)", hashtags)
+        seccion(f, "DESCRIPCIÓN LARGA (YouTube y Facebook)",
+                detallada.get("descripcion", "").strip())
+        seccion(f, "TAGS DE YOUTUBE (separados por coma)",
+                ", ".join(tags) if isinstance(tags, list) else tags)
         f.write("COMENTARIO A FIJAR\n")
         f.write("─" * 60 + "\n")
         f.write(f"{detallada.get('comentario_fijado', '')}\n")
-    print(f"✅ Guardado: {output_dir}/{ARCHIVO_DETALLADA}")
+
+
+def guardar_descripciones(general: str, detallada: dict, carrusel: str,
+                          research: str, output_dir="social_posts") -> None:
+    """Escribe el archivo publicable único + los insumos internos."""
+    os.makedirs(output_dir, exist_ok=True)
+
+    escribir_descripcion(f"{output_dir}/{ARCHIVO_DESCRIPCION}", general, detallada)
+    print(f"✅ Guardado: {output_dir}/{ARCHIVO_DESCRIPCION}")
 
     # ── Insumos internos (NO se publican tal cual) ────────────
     with open(f"{output_dir}/{ARCHIVO_CARRUSEL}", "w", encoding="utf-8") as f:

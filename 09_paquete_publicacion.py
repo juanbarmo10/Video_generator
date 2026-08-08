@@ -46,10 +46,13 @@ CONFIG = {
     "hora_defecto":  "19:00",
     "cada_n_dias":   1,
 
-    # Los DOS archivos publicables que quedan al lado del video.
-    # El mismo reel va a Facebook, Instagram, TikTok y YouTube con el mismo
-    # texto, así que no hace falta uno por red.
-    "textos": [
+    # EL archivo publicable que queda al lado del video: título, pie del reel,
+    # hashtags, descripción larga, tags y comentario a fijar, todo junto.
+    "textos": ["descripcion.txt"],
+
+    # Respaldos anteriores a la fusión traían estos dos en vez de descripcion.txt.
+    # Se aceptan como alternativa para no marcar como incompletos los lotes viejos.
+    "textos_legado": [
         "descripcion_general.txt",     # pie del reel, las 4 redes
         "descripcion_detallada.txt",   # título YouTube + descripción larga + tags
     ],
@@ -150,14 +153,25 @@ def armar_paquete(cfg: dict, tema: str, indice: int = 0) -> dict:
     else:
         resumen["faltantes"].append("srt")
 
-    # 3. Los 2 textos publicables, al lado del video
+    # 3. El texto publicable, al lado del video. Si el respaldo es anterior a la
+    #    fusión en descripcion.txt, se copian los dos archivos viejos.
     posts = origen / "social_posts"
-    for archivo in cfg["textos"]:
-        fuente = posts / archivo
-        if fuente.exists():
-            shutil.copy2(fuente, destino / archivo)
-        else:
-            resumen["faltantes"].append(archivo.replace(".txt", ""))
+
+    # Rehacer el paquete no debe dejar residuos del formato anterior: sin esto,
+    # los descripcion_general/detallada de una corrida previa seguirían ahí y no
+    # se sabría cuál es el bueno.
+    for viejo in cfg["textos"] + cfg["textos_legado"]:
+        (destino / viejo).unlink(missing_ok=True)
+
+    presentes = [a for a in cfg["textos"] if (posts / a).exists()]
+    if not presentes:
+        presentes = [a for a in cfg["textos_legado"] if (posts / a).exists()]
+
+    for archivo in presentes:
+        shutil.copy2(posts / archivo, destino / archivo)
+
+    if not presentes:
+        resumen["faltantes"].append("descripcion")
 
     # 4. Carrusel de Instagram
     slides = origen / "carousel_slides"
