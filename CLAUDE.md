@@ -99,11 +99,18 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
   Si no pasa, **reescribe pasándole los fallos concretos** hasta `intentos_max` (3). Si ninguno pasa,
   usa el mejor con un aviso ruidoso (`abortar_si_ninguno_pasa` lo cambia a abortar).
   Cuesta 2 llamadas por intento: **~$0.019 en el peor caso frente a $0.003 sin control**.
-- **02** — Hace 7 llamadas a OpenAI: investigación histórica, 4 posts (uno por red), gancho de pantalla,
-  metadata de YouTube y las 6 queries de imagen. El formato de `03_instagram.txt` (párrafos separados
-  por línea en blanco, sin etiquetas "Slide N") es un contrato con el paso 06: si cambia el prompt, se
-  rompe el parseo del carrusel. `images_to_download.txt` usa el formato `img_N.jpg → query` que el paso
-  05 parsea con regex. **`generate_title()` NO resume el guion**: genera un gancho que abre la pregunta
+- **02** — Hace 6 llamadas a OpenAI. Produce **solo DOS textos publicables**, porque el mismo reel se
+  sube a Facebook, Instagram, TikTok y YouTube con la misma descripción:
+  - `descripcion_general.txt` — pie del reel para las 4 redes. **No puede nombrar ninguna red ni
+    función que no exista en todas** ("desliza", "link en bio", "guarda este post"). Máx. 600 chars.
+  - `descripcion_detallada.txt` — título de YouTube (≤70 chars), descripción larga tipo Facebook
+    (300-400 palabras), 12 tags y comentario para fijar.
+
+  El resto de `social_posts/` son **insumos internos, no textos para copiar y pegar**:
+  `carrusel.txt` (paso 06), `images_to_download.txt` (paso 05, formato `img_N.jpg → query`),
+  `00_investigacion.txt` y `metadata.json` (de ahí saca el paso 09 el título sin parsear prosa).
+  ⚠️ El formato de `carrusel.txt` (párrafos separados por línea en blanco, sin etiquetas "Slide N")
+  es un contrato con el paso 06: si cambia el prompt, se rompe el parseo del carrusel. **`generate_title()` NO resume el guion**: genera un gancho que abre la pregunta
   sin responderla (un resumen equivale al spoiler, y ese texto va quemado en el frame 0 del video).
 - **03** — `voice_id = "l1zE9xgNpUTaQCZzpNJa"` hardcodeado. **Aborta con código != 0 si ElevenLabs
   falla**: si no, los pasos siguientes usarían el `voice.mp3` del tema anterior. Después acelera el

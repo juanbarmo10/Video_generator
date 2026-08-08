@@ -36,7 +36,7 @@ if not PROYECTO:
 
 CONFIG = {
     # Archivos
-    "instagram_post":   "social_posts/03_instagram.txt",
+    "instagram_post":   "social_posts/carrusel.txt",
     "images_dir":       "source_images",
     "output_dir":       "carousel_slides",
 

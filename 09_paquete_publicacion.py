@@ -46,14 +46,18 @@ CONFIG = {
     "hora_defecto":  "19:00",
     "cada_n_dias":   1,
 
-    # Qué archivo de social_posts alimenta cada plataforma
-    "textos": {
-        "youtube":   "05_youtube.txt",
-        "instagram": "03_instagram.txt",
-        "facebook":  "04_facebook.txt",
-        "twitter":   "01_twitter_hilo.txt",
-        "threads":   "02_threads.txt",
-    },
+    # Los DOS archivos publicables que quedan al lado del video.
+    # El mismo reel va a Facebook, Instagram, TikTok y YouTube con el mismo
+    # texto, así que no hace falta uno por red.
+    "textos": [
+        "descripcion_general.txt",     # pie del reel, las 4 redes
+        "descripcion_detallada.txt",   # título YouTube + descripción larga + tags
+    ],
+
+    # Agrupar por semanas de publicación: publicar/semana_01/<TEMA>/
+    # Útil cuando subes el contenido de una semana de una sentada.
+    "agrupar_por_semana": False,
+    "videos_por_semana": 7,
 }
 
 
@@ -91,19 +95,14 @@ def leer_calidad(cfg: dict, tema: str) -> dict | None:
 
 
 def titulo_youtube(cfg: dict, tema: str) -> str:
-    """Extrae el título del 05_youtube.txt para que se vea en el calendario."""
-    ruta = Path(cfg["dir_proyectos"]) / tema / "social_posts" / "05_youtube.txt"
+    """Título de YouTube. Sale del json que escribe el paso 02, no de la prosa."""
+    ruta = Path(cfg["dir_proyectos"]) / tema / "social_posts" / "metadata.json"
     if not ruta.exists():
         return ""
-
-    lineas = ruta.read_text(encoding="utf-8").splitlines()
-    for i, linea in enumerate(lineas):
-        if linea.startswith("TÍTULO"):
-            # El título va en la línea siguiente
-            for siguiente in lineas[i + 1:]:
-                if siguiente.strip():
-                    return siguiente.strip()
-    return ""
+    try:
+        return json.loads(ruta.read_text(encoding="utf-8")).get("titulo", "")
+    except json.JSONDecodeError:
+        return ""
 
 
 # ══════════════════════════════════════════════════════════════
@@ -120,13 +119,22 @@ def enlazar_o_copiar(origen: Path, destino: Path) -> None:
         shutil.copy2(origen, destino)
 
 
-def armar_paquete(cfg: dict, tema: str) -> dict:
-    """Deja en publicar/<tema>/ todo lo que hace falta para publicar."""
+def carpeta_destino(cfg: dict, tema: str, indice: int) -> Path:
+    """publicar/<tema>/  o  publicar/semana_NN/<tema>/ si se agrupa."""
+    base = Path(cfg["dir_salida"])
+    if cfg.get("agrupar_por_semana"):
+        semana = indice // max(1, cfg["videos_por_semana"]) + 1
+        base = base / f"semana_{semana:02d}"
+    return base / tema
+
+
+def armar_paquete(cfg: dict, tema: str, indice: int = 0) -> dict:
+    """Deja en la carpeta del tema el video y sus 2 textos, uno al lado del otro."""
     origen = Path(cfg["dir_proyectos"]) / tema
-    destino = Path(cfg["dir_salida"]) / tema
+    destino = carpeta_destino(cfg, tema, indice)
     destino.mkdir(parents=True, exist_ok=True)
 
-    resumen = {"tema": tema, "faltantes": []}
+    resumen = {"tema": tema, "faltantes": [], "carpeta": str(destino)}
 
     # 1. Video final
     video = Path(cfg["dir_videos"]) / f"video_{tema}.mp4"
@@ -142,14 +150,14 @@ def armar_paquete(cfg: dict, tema: str) -> dict:
     else:
         resumen["faltantes"].append("srt")
 
-    # 3. Un .txt por plataforma, con el nombre de la plataforma
+    # 3. Los 2 textos publicables, al lado del video
     posts = origen / "social_posts"
-    for plataforma, archivo in cfg["textos"].items():
+    for archivo in cfg["textos"]:
         fuente = posts / archivo
         if fuente.exists():
-            shutil.copy2(fuente, destino / f"{plataforma}.txt")
+            shutil.copy2(fuente, destino / archivo)
         else:
-            resumen["faltantes"].append(f"texto {plataforma}")
+            resumen["faltantes"].append(archivo.replace(".txt", ""))
 
     # 4. Carrusel de Instagram
     slides = origen / "carousel_slides"
@@ -191,8 +199,9 @@ def generar_calendario(cfg: dict, temas: list[str], desde: datetime,
             "hora": hora,
             "proyecto": tema,
             "titulo_youtube": titulo_youtube(cfg, tema),
-            "video": f"{cfg['dir_salida']}/{tema}/{tema}.mp4",
-            "carpeta": f"{cfg['dir_salida']}/{tema}/",
+            "video": f"{carpeta_destino(cfg, tema, i)}/{tema}.mp4",
+            "carpeta": f"{carpeta_destino(cfg, tema, i)}/",
+            "semana": i // max(1, cfg["videos_por_semana"]) + 1,
             "nota_guion": (calidad or {}).get("nota", ""),
             "revisar_a_mano": revisar,
         })
@@ -220,9 +229,16 @@ def main() -> None:
     p.add_argument("--cada", type=int, default=CONFIG["cada_n_dias"],
                    help="Días entre publicaciones (1 = diario)")
     p.add_argument("--solo", nargs="*", help="Limitar a estos PROYECTO")
+    p.add_argument("--semanas", type=int, metavar="N", nargs="?", const=7,
+                   help="Agrupar en carpetas de N videos: publicar/semana_01/... "
+                        "(sin valor = 7, una semana)")
     args = p.parse_args()
 
     cfg = CONFIG
+    if args.semanas:
+        cfg["agrupar_por_semana"] = True
+        cfg["videos_por_semana"] = args.semanas
+
     desde = (datetime.strptime(args.desde, "%Y-%m-%d") if args.desde
              else datetime.now() + timedelta(days=1))
 
@@ -233,8 +249,8 @@ def main() -> None:
     print(f"📦 Armando el paquete de {len(temas)} tema(s)...\n")
 
     revisar, incompletos = [], []
-    for tema in temas:
-        r = armar_paquete(cfg, tema)
+    for i, tema in enumerate(temas):
+        r = armar_paquete(cfg, tema, i)
         calidad = leer_calidad(cfg, tema)
 
         marca = "✅"
@@ -245,7 +261,7 @@ def main() -> None:
             marca = "❌"
             incompletos.append((tema, r["faltantes"]))
 
-        print(f"  {marca} {tema:14} {r.get('slides', 0)} slides"
+        print(f"  {marca} {r['carpeta']:34} {r.get('slides', 0)} slides"
               + (f"  · falta: {', '.join(r['faltantes'])}" if r["faltantes"] else ""))
 
     filas = generar_calendario(cfg, temas, desde, args.hora, args.cada)
