@@ -30,6 +30,7 @@ import json
 import os
 import re
 import unicodedata
+from pathlib import Path
 from openai import OpenAI
 
 from estado import (sellar_estado, reset_costo, registrar_openai,
@@ -526,6 +527,7 @@ def escribir_guion_con_control(tema: str, cfg: dict = CONFIG) -> str:
 
         if pasa:
             print(f"\n✅ Guion aprobado en el intento {intento} (nota {nota}/10)")
+            registrar_calidad(True, intento, veredicto)
             return script
 
         correcciones = formatear_correcciones(graves, leves, veredicto)
@@ -542,7 +544,31 @@ def escribir_guion_con_control(tema: str, cfg: dict = CONFIG) -> str:
 
     print(f"\n{mensaje}")
     print("   Se usa el mejor de los intentos. REVÍSALO A MANO antes de publicar.")
+    registrar_calidad(False, cfg["intentos_max"], veredicto)
     return mejor
+
+
+def registrar_calidad(aprobado: bool, intento: int, veredicto: dict) -> None:
+    """Deja constancia de si el guion pasó el control.
+
+    En un lote nocturno de 30 temas los avisos se pierden en los logs. El paso
+    09 lee esto para marcar qué guiones hay que revisar a mano.
+    """
+    if not PROYECTO:
+        return
+
+    destino = Path(f"proyectos/{PROYECTO}")
+    destino.mkdir(parents=True, exist_ok=True)
+    (destino / "calidad_guion.json").write_text(
+        json.dumps({
+            "aprobado": aprobado,
+            "intento": intento,
+            "nota": veredicto.get("nota"),
+            "afirmaciones_dudosas": veredicto.get("afirmaciones_dudosas", []),
+            "problemas": veredicto.get("problemas", []),
+        }, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
 
 # ══════════════════════════════════════════════════════════════

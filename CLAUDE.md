@@ -202,6 +202,12 @@ fonts/                 # BungeeSpice (subtítulos y carrusel), Cossette_Texte
 perfil/                # imagen de perfil y banner para el slide CTA
 ```
 
+**[09_paquete_publicacion.py](09_paquete_publicacion.py)** no es un paso del pipeline: se corre
+UNA VEZ después de `run_all.sh`. Junta en `publicar/<TEMA>/` el video (con hardlink, cero espacio
+extra), el `.srt`, un `.txt` por plataforma y el carrusel, y escribe `publicar/calendario.csv` con
+las fechas repartidas. Marca los temas incompletos y los guiones que **no** pasaron el control de
+calidad del paso 01 (que deja su veredicto en `proyectos/$PROYECTO/calidad_guion.json`).
+
 Scripts fuera del pipeline: `publisher.py` (publicación a Meta/Threads), `ink_filter.py` (convierte fotos
 reales a estilo tinta/pergamino, alternativa local al paso 04), `imagen_generator_source.py` (versión
 vieja del generador con Leonardo).

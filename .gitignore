@@ -48,3 +48,6 @@ fonts/*.zip
 
 # Config local de Claude Code (rutas y permisos de esta máquina)
 .claude/settings.local.json
+
+# Paquete de publicacion (videos con hardlink + textos, regenerable)
+publicar/
