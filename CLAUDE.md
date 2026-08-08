@@ -185,6 +185,7 @@ esas variables ensucia el árbol de proyectos con rutas tipo `proyectos//` y `vi
 
 ```
 TODO.md                # auditoría de bugs + plan de crecimiento (documento de trabajo)
+INSTRUCCIONES_CHATGPT.md  # prompt para que ChatGPT proponga temas que el pipeline aguante
 metricas.csv           # una fila por video publicado: vistas 24h/7d, retención, comentarios
 estado.py              # módulo compartido: sello de tema, costo, reintentos
 requirements.txt       # moviepy==1.0.3 fijado; ffmpeg va aparte (apt)
