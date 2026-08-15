@@ -6,6 +6,11 @@ Está escrito contra las restricciones **reales** del pipeline: si el tema no la
 lo rechaza el crítico, las imágenes salen sanitizadas o el paso 05 no encuentra fotos. Por eso no
 es un prompt genérico de "dame ideas virales".
 
+⚠️ **Desde el 15 ago 2026 un tema que no pase el control de calidad se ABORTA** — no se publica con
+un aviso, simplemente no llega a ser video. Sobre el lote de agosto se cayeron 2 de 7. Por eso
+conviene **pedir 9-10 temas para obtener 7**, y por eso el filtro de verificabilidad es el que más
+pesa: un tema sin nada documentado que contar cuesta un hueco del calendario.
+
 **Dónde pegarlo — dos opciones:**
 
 | | Dónde | Límite | Cuándo |
@@ -100,6 +105,8 @@ Dime siempre de cuál de los tres sale cada tema.
   que no puede es que su única imagen posible sea un cadáver o una masacre.
 - UNA SOLA LÍNEA NARRATIVA. Un incidente concreto con principio y final, no la biografía
   de alguien. "Zidane" es un tema flojo; "el cabezazo de Zidane en la final" es un tema.
+  Un tema amplio ("Pompeya", "La Odisea") vale SI traes el incidente concreto dentro:
+  "el panadero de Pompeya y los 81 panes que siguen en su horno" sí es un tema.
 - SIN FECHAS EN EL GUION. El tema tiene que funcionar sin decir el año en voz alta.
 
 # ÁNGULOS QUE FUNCIONAN
@@ -113,7 +120,8 @@ Dime siempre de cuál de los tres sale cada tema.
 
 # CUÁNTOS
 
-Por defecto 8, salvo que te pida otra cantidad. Si el universo temático da para menos sin
+Por defecto 10, salvo que te pida otra cantidad. Pido de más a propósito: los que no pasan
+el control de calidad se descartan solos. Si el universo temático da para menos sin
 repetirse, dime cuántos de verdad aguanta en vez de rellenar.
 
 # FORMATO DE RESPUESTA
@@ -170,6 +178,6 @@ Cada uno sale de un fallo real del pipeline, no de teoría:
 | Fotos en Wikimedia | El filtro de visión del paso 05 descarta fotos que no corresponden; sin material bueno, el video se queda sin fotos reales |
 | Sin texto en pantalla | El primer frame de `Mundial16` era un contrato con texto inventado ilegible |
 | Sin violencia explícita | `BANNED_WORDS` del paso 04 reescribe muerte, sangre y violencia; el resultado son ilustraciones vacías |
-| Una línea narrativa | El crítico penaliza los guiones que cambian de tema a la mitad |
+| Una línea narrativa | El crítico penaliza los guiones que cambian de tema a la mitad. ⚠️ Medido sobre 7 temas, un tema amplio NO puntúa peor por serlo —"La Odisea" sacó la mejor nota— siempre que haya un incidente documentado dentro |
 | Sin fechas | Regla dura del paso 01: la verificación mecánica marca como GRAVE cualquier año de 4 cifras o mes escrito |
 | 2 columnas exactas | Una coma de más (`Mundial11,Maradona,`) ensuciaba `$TEMA`; `run_all.sh` ahora rechaza esas filas |

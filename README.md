@@ -36,7 +36,10 @@ De cada tema salen:
    ```
 2. **Claves** en `.env` (copia `.env.example`): `OPENAI_API_KEY`, `ELEVENLABS_API_KEY`, `FAL_KEY`.
    `ANTHROPIC_API_KEY` es opcional pero **muy recomendable**: sin ella el crítico del guion cae en
-   `gpt-4.1`, o sea el mismo modelo que lo escribió, y comparte sus puntos ciegos.
+   `gpt-4.1`, que comparte familia con el guionista y sus puntos ciegos.
+   ⚠️ **Sin ella la puerta de calidad cambia de comportamiento**: el crítico de gpt-4.1 puntúa
+   3-4 puntos más alto sobre el mismo texto, así que aprueba casi todo. Los umbrales están
+   calibrados para Opus.
 3. **Saldo en fal.ai.** Es lo único que se agota y lo que aborta el lote a mitad.
 4. **Opcional: el recordatorio semanal.** Las dos claves van en el **`.env`**, junto a las demás:
    ```bash
@@ -74,9 +77,9 @@ De cada tema salen:
    pip install google-api-python-client google-auth-oauthlib
    ```
 
-   En [console.cloud.google.com](https://console.cloud.google.com), **con la cuenta dueña de
-   `@chistoricas3`** (si el canal es una *Cuenta de marca*, la cuenta personal que la administra —
-   con otra cuenta todo funciona y la API devuelve datos vacíos sin explicar por qué):
+   En [console.cloud.google.com](https://console.cloud.google.com), **con la cuenta dueña del
+   canal** (si es una *Cuenta de marca*, la cuenta personal que la administra — con otra cuenta
+   todo funciona y la API devuelve datos vacíos sin explicar por qué):
 
    | | Dónde | Qué |
    |---|---|---|
@@ -100,7 +103,17 @@ De cada tema salen:
    ```
 
    Se abre el navegador una vez; después imprime a qué canal accede — **míralo**, es lo que
-   distingue "el mes fue malo" de "autoricé con la cuenta equivocada".
+   distingue "el mes fue malo" de "autoricé con la cuenta equivocada". Debe salir
+   *Curiosidades Historicas* (`@curiosidadeshistoricas-03`).
+   ⚠️ **El identificador de YouTube no es `@chistoricas3`**, que es el de las otras redes. No es un
+   error: son handles distintos por red.
+
+   Después ya no hace falta volver a tocarlo:
+
+   ```bash
+   python herramientas/13_youtube_api.py --metricas        # las métricas → metricas.csv
+   python herramientas/13_youtube_api.py --retencion-lote  # la curva de retención
+   ```
 
 ⚠️ El `.env` lleva claves en texto plano y **es estado mutable del pipeline** (los scripts escriben
 ahí `PROYECTO`, `TEMA` y `TITULO_VIDEO`). No se commitea nunca. Lo mismo vale para
@@ -112,7 +125,7 @@ ahí `PROYECTO`, `TEMA` y `TITULO_VIDEO`). No se commitea nunca. Lo mismo vale p
 
 # La semana
 
-Cinco bloques. En total, poco más de dos horas de máquina y unos 30 minutos tuyos.
+Cinco bloques. En total, algo más de una hora de máquina y unos 30 minutos tuyos.
 
 ## 1 · Elegir los temas (~15 min)
 
@@ -138,7 +151,7 @@ mejor que los concretos — `La Odisea` sacó la mejor nota de los 7. Lo que sí
 tema tenga **algo documentado que contar**; si no lo tiene, el modelo se lo inventa y el control de
 calidad tumba el tema.
 
-## 2 · Generar (~2 h de máquina, 0 tuyas)
+## 2 · Generar (~1 h de máquina, 0 tuyas)
 
 ```bash
 bash run_all.sh
@@ -225,12 +238,22 @@ Esto es lo del lote **pasado**, no el que acabas de subir: los números necesita
 
 ### 5.1 Descargar
 
-Suelta los archivos **tal cual se descargan** en `metricas_export/` — zips sin descomprimir, con el
+**YouTube ya no hace falta descargarlo** si montaste la API (punto 5 de *Antes de empezar*):
+
+```bash
+python herramientas/13_youtube_api.py --metricas
+```
+
+⚠️ Con dos salvedades: la API **no da** `se_quedaron_pct` («Se quedaron para mirar», que es la
+métrica de [P-20](TODO.md#p-20)) ni `alcance` (únicos por video). Si las quieres, sigue bajando el
+zip — la fusión no las pisa, así que se pueden completar después.
+
+El resto se sueltan **tal cual se descargan** en `metricas_export/` — zips sin descomprimir, con el
 nombre empezando por la plataforma:
 
 | Red | Dónde | Deja el archivo como |
 |---|---|---|
-| **YouTube** | Studio → Estadísticas → **Modo avanzado** → Contenido → Exportar | `youtube_tanda1.zip` |
+| **YouTube** *(opcional, ver arriba)* | Studio → Estadísticas → **Modo avanzado** → Contenido → Exportar | `youtube_tanda1.zip` |
 | **TikTok** | `tiktok.com/tiktokstudio` → Analytics → Contenido → Descargar | `tiktok.zip` |
 | **Facebook** | Meta Business Suite → Insights → Contenido → Exportar | `facebook1.csv` |
 | **Facebook** | *(también el export desde Facebook)* | `facebook2.csv` |
@@ -305,9 +328,15 @@ cuatro cosas que no están en el CSV: `vistas_por_dia`, `tasa_guardado`, `engage
 
 ## Leer los resultados
 
-La única columna que importa para comparar es **`lote`**: `baseline` es todo lo anterior al cambio
-de pipeline, `v2-mas-cortes` los nuevos. El informe de 5.4 ya hace la comparación; esto es para
-saber **cómo leerla**.
+La única columna que importa para comparar es **`lote`**: `baseline` es todo lo anterior al
+pipeline, `v2-mas-cortes` son `Historia01`-`Historia08` y `v3-guion-y-dispersion` los
+`Historia09`-`Historia15`. El informe de 5.4 ya hace la comparación; esto es para saber **cómo
+leerla**.
+
+⚠️ **Al cargar un `temas.csv` nuevo con cambios de pipeline detrás, sube `lote_nuevo` en el
+`CONFIG` de [10_metricas.py](herramientas/10_metricas.py)**, o dos tandas distintas comparten
+nombre y dejan de distinguirse. Las tandas anteriores no se tocan: el lote es pegajoso a propósito
+(ver [HISTORIAL.md](HISTORIAL.md#-el-lote-se-degradaba-solo-al-cambiar-temascsv-15-ago-2026)).
 
 Compara siempre contra la **mediana**, no contra el mejor ni el peor, y mira la **n** que va al
 lado: con 6 videos, una diferencia del 40 % cabe dentro del ruido.

@@ -38,6 +38,14 @@
 | [Paralelizar: evaluado](#-paralelizar-los-temas-evaluado-y-descartado-por-ahora-15-ago-2026) | 203 % de CPU, la RAM justa, y el `.env` como bloqueo real |
 | [El generador aprende](#-el-generador-aprende-de-los-veredictos-15-ago-2026) | Dos capas —una gratis— y por qué NO se le enseñan las frases rechazadas |
 | [El guionista sube a gpt-5.4](#-el-guionista-sube-a-gpt-54-15-ago-2026) | Por qué no escribir con Opus, y por qué gpt-5.5 cuesta 33× |
+| [La puerta calibrada](#-la-puerta-de-calidad-calibrada-con-datos-reales-15-ago-2026) | La distribución real de 7 temas: el problema no era el umbral, era el guionista |
+| [El flujo se vuelve automático](#-el-flujo-se-vuelve-automático-la-puerta-aborta-15-ago-2026) | Dos guiones falsos publicados, y por qué un aviso no sirve si nadie lo lee |
+| [Los primeros tests](#-los-primeros-tests-98-y-verificados-por-mutación-15-ago-2026) | 98 tests elegidos por tipo de fallo, y cómo se probó que sirven |
+| [El lote se degradaba solo](#-el-lote-se-degradaba-solo-al-cambiar-temascsv-15-ago-2026) | Cambiar `temas.csv` hacía que el informe afirmara lo contrario de lo real |
+| [`T1/` era invisible](#-el-archivo-t1-era-invisible-para-las-métricas-15-ago-2026) | 78 de 147 filas sin `PROYECTO` por un glob de un solo nivel |
+| [El paso 05 dormía de más](#-el-paso-05-dormía-el-triple-de-lo-necesario-15-ago-2026) | `DELAY` por fuente: −2.7 min por tema |
+| [La curva cierra P-12](#-la-curva-de-retención-cierra-p-12-15-ago-2026) | Ni el gancho ni los cortes: dos métricas con denominadores distintos |
+| [Métricas por API](#-métricas-de-youtube-por-api-15-ago-2026) | OAuth, lo que la API no da, y los tres fallos que parecían de Google |
 | [Anexo — evidencia medida](#anexo--evidencia-medida) | Los comandos y los números crudos |
 
 ---
@@ -1815,6 +1823,265 @@ Los pasos 02, 04 y 05 se quedan en `gpt-4.1`: son extracción mecánica, no crit
 
 ⚠️ Todo esto es **n=1**: un tema, una comparación por modelo. Suficiente para decidir un cambio de
 $0.0014, no para dar por hecho el salto de calidad. El próximo lote lo confirma o lo desmiente.
+
+**Confirmado el 15 ago** con el lote `Historia09`-`Historia15`: ver
+[la puerta calibrada](#-la-puerta-de-calidad-calibrada-con-datos-reales-15-ago-2026).
+
+---
+
+## ✅ La puerta de calidad, calibrada con datos reales (15 ago 2026)
+
+La nota de P-04 decía «no lo ajustes a ojo, corre el próximo lote y mira la distribución». Se hizo.
+Sobre los 7 temas de `Historia09`-`Historia15`:
+
+| Tema | nota | dudosas | ¿pasa? |
+|---|---:|---:|:--:|
+| Historia14 La Odisea | **8** | **0** | ✅ |
+| Historia13 Arqueología Aérea | 7 | 2 | ✅ |
+| Historia11 Caminos Incas | 6 | 2 | ✅ |
+| Historia12 Gran Muralla | 6 | 3 | ✅ |
+| Historia15 Pompeya | 6 | 3 | ✅ |
+| Historia10 Bomberos Romanos | 6 | 4 | ❌ |
+| Historia09 Naufragio Romano | 5 | 4 | ❌ |
+
+**El umbral nunca fue el problema: era el guionista.** Con `gpt-4.1` escribiendo, Opus comprimía
+todas las notas entre 2 y 3 y no aprobaba nunca; con `gpt-5.4` el rango subió a 5-8 **sin tocar el
+umbral**. Se diagnosticó como «el crítico es muy duro» y era «el texto era malo».
+
+Dos hallazgos que no se ven sin la distribución:
+
+**1. `nota_minima` no filtra nada.** Cinco de siete empatan en 6, y con `dudosas <= 3` salen los
+mismos aprobados se mire la nota o no. Se conserva como suelo barato, pero **quien decide es
+`dudosas_max`**. Afinar la nota es perder el tiempo.
+
+**2. `dudosas_max` va a 3, no a 2.** A 2 se caían `Historia12` y `Historia15`, y sus «dudosas» son
+**datos documentados**: la panadería de Modestus con sus 81 panes carbonizados, y las colonias
+militares agrícolas de la dinastía Ming. El crítico las marca porque `SYSTEM_CRITICO` le ordena
+literalmente *"ante la duda, marca la afirmación como dudosa"* — **el sesgo al rechazo es de
+diseño y el umbral tiene que compensarlo.** Los que fallan de verdad traen 4: `Historia09` decía
+*"lujo romano"* de una carga que era griega.
+
+> ⚠️ **Hipótesis descartada.** Se predijo que `La Odisea`, `Gran Muralla`, `Pompeya` y
+> `Caminos Incas` puntuarían peor por ser categorías y no incidentes concretos. Medido: los
+> «concretos» dan mediana 6 con 4 dudosas y los «categoría» mediana 6 con 3 — **La Odisea sacó la
+> mejor nota del lote**. No hay tal efecto en estos datos, y README ya no lo afirma.
+
+---
+
+## ✅ El flujo se vuelve automático: la puerta aborta (15 ago 2026)
+
+Hasta aquí, un guion que no pasaba el control **se usaba igual con un aviso ruidoso**, y alguien
+debía leerlo antes de programarlo. Al decidir que el flujo sea automático, ese diseño se vuelve
+peligroso: **un aviso solo sirve si alguien lo lee**, y nadie iba a leerlo.
+
+Se revisaron los 8 guiones publicados de `Historia01`-`Historia08` leyéndolos desde los `.srt`
+—que son la transcripción de la voz, o sea el texto real— y dos afirmaban cosas falsas:
+
+| | Qué decía | Qué pasó de verdad |
+|---|---|---|
+| Historia07 | un galeón explotó por su propia pólvora | La *Santísima Trinidad y Nuestra Señora del Buen Fin* (1751), el mayor galeón de Manila, fue **capturada por los ingleses en 1762** y vendida en Portsmouth. El «gabinete secreto» está inventado |
+| Historia06 | Breton encerró a artistas, cortó la electricidad, solo él tenía fósforos | Nada de eso aparece en el registro documentado del surrealismo |
+
+⚠️ **Y los `calidad_guion.json` de ese lote NO juzgan los guiones que se publicaron**: se generaron
+el 15 ago midiendo Opus contra gpt-4.1, y su campo `guion` trae el texto de aquella prueba. Se ve
+comparando con `social_posts/metadata.json`: el JSON de `Historia02` habla de Psamético III y el
+video se llama *Batalla de Halys*. **La fuente fiable de qué se publicó es el `.srt`.**
+
+**El arreglo: `abortar_si_ninguno_pasa: True`.** Lo que no pasa la puerta no llega a ser video.
+
+- No corta el lote: `run_pipeline.sh` aborta **ese** tema, `run_all.sh` lo anota en
+  `logs/failed.csv` —reusable tal cual como `temas.csv`— y sigue con el siguiente.
+- Aborta en el **paso 01**, el primero: se tiran ~$0.09 de control de calidad, no los $0.18 de
+  imágenes ni la voz.
+- `intentos_max` sube de 2 a **3**, porque ahora agotar los intentos cuesta el tema entero y no un
+  aviso: $0.043 contra perder un hueco del calendario.
+- La decisión se extrajo a `cumple_la_puerta()` para poder testearla, y un test **congela**
+  `abortar_si_ninguno_pasa: True`.
+
+Simulado sobre `Historia09`-`Historia15`: **5 videos y 2 a `failed.csv`**, que son justo los dos con
+afirmaciones falsas. Consecuencia operativa: **pedir 9-10 temas para obtener 7.**
+
+---
+
+## ✅ Los primeros tests: 98, y verificados por mutación (15 ago 2026)
+
+**Por qué estos y no otros.** En el pipeline un error se nota: el tema aborta o el video sale mal y
+se ve. En `10_metricas.py` y `11_reporte.py` **no se nota nada** — el informe se genera igual, se ve
+bien y afirma lo contrario de lo que pasó. Es el peor fallo del repositorio y el único invisible.
+
+| Archivo | Qué cubre |
+|---|---|
+| `test_reporte.py` | `comparar_lotes()`, `TIPO_METRICA`, el signo de la comparación, mediana vs promedio, y que los nombres de lote del paso 10 y del 11 no diverjan |
+| `test_metricas.py` | la pegajosidad del lote, el índice a dos niveles, los decimales de Facebook, la fila de TikTok sin escapar, la curva de retención |
+| `test_estado.py` | el sello del tema, los reintentos, y **que todo modelo nombrado en `pipeline/` esté en `PRECIOS_OPENAI`** |
+| `test_pipeline.py` | `cumple_la_puerta()`, `verificar_reglas_mecanicas()`, `sanear_valor_env()`, `separar_hashtags()`, `recortar_a_limite()`, `_truncar_titulo()`, `repartir_planos()`, `dispersar_planos()` |
+
+**Verificados por mutación**, que es lo que distingue un test de un adorno: se reintrodujo cada bug
+—`grupos[-2] += grupos.pop()`, el voraz eligiendo el primer plano, `dispersar_planos: False`
+ignorado, `sanear_valor_env()` sin recolapsar, los absolutos como graves, la pegajosidad del lote,
+`vistas_por_dia` como tasa, el signo invertido, media en vez de mediana— y en cada caso fallan los
+tests que le tocan **y solo esos**.
+
+> ⚠️ **Corrección a lo que decía la nota de P-11:** el obstáculo NO obliga a mover las guardas de
+> cada paso a `main()`. Los pasos sí trabajan al importarse, pero se resuelve **desde fuera**:
+> `chdir` a un temporal (sin sello, `verificar_estado()` vuelve sin abortar y ningún `open()`
+> relativo toca el tema en curso), claves de API **falsas** (los clientes se instancian pero no
+> llaman a nadie) y `pipeline/` en `sys.path` (por el `from estado import …`). No se modificó ni
+> una línea de `pipeline/`, y los tests corren **con un lote en marcha**.
+
+---
+
+## ✅ El lote se degradaba solo al cambiar `temas.csv` (15 ago 2026)
+
+Encontrado sin buscarlo, al correr el paso 10 después de cargar los temas nuevos.
+
+`lote` —la única columna con la que se comparan las tandas— se **recalculaba** en cada corrida a
+partir de `temas.csv`. Y `temas.csv` cambia cada semana. Consecuencia: al cargar
+`Historia09`-`Historia15`, los `Historia01`-`Historia08` dejaron de estar en el archivo y
+**cayeron a `baseline` en silencio**:
+
+| | Antes | Después |
+|---|---:|---:|
+| filas `v2-mas-cortes` | 23 | **4** |
+| comparación del informe | n=6 vs 34 | **n=1 vs 44** |
+| `se_quedaron_pct` en YouTube | −16 % | **+33 %** |
+
+O sea: el informe pasó a afirmar **lo contrario** de lo real, sin avisar de nada.
+
+**El arreglo es `lotes_ya_asignados()`, y la regla es asimétrica a propósito:**
+
+- **Nunca degrada** un lote con nombre → la historia no se reescribe.
+- **Sí promueve** desde `baseline` → un video que entró sin emparejar y luego reconoce su
+  `PROYECTO` sube al lote que le toca.
+
+`baseline` funciona aquí como el valor «vacío», igual que en el resto de la fusión, que tampoco
+pisa nunca un valor lleno con uno vacío. Un video pertenece a la tanda que lo produjo, no a la que
+esté cargada hoy.
+
+⚠️ **Y hay que subir `lote_nuevo` al cargar un `temas.csv` con cambios de pipeline detrás**, o dos
+tandas comparten nombre y dejan de distinguirse. Hoy: `v2-mas-cortes` (Historia01-08) y
+`v3-guion-y-dispersion` (Historia09-15).
+
+⚠️ De la misma familia: `11_reporte.py` tiene su propio `CONFIG["lote_nuevo"]` escrito a mano, con
+un comentario que dice «si allí cambian, aquí también» y nada que lo compruebe. Hay un test que
+falla si divergen.
+
+---
+
+## ✅ El archivo `T1/` era invisible para las métricas (15 ago 2026)
+
+`indice_proyectos()` del paso 10 recorría `proyectos/*/social_posts` — **un solo nivel**. Pero
+`proyectos/T1/` no es basura: son los **27 respaldos de la tanda anterior al pipeline** (Messi01,
+Tupac01, Venecia01, Douglas_Bader…), y son justo los videos que forman el `baseline` con el que se
+compara todo. Al estar un nivel más abajo, `proyectos/T1/Messi01/social_posts` era invisible.
+
+Se aplicó el glob a dos niveles (no `rglob`: acotarlo evita que un respaldo dentro de otro entre
+como proyecto). Medido:
+
+| | Antes | Después |
+|---|---:|---:|
+| proyectos indexados | 28 | **50** |
+| filas de `metricas.csv` sin `PROYECTO` | 78 | **35** |
+| TikTok con `PROYECTO` | — | **15 de 15** |
+
+Las 147 filas siguen siendo 147: no se creó ni se perdió ninguna medición, solo se les puso nombre.
+Los rellenos a mano de `mapa_manual.csv` no se tocaron.
+
+> ⚠️ Esto contradice lo que decían las notas antiguas («los videos anteriores al pipeline no tienen
+> carpeta en `proyectos/`»). Sí la tienen; estaba un nivel más abajo de donde se buscaba.
+
+---
+
+## ✅ El paso 05 dormía el triple de lo necesario (15 ago 2026)
+
+`DELAY = 7.0` se aplicaba igual a las dos fuentes. No son lo mismo:
+
+- **Wikimedia Commons** es una API pública documentada. Su política pide **identificarse** (User-Agent
+  con contacto) y no paralelizar — no pide lentitud. Y `search_commons()` / `get_image_url()` ya
+  reintentaban con backoff de 10/20/30 s ante un 429, así que la red de seguridad existía.
+- **DuckDuckGo** es scraping tolerado y es el que bloquea de verdad.
+
+Quedó en `DELAY_WIKIMEDIA = 1.5` y `DELAY_DDG = 7.0`.
+
+**Hallazgo por el camino:** la espera del final del bucle **no era «la de DuckDuckGo»** como decía
+la nota. Es la pausa **entre imágenes**, y corría siempre — 7 s por imagen aunque la foto saliera
+de Wikimedia a la primera. Ahora mira `uso_ddg` para elegir cuál aplicar. Ahí estaba la mayor parte
+del tiempo perdido.
+
+De paso, el `User-Agent` tenía un **paréntesis sin cerrar** y se hacía pasar por `Mozilla/5.0`.
+Ahora se identifica con contacto, que es lo que Wikimedia pide de verdad.
+
+Medido sobre los 7 temas (26.1 esperas de Wikimedia y 6 imágenes de media por tema): el paso pasa
+de **3.7 a 1.0 min dormido → −2.7 min por tema, −19 min por lote de 7**. Probado contra la API real
+con el User-Agent nuevo: 8 peticiones en 10.2 s, ningún 429.
+
+---
+
+## ✅ La curva de retención cierra P-12 (15 ago 2026)
+
+`se_quedaron_pct` era la única métrica que empeoraba en v2 (−16 % en YouTube, −31 % en TikTok). La
+nota planteaba: *«si la caída está en 0-2 s es el gancho; si está en 3-6 s es el ritmo del primer
+corte»*. Se midió con la curva de retención (`elapsedVideoTimeRatio`), que **ningún export trae**.
+
+⚠️ **Hay que comparar a segundos ABSOLUTOS iguales.** `elapsedVideoTimeRatio` es fracción del
+video, y los lotes duran distinto (baseline 40 s, v2 26 s): el «10 %» son 4.0 s en uno y 2.6 s en
+el otro. Comparar al mismo porcentaje compara instantes distintos.
+
+| segundo | baseline | v2 | dif |
+|---:|---:|---:|---:|
+| 0.5 | 1.413 | 1.596 | **+12.9 %** |
+| 2 | 1.294 | 1.473 | +13.9 % |
+| 5 | 1.121 | 1.299 | +15.9 % |
+| 10 | 0.829 | 0.930 | +12.1 % |
+| 25 | 0.561 | 0.614 | +9.5 % |
+
+**No es ninguna de las dos hipótesis.** v2 va por delante en todos los puntos desde el segundo 0.5,
+con una ventaja plana. Ni el título ni el ritmo de los cortes cuestan retención.
+
+**Por qué las dos métricas parecían contradecirse: miden denominadores distintos.**
+
+| | Denominador | v2 vs baseline |
+|---|---|---:|
+| `se_quedaron_pct` | de los que el Short **empieza a reproducirse en el feed** | −16 % |
+| `audienceWatchRatio` (la curva) | de los que **se quedan a verlo** | +9 a +16 % |
+
+Lectura correcta: **para el scroll menos gente, pero la que para ve mucho más.** Encaja con todo lo
+demás — `retencion_pct` +32 %, `vistas_24h` +513 %, y `duracion_media_s` solo −13 % con videos un
+32 % más cortos.
+
+Queda [P-20](TODO.md#p-20), que es una pregunta más estrecha: qué hace que menos gente pare el
+scroll. Lo único que actúa antes de reproducir es **el primer frame**.
+
+---
+
+## ✅ Métricas de YouTube por API (15 ago 2026)
+
+[13_youtube_api.py](herramientas/13_youtube_api.py). OAuth obligatorio: son datos privados del
+canal y una API key no basta. Montaje completo en [README.md](README.md).
+
+**Lo que da y lo que no.** `--metricas` descarga las 40 filas con datos y las funde en
+`metricas.csv` **reusando `fusionar()` del paso 10** — no se reimplementa la fusión a propósito:
+ya sabe no pisar valores llenos con vacíos, conservar las fotos de otros días y no degradar el
+lote. ⚠️ La API **no expone** `se_quedaron_pct` («Se quedaron para mirar», específica de Shorts) ni
+`alcance` (únicos por video), así que **reduce** el trabajo manual, no lo elimina. La fusión no las
+pisa, así que se rellenan desde el export cuando hagan falta.
+
+**Detalles que costaron tiempo:**
+
+- ⚠️ **Publicar la app «En producción» en la consola no es opcional.** En estado *Prueba*, Google
+  caduca el refresh token a los **7 días** — reautorizar cada semana, justo el trabajo que esto
+  venía a quitar. La verificación de Google es otra cosa y **no hace falta**: exige dominio propio
+  verificado en Search Console con la política de privacidad alojada ahí.
+- ⚠️ **`comprobar_canal()` antes de fiarse de ningún número.** Con la cuenta equivocada la API
+  responde **200 con datos vacíos**, y un informe de ceros parece un mal mes. Se compara contra el
+  **ID** del canal, no contra el nombre ni el `@`: el canal se llama *Curiosidades Historicas*, su
+  identificador de YouTube es `@curiosidadeshistoricas-03` y **no coincide con el `@chistoricas3`
+  de las otras redes** — comparar contra cualquiera de los dos daba un falso aviso en cada corrida.
+- ⚠️ **No llamar a `authorization_url()` antes de `run_local_server()`.** `run_local_server()` la
+  llama otra vez internamente y genera un `state` NUEVO, así que la URL calculada antes queda
+  invalidada al instante: el callback muere con `MismatchingStateError: CSRF Warning!` **mientras
+  el navegador muestra que todo fue bien**. Costó tres intentos fallidos y parecía un problema de
+  configuración de Google. La URL correcta es la que anuncia la propia librería.
 
 ---
 

@@ -1,335 +1,178 @@
 # TODO — lo que queda por hacer
 
-> **Este documento solo lleva trabajo pendiente.** Lo ya resuelto —la auditoría de 18 bugs, las
-> 5 fases de implementación, la prueba end-to-end, el control de calidad del guion y todas las
-> mediciones— está en **[HISTORIAL.md](HISTORIAL.md)**. Léelo antes de tocar el pipeline: casi
-> todo valor que parece arbitrario en el código sale de un fallo documentado allí.
+> **Este documento solo lleva trabajo pendiente.** Lo ya resuelto está en
+> **[HISTORIAL.md](HISTORIAL.md)** con lo que se midió en cada caso. Léelo antes de tocar el
+> pipeline: casi todo valor que parece arbitrario en el código sale de un fallo documentado allí.
 >
 > Operar el pipeline (generar, empaquetar, programar, medir) es **[README.md](README.md)**.
 > Arquitectura y trampas del código, **[CLAUDE.md](CLAUDE.md)**.
 
-**Estado a 15 ago 2026.** Dos lotes completos. `Historia01`–`Historia08` (`v2-mas-cortes`) mide
-contra el baseline: YouTube +513 % a 24 h, CTR +785 %, retención +32 %, y una sola métrica en
-contra, `se_quedaron_pct`. `Historia09`–`Historia15` (`v3-guion-y-dispersion`) acaba de terminar
-—**7 de 7, 65 minutos, 9.3 min/tema, $0.285 de mediana**— con el guionista en `gpt-5.4`, el crítico
-en Opus 5, los planos dispersados y los títulos acortados. Todo verificado: **0 transiciones
-repetidas** de 15-18 en los 7 videos, y **0 de 7 títulos** fuera del límite de 70.
-**Nada del pipeline está roto.** Lo que queda es elección de temas, costo, tiempo y orden del
-repositorio.
+## Dónde vamos
 
-⚠️ **La decisión de operación es que el flujo sea automático: nadie revisa guiones a mano.** Eso
-cambia dónde está la seguridad — la puerta del paso 01 aborta el tema en vez de avisar
-([P-02](#p-02), [P-04](#p-04)), y lo que queda por hacer se mide por si **reduce intervención
-humana**, no por si mejora un número. `logs/failed.csv` es la salida de los temas que se caen y se
-reusa tal cual como `temas.csv`.
+**Estado a 15 ago 2026.** Dos lotes completos y el pipeline **sin intervención humana de punta a
+punta**.
 
-| | # | Pendiente |
+| | `v2-mas-cortes` (Historia01-08) | `v3-guion-y-dispersion` (Historia09-15) |
 |---|---|---|
-| ✅ | [P-02](#p-02) | ~~Guiones falsos publicados~~ — resuelto de raíz: la puerta aborta el tema |
-| ✅ | [P-04](#p-04) | ~~Calibrar la puerta~~ — hecho: `nota >= 6` y `dudosas <= 3`, 5 de 7 aprueban |
-| ✅ | [P-12](#p-12) | ~~`se_quedaron_pct` bajó~~ — la curva descarta gancho y cortes: es el frame 0 en el feed |
-| ✅ | [P-19](#p-19) | ~~`DELAY` uniforme en el paso 05~~ — hecho: −2.7 min/tema, −19 min/lote |
-| ⚪ | [P-06](#p-06) | Paralelizar los temas — evaluado: no compensa todavía |
-| 🔵 | [P-17](#p-17) | Afinar el recordatorio con unas semanas de uso (ya funciona y está en cron) |
-| ✅ | [P-14](#p-14) | ~~`proyectos/T1/` anidado~~ — hecho: 43 filas de métricas recuperadas |
-| ⚪ | [P-07](#p-07) | Basura de corridas viejas (~750 MB recuperables) |
-| ⚪ | [P-08](#p-08) | Los 16 Mundial no tienen `descripcion.txt` ni `.srt` |
-| ⚪ | [P-09](#p-09) | ¿Se sigue usando el carrusel de Instagram? |
-| ⚪ | [P-09b](#p-09b) | Automatizar la recogida de métricas por API |
-| ⚪ | [P-10](#p-10) | `publisher.py` sigue incompleto |
-| ⚪ | [P-18](#p-18) | La cabecera del paso 06 miente sobre su entrada |
-| ✅ | [P-11](#p-11) | ~~No hay tests~~ — 85 tests; queda ampliar a los pasos 03-06 |
+| Resultado | +513 % vistas 24 h, CTR +785 %, retención +32 % vs baseline | 7 de 7, **65 min**, 9.3 min/tema, **$0.285** de mediana |
+| Qué lleva | más cortes, −14 LUFS, gancho sin spoiler | guionista `gpt-5.4`, crítico Opus 5, planos dispersados, títulos acortados |
+
+Verificado sobre los 7: **0 transiciones repetidas** de 15-18 y **0 títulos** fuera del límite de
+70 caracteres.
+
+⚠️ **La decisión de operación es que nadie revise guiones a mano.** Por eso la puerta del paso 01
+**aborta el tema** en vez de avisar, y lo que queda por hacer se mide por si **reduce intervención
+humana**, no por si mejora un número. Hoy tu tiempo semanal está en tres sitios de ~15 min:
+elegir temas, programar en Metricool y recoger métricas de las redes que aún no tienen API.
+
+| | # | Pendiente | Gana |
+|---|---|---|---|
+| 🟠 | [P-10](#p-10) | Publicar automáticamente en Meta | ~15 min/semana |
+| 🟡 | [P-20](#p-20) | Por qué menos gente para el scroll (el frame 0) | la única métrica en contra |
+| 🟡 | [P-09b](#p-09b) | Métricas por API: falta Meta y TikTok | ~10 min/semana |
+| 🟡 | [P-11](#p-11) | Tests de los pasos 03-06 | red de seguridad |
+| 🔵 | [P-17](#p-17) | Afinar el recordatorio con unas semanas de uso | ruido |
+| ⚪ | [P-06](#p-06) | Paralelizar los temas — evaluado: no compensa | ~25-35 % de tiempo |
+| ⚪ | [P-18](#p-18) | La cabecera del paso 06 miente sobre su entrada | claridad |
+| ⚪ | [P-09](#p-09) | ¿Se sigue usando el carrusel de Instagram? | $0.004 y 8 s/tema |
+| ⚪ | [P-07](#p-07) | Basura de corridas viejas | 35 MB reales |
+| ⚪ | [P-08](#p-08) | Los 16 Mundial no tienen `descripcion.txt` ni `.srt` | — |
 
 ---
 
-## 🔴 Bloquean el lote actual
+## 🟠 Lo que más trabajo manual quita
 
-<a id="p-02"></a>
-**P-02 · Dos de los 8 guiones publicados afirman cosas falsas. Uno estaba programado.**
+<a id="p-10"></a>
+**P-10 · Publicar automáticamente.** Es el único paso del ciclo semanal que sigue siendo 100 %
+manual: subir cada video a cuatro redes y pegar el texto. `desuso/publisher.py` es el esqueleto —
+le faltan `META_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`, `INSTAGRAM_ACCOUNT_ID` y `THREADS_USER_ID`,
+apunta a `post_images/` (no existe) y lee `03_instagram.txt` / `04_facebook.txt`, que el paso 02
+dejó de generar. Si se retoma, vuelve a `herramientas/`.
 
-⚠️ **Los `proyectos/Historia0*/calidad_guion.json` NO juzgan los guiones que se publicaron.**
-Están todos escritos el 15 ago a las 11:46 — los generó la medición de Opus contra gpt-4.1, no el
-pipeline, y el campo `guion` de cada uno trae el texto que se le dio al crítico en esa prueba, que
-no es el del video. Se ve de un vistazo comparando con `social_posts/metadata.json` (del 7 ago):
-el JSON de `Historia02` habla de Psamético III en Egipto y el video se llama *Batalla de Halys*;
-el de `Historia03` cuenta el ahorcamiento de las sirvientas y el video va de los Lestrigones.
-**El texto real de cada video está en su `.srt`** (`proyectos/$PROYECTO/*.srt`), que es la
-transcripción de la voz. Es la única fuente fiable de qué se publicó.
+Orden realista, por coste de trámite:
 
-Revisados los 8 `.srt` uno por uno (15 ago):
-
-| | Riesgo | Qué le pasa al guion publicado |
-|---|:--:|---|
-| Historia07 Galeón | 🔴 | **El barco existe y la historia es falsa.** La *Santísima Trinidad y Nuestra Señora del Buen Fin* (1751) fue el mayor galeón de Manila; en 1762 la **capturaron los ingleses** y la vendieron en Portsmouth. No explotó ni se hundió. El «gabinete secreto que nadie explica» está inventado |
-| Historia06 Surrealismo | 🔴 | *Prohibió relojes, cortó la electricidad, solo él tenía fósforos, Breton impedía salir.* Nada de eso aparece en el registro documentado |
-| Historia01 Power bank | 🟠 | Mezcla dos sucesos: el incendio a bordo y un retiro de «más de 2 millones de baterías» — el retiro de Samsung fue de teléfonos Note 7 |
-| Historia03 Lestrigones | 🟠 | Se contradice: *«gigantes caníbales»* y tres frases después *«sin dioses ni monstruos, solo humanos hambrientos»* |
-| Historia02 Halys | 🟡 | *«dos ejércitos **lidian** bajo el mismo sol»* — se comió a los **lidios**. No es falso, se lee como el verbo *lidiar*, pero el espectador nunca sabe quiénes eran |
-| Historia04, Historia05, Historia08 | ✅ | Limpios. Robin Hood, el tesoro de San Lorenzo y el examen de ingreso al ETH están bien contados (único matiz: Einstein conoció a Grossmann ya en el ETH, no en el año de Aarau) |
-
-✅ **Resuelto de raíz, no leyéndolos.** La decisión (15 ago) es que **nadie va a revisar guiones a
-mano**: el pipeline tiene que ser automático. Así que la puerta del paso 01 dejó de ser un aviso y
-pasó a ser el filtro — `abortar_si_ninguno_pasa: True`, y lo que no pasa **no llega a ser video**
-(ver [CLAUDE.md, paso 01](CLAUDE.md#arquitectura-del-pipeline)). Simulado sobre `Historia09`-`15`,
-habría producido 5 videos y mandado 2 a `logs/failed.csv` — los dos con afirmaciones falsas.
-
-`Historia01`-`Historia08` ya no están en `publicar/calendario.csv` (el paso 09 lo reescribe con
-`--solo`), así que los dos rojos no se publican por omisión. Si alguna vez se republican,
-`Historia07` y `Historia06` son los que no deben salir; `Historia08` sí, estaba limpio.
-
-Lo que esto dice del pipeline: **el crítico viejo (gpt-4.1) dejó pasar los dos rojos.** El de Opus
-sí los ve — su crítica a `Historia09` nombra a Valerios Stais, el Museo Nacional de Atenas, el año
-1902 y corrige «lujo romano» → objetos griegos.
-
-Y el problema de fondo sigue entrando por `temas.csv`: `2016`, `Eclipse`, `Odisea` y
-`Surrealismo` son categorías, no incidentes. Cuando el tema no trae una historia concreta, el
-modelo se la inventa. Es lo que advierte
-[INSTRUCCIONES_CHATGPT.md](INSTRUCCIONES_CHATGPT.md): *"UNA SOLA LÍNEA NARRATIVA. Un incidente
-concreto con principio y final, no la biografía de alguien."*
+1. **Meta (Instagram + Facebook)** — las credenciales sirven **también para leer métricas**
+   ([P-09b](#p-09b)), así que un solo trámite cierra dos pendientes.
+2. **YouTube** — ya tienes OAuth montado para las métricas, pero subir exige el permiso
+   `youtube.upload`, que es **restringido**: para eso sí hace falta pasar la verificación de Google
+   con dominio propio. Ver el aviso en [README.md](README.md).
+3. **TikTok, la última.** Registrar app y pasar revisión: semanas de trámite para la red que menos
+   aporta.
 
 ---
 
-## 🟠 Calidad del producto
+## 🟡 Producto y datos
 
-<a id="p-04"></a>
-**P-04 · ✅ HECHO (15 ago) · La puerta está calibrada con la distribución real.**
-Quedó en **`nota >= 6` y `dudosas <= 3`**, medido sobre `Historia09`-`Historia15`:
+<a id="p-20"></a>
+**P-20 · Menos gente para el scroll, y no se sabe por qué.**
+Sale de cerrar [P-12](HISTORIAL.md#-la-curva-de-retención-cierra-p-12-15-ago-2026): la curva de
+retención **descartó** las dos hipótesis que había (el gancho y el ritmo del primer corte). v2 va
+por delante en **todos** los puntos desde el segundo 0.5, entre +9 % y +16 %.
 
-| Tema | nota | dudosas | ¿pasa? |
-|---|---:|---:|:--:|
-| Historia14 La Odisea | **8** | **0** | ✅ |
-| Historia13 Arqueología Aérea | 7 | 2 | ✅ |
-| Historia11 Caminos Incas | 6 | 2 | ✅ |
-| Historia12 Gran Muralla | 6 | 3 | ✅ |
-| Historia15 Pompeya | 6 | 3 | ✅ |
-| Historia10 Bomberos Romanos | 6 | 4 | ❌ |
-| Historia09 Naufragio Romano | 5 | 4 | ❌ |
-
-**El umbral nunca fue el problema: era el guionista.** Con `gpt-4.1` escribiendo, Opus comprimía
-todo entre 2 y 3 y no aprobaba nunca; con `gpt-5.4` el rango subió a 5-8 **sin tocar el umbral**.
-
-Dos hallazgos de la distribución:
-- **`nota_minima` no filtra nada.** Cinco de siete empatan en 6, y con `dudosas <= 3` salen los
-  mismos aprobados se mire la nota o no. Quien decide es `dudosas_max`.
-- **`dudosas_max` va a 3, no a 2.** A 2 caían `Historia12` y `Historia15`, cuyas dudosas son datos
-  **documentados** (la panadería de Modestus y sus 81 panes carbonizados; las colonias militares
-  agrícolas Ming). El crítico las marca porque `SYSTEM_CRITICO` le ordena *"ante la duda, marca la
-  afirmación como dudosa"*: el sesgo al rechazo es de diseño y el umbral tiene que compensarlo. Los
-  que fallan de verdad traen 4 — `Historia09` decía *"lujo romano"* de una carga que era griega.
-
-> ⚠️ **Hipótesis descartada.** Se predijo que `La Odisea`, `Gran Muralla`, `Pompeya` y
-> `Caminos Incas` puntuarían peor por ser categorías y no incidentes, y que eso sesgaría la
-> calibración. Medido: los "concretos" dan mediana 6 con 4 dudosas y los "categoría" mediana 6 con
-> 3 — **La Odisea sacó la mejor nota del lote (8/10, 0 dudosas)**. No hay tal efecto en estos datos.
-> Lo que sí sigue en pie es [P-02](#p-02): los temas vagos producen guiones inventados, pero eso lo
-> caza el crítico, no la nota media.
-
-<a id="p-12"></a>
-**P-12 · `se_quedaron_pct` bajó: la única métrica que empeoró en v2.**
-YouTube 48.5 % → **40.7 %**, TikTok 13 % → **9 %**, mientras todo lo demás subía (ver la
-[primera lectura](HISTORIAL.md#primera-lectura-15-ago-2026) en el historial). No se explica por
-tiempo de exposición, porque las ventanas de 24 h ya lo neutralizan. Con n=6 puede ser ruido,
-pero apunta a que **los primeros 2 segundos empeoraron** aunque quien se queda vea mucho más.
-
-✅ **Confirmado el 15 ago con el informe** (`herramientas/11_reporte.py`): −16 % en YouTube (n=6 vs
-34) y −31 % en TikTok (n=3 vs 8, muestra pequeña). Es la **única** métrica que baja de las que
-sobreviven al filtro de comparabilidad — el resto de las que caían resultaron ser acumulados
-contaminados por la antigüedad. Que aparezca en las dos redes que la exportan, y en la misma
-dirección, le quita bastante de casualidad.
-
-✅ **RESUELTO el 15 ago con la curva de retención** (`herramientas/13_youtube_api.py
---retencion-lote`, 31 videos con datos). **La respuesta no es ninguna de las dos que planteaba
-esta nota.** Comparando la curva a **segundos absolutos iguales** —y hay que hacerlo así, porque
-`elapsedVideoTimeRatio` es fracción del video y los lotes duran distinto (40 s vs 26 s), o sea que
-comparar al mismo % compara instantes distintos:
-
-| segundo | baseline | v2 | dif |
-|---:|---:|---:|---:|
-| 0.5 | 1.413 | 1.596 | **+12.9 %** |
-| 2 | 1.294 | 1.473 | +13.9 % |
-| 5 | 1.121 | 1.299 | +15.9 % |
-| 10 | 0.829 | 0.930 | +12.1 % |
-| 25 | 0.561 | 0.614 | +9.5 % |
-
-**v2 va por delante en TODOS los puntos, desde el segundo 0.5.** No hay caída en el gancho (0-2 s)
-ni en el primer corte (3-6 s). La ventaja es plana, así que ni el título ni el ritmo de los cortes
-están costando retención.
-
-**Dónde está entonces la pérdida: antes de que la curva empiece.** Las dos métricas miden
-denominadores distintos y por eso parecían contradecirse:
-
-| | Denominador | v2 vs baseline |
-|---|---|---:|
-| `se_quedaron_pct` | de los que el Short **empieza a reproducirse en el feed** | −16 % |
-| `audienceWatchRatio` (la curva) | de los que **se quedan a verlo** | +12 a +16 % |
-
-O sea: **para el scroll menos gente, pero la que para ve mucho más.** Encaja con el resto —
-`retencion_pct` +32 %, `vistas_24h` +513 %, y `duracion_media_s` solo −13 % con videos un 32 % más
-cortos.
-
-**Lo que queda es una pregunta distinta y más estrecha:** qué hace que menos gente pare el scroll
-en el primer instante. Los cortes y el título quedan descartados por la curva; lo que no toca la
-curva es lo que se ve **antes de reproducir** — el primer frame como miniatura en el feed. Es
+Lo que baja es `se_quedaron_pct` (−16 %), y mide otra cosa: de los que el Short **empieza a
+reproducirse en el feed**, cuántos no deslizan. O sea que la pérdida ocurre **antes de que la curva
+empiece**. Lo único que actúa ahí es lo que se ve sin reproducir: **el primer frame**, que es
 `images_IA/scene_0.png` con el título quemado encima.
-⚠️ n=6 en v2 y los dos lotes difieren en muchas cosas a la vez (duración, gancho, cortes, música),
-así que esto **acota** el problema, no lo demuestra. La forma barata de aislarlo es un par de temas
-con `title_duration` distinto o sin título en el frame 0.
 
----
+**Cómo aislarlo, y es barato:** un par de temas con `title_duration` distinto —o sin título en el
+frame 0— y comparar. Es `CONFIG` del paso 07, no hay que tocar código.
+⚠️ n=6 en v2 y los lotes difieren en muchas cosas a la vez (duración, gancho, cortes, música).
+Esto **acota** el problema, no lo demuestra.
+⚠️ `se_quedaron_pct` **no la da la API** (ver P-09b): para seguir midiendo esto hay que descargar
+el export de YouTube.
 
-## 🟡 Tiempo y costo
+<a id="p-09b"></a>
+**P-09b · Métricas por API — YouTube hecho, faltan Meta y TikTok.**
 
-Medido sobre `Historia01` (13m 41s de punta a punta) y `.costo_actual.json` ($0.24827).
+✅ **YouTube listo** ([13_youtube_api.py](herramientas/13_youtube_api.py), 15 ago):
+`--metricas` descarga las 40 filas con datos y las funde en `metricas.csv` reusando `fusionar()`
+del paso 10, y `--retencion-lote` saca la curva de retención, que **ningún export trae**.
 
-**Los pasos 05 y 07 son el 91% del tiempo.** El 05 (4m 56s) está casi todo **dormido**:
-`DELAY = 7.0` uniforme, aplicado en cuatro puntos, más un ciclo extra por cada foto que el filtro
-de visión rechaza. El 07 (7m 34s) sí trabaja, pero el techo es el hardware: **i5-7200U, 2 núcleos
-de 2016**, corriendo whisper `medium` y 766 frames compuestos en Python con PIL.
+⚠️ **No elimina el export de YouTube del todo.** La API no expone dos columnas:
+`se_quedaron_pct` («Se quedaron para mirar», específica de Shorts — justo la de [P-20](#p-20)) ni
+`alcance` (espectadores únicos por video). La fusión no las pisa, así que se pueden seguir
+rellenando desde el CSV cuando hagan falta.
 
-✅ **El 07 ya bajó a ~5m 50s** con el arreglo de P-05 (15 ago): la composición pasó de 3.23 a
-5.12 fps. Eso cambia el reparto — ahora el 05 y el 07 pesan parecido, y el 05 es el que sigue
-dormido.
+Lo que queda:
 
-**El 74% del costo es fal.ai**: 6 imágenes × $0.0306 (832×1472 = 1.225 MP × $0.025/MP).
-OpenAI son $0.052 (21%), de los cuales $0.023 es el control de calidad del guion — bien gastados.
-ElevenLabs, $0.012 (5%).
+1. **Meta** — Instagram Graph API, `GET /{ig-media-id}/insights` con
+   `metric=plays,reach,saved,shares,total_interactions`. Mismas credenciales que [P-10](#p-10).
+2. **TikTok, la última** — app + revisión, semanas de trámite, y es donde más se teclea a mano.
 
-| Palanca | Gana | Riesgo |
-|---|---|---|
-| **[P-19](#p-19) · `DELAY` por fuente en el paso 05** | ~2-3 min/video | bajo — es el siguiente que haría |
-| whisper `medium` → `small` | 1-2 min/video | hay que revisar el `.srt`, que sí se publica |
-| `gpt-4.1-mini` en las llamadas mecánicas (queries, contexto, gancho, validación visual) | $0.0066/video | bajo — son tareas de extracción, no de criterio |
-| 6 → 5 imágenes | $0.031/video (12%) | 5 imágenes para 14 cortes empieza a repetirse |
+💡 Antes de nada, mira si tu plan de **Metricool** exporta analíticas a CSV: ya tiene las cuatro
+cuentas conectadas y sería una descarga en vez de cuatro. No dará la curva de retención.
 
-<a id="p-19"></a>
-**P-19 · ✅ HECHO (15 ago) · `DELAY` separado por fuente en el paso 05.**
-`DELAY_WIKIMEDIA = 1.5` y `DELAY_DDG = 7.0`. Wikimedia es una API pública documentada cuya política
-pide identificarse y no paralelizar, no ir lento — y `search_commons()` / `get_image_url()` ya
-reintentaban con backoff de 10/20/30 s ante un 429, así que la red de seguridad ya existía.
-De paso se arregló el `User-Agent`, que tenía un **paréntesis sin cerrar** y se hacía pasar por
-`Mozilla/5.0`; ahora se identifica con contacto, que es lo que Wikimedia pide de verdad.
+<a id="p-11"></a>
+**P-11 · Tests: falta ampliar a los pasos 03-06.**
+Hay **98 tests** (`python -m unittest discover tests`) sobre `10_metricas.py`, `11_reporte.py`,
+`13_youtube_api.py`, `estado.py` y las funciones puras de los pasos **01, 02 y 07**. Detalle y
+método en [HISTORIAL.md](HISTORIAL.md#-los-primeros-tests-98-y-verificados-por-mutación-15-ago-2026).
 
-**Hallazgo:** la espera del final del bucle no era «la de DuckDuckGo» como decía esta nota. Es la
-pausa **entre imágenes** y corría siempre, se hubiera usado DDG o no — 7 s por imagen aunque la
-foto saliera de Wikimedia a la primera. Ahora mira `uso_ddg` para elegir cuál aplicar.
-
-Medido sobre los 7 temas de agosto (26.1 esperas de Wikimedia y 6 imágenes de media por tema):
-el paso pasa de **3.7 a 1.0 min dormido → −2.7 min por tema, −19 min por lote de 7**.
-Probado contra la API real con el `User-Agent` nuevo: 8 peticiones en 10.2 s, ningún 429.
-
-<a id="p-06"></a>
-**P-06 · Paralelizar los temas — evaluado el 15 ago: NO compensa todavía.**
-La nota anterior decía "el lote pasaría de ~1h50m a ~50 min". Medido, no sale esa cuenta:
-
-| Qué se midió | Resultado | Qué implica |
-|---|---|---|
-| CPU que usa el paso 07 | **203 % de 400 %** | dos renders a la vez ya saturan la máquina; no hay 2× que ganar |
-| RAM pico del render | **1.35 GB** (+ ~1.5 GB de whisper `medium`) | dos temas ≈ 5-6 GB con 5 GB libres → riesgo de swap |
-| Recursos de la raíz en colisión | **5** (`script.txt`, `voice.mp3`, `images_IA/`, `source_images/`, `social_posts/`) | resolubles con un directorio de trabajo por tema |
-
-Y el bloqueo de verdad **no es el que decía la nota**: es que **`.env` es el transporte entre
-pasos**. El paso 02 escribe ahí `TITULO_VIDEO` y el 07 lo lee. Con dos temas a la vez, el 02 del
-tema B pisa el título antes de que el 07 del tema A lo lea, y ese texto va **quemado en el frame 0**.
-⚠️ Un directorio de trabajo por tema **no lo arregla**: `load_dotenv()` busca el `.env` desde la
-carpeta del script, no desde el directorio de trabajo, así que los dos temas leerían el mismo.
-
-**Requisito previo, y es barato:** que el título viaje por `social_posts/metadata.json` —donde el
-paso 02 **ya lo escribe**— en vez de por el `.env`. Eso quita el único dato mutable compartido que
-no se arregla aislando carpetas, y de paso elimina un round-trip por un archivo que lee `bash`
-(el mismo que ya dio el susto de la prosa ejecutable).
-
-**Veredicto:** el techo real de la paralelización en esta máquina es ~25-35 %, no el 55 % que
-suponía la nota, y exige reescribir `run_all.sh` — la pieza con más historial de bugs sutiles
-(stdin, encabezado, nombres mutilados). [P-19](#p-19) da un tercio de esa ganancia tocando una
-constante. **Hacer P-19 primero; volver a P-06 solo si el lote crece bastante o cambia la máquina.**
+**Queda:** el parseo de `carrusel.txt` del paso 06 y las funciones de los pasos 03, 04 y 05.
+No hace falta tocar `pipeline/`: `cargar_paso()` en
+[tests/test_pipeline.py](tests/test_pipeline.py) prepara el entorno desde fuera y con eso basta.
 
 ---
 
 ## 🔵 Operación y seguimiento
 
-El informe ya existe ([11_reporte.py](herramientas/11_reporte.py), hecho el 15 ago — está en
-[HISTORIAL.md](HISTORIAL.md#-informe-de-métricas-y-la-trampa-de-la-antigüedad-15-ago-2026)). Falta
-que **avise solo** de que toca trabajar.
-
 <a id="p-17"></a>
 **P-17 · Afinar el recordatorio con unas semanas de uso.**
-
-El bot **ya funciona** (`@CHvideo_bot`, primer mensaje enviado el 15 ago) y está en `cron`: domingo
-10:00 y 16:00, más `--si-falta` de lunes a sábado por si ese domingo tuviste el equipo apagado. El
-montaje está en
+El bot ya funciona (`@CHvideo_bot`) y está en `cron`: domingo 10:00 y 16:00, más `--si-falta` de
+lunes a sábado por si ese domingo tuviste el equipo apagado. Montaje en
 [HISTORIAL.md](HISTORIAL.md#-el-recordatorio-semanal-por-telegram-15-ago-2026).
 
-Lo que queda son dos ajustes que **solo se pueden decidir con unas semanas de uso**, no ahora:
+Dos ajustes que **solo se deciden con uso**, no ahora:
 
-- **¿`nota_minima` (7) hace demasiado ruido?** Hoy marca 7 guiones en un solo mensaje, que es
-  mucho para leerlo en el móvil. Lo más probable es que convenga avisar solo de los que están
-  **pendientes de publicar**, no de todo el histórico — pero eso exige saber qué se publicó, y
-  hoy el repositorio no lo registra (`publicar/calendario.csv` dice cuándo *tocaba*, no si se
-  hizo). Es el mismo dato que le falta a la comprobación de "lote sin programar".
-- **¿Adjuntar `reportes/ultimo.html` con `sendDocument`?** Se dejó fuera a propósito: pesa 51 KB y
-  Telegram lo manda como archivo, no en línea, así que hay que abrirlo aparte. Si resulta que
-  nunca lo abres desde el móvil, mejor meter las 3-4 cifras en el propio mensaje (ya lo hace) y
-  no complicarlo.
+- **¿Avisa de demasiados guiones?** Con la puerta abortando ([P-04](HISTORIAL.md)), los guiones
+  malos ya no llegan a publicarse, así que ese aviso debería quedarse casi siempre vacío. Hay que
+  ver si sigue teniendo sentido.
+- **¿Adjuntar `reportes/ultimo.html`?** Se dejó fuera: pesa 51 KB y Telegram lo manda como archivo.
+  Si nunca lo abres desde el móvil, mejor las 3-4 cifras en el mensaje (ya lo hace).
 
 ---
 
-## ⚪ Estructura del repositorio
+## ⚪ Deuda y limpieza
 
-<a id="p-14"></a>
-**P-14 · ✅ HECHO (15 ago) · `proyectos/T1/` anidado dejaba 78 de 147 filas sin `PROYECTO`.**
-Se aplicó la salida 2 (glob a dos niveles en `indice_proyectos()`, sin mover nada de sitio). El
-índice pasó de **28 a 50 proyectos** —los 22 de `T1/` eran invisibles— y `metricas.csv` de **78 a
-35 filas sin `PROYECTO`**: 43 recuperadas, con TikTok al 15/15. Las 147 filas siguen siendo 147,
-así que no se creó ni se perdió ninguna medición, solo se les puso nombre. Los rellenos a mano de
-`mapa_manual.csv` no se tocaron. Queda el texto de abajo como registro de por qué pasaba.
+<a id="p-06"></a>
+**P-06 · Paralelizar los temas — evaluado el 15 ago: NO compensa todavía.**
 
+| Qué se midió | Resultado | Qué implica |
+|---|---|---|
+| CPU del paso 07 | **203 % de 400 %** | dos renders saturan la máquina; no hay 2× que ganar |
+| RAM pico | **1.35 GB** (+ ~1.5 GB de whisper) | dos temas ≈ 5-6 GB con 5 GB libres → swap |
+| Recursos de la raíz en colisión | **5** | resolubles con un directorio por tema |
 
-`proyectos/T1/` no es basura: son los **27 respaldos de la tanda anterior al pipeline** (Messi01,
-Tupac01, Venecia01, Douglas_Bader…), 22 de ellos con su `social_posts/`. Son justo los videos que
-forman el `baseline` con el que se compara todo.
+El bloqueo real es que **`.env` es el transporte entre pasos**: el 02 escribe `TITULO_VIDEO` y el
+07 lo lee, así que con dos temas a la vez el B pisa el título del A — y ese texto va quemado en el
+frame 0. ⚠️ Un directorio por tema **no lo arregla**: `load_dotenv()` busca el `.env` desde la
+carpeta del script, no desde el directorio de trabajo.
 
-El problema es la profundidad. `indice_proyectos()` del paso 10 recorre `proyectos/*/social_posts`
-— **un solo nivel**, así que `proyectos/T1/Messi01/social_posts` es invisible. Consecuencia
-medida: 79 filas en `metricas_export/mapa_manual.csv` sin emparejar, de las que **al menos 14
-nombran literalmente una carpeta que está dentro de `T1/`**, y 78 de las 147 filas de
-`metricas.csv` se quedan sin `PROYECTO`.
+**Requisito previo, barato:** que el título viaje por `social_posts/metadata.json`, donde el paso
+02 **ya lo escribe**.
 
-Dos salidas, las dos baratas:
+**Veredicto:** el techo real en esta máquina es ~25-35 %, no el 55 % que suponía la nota vieja, y
+exige reescribir `run_all.sh` — la pieza con más historial de bugs sutiles. Volver solo si el lote
+crece mucho o cambia la máquina.
 
-1. **Aplanar el archivo** — mover `proyectos/T1/<TEMA>/` a `proyectos/<TEMA>/`. Cero código, pero
-   pierde la separación visual entre tandas y hay que comprobar colisiones de nombre.
-2. **Glob recursivo** en el paso 10 (`rglob("*/social_posts")` acotado a 2 niveles) y tomar el
-   nombre de `posts.parent.name`. Una línea, y `T1/` sigue siendo un archivo aparte.
+<a id="p-18"></a>
+**P-18 · La cabecera del paso 06 miente sobre su propia entrada.**
+El docstring de [06_carrusel_generator.py](pipeline/06_carrusel_generator.py) dice que lee
+`social_posts/03_instagram.txt`, que **dejó de existir**; su `CONFIG` apunta bien a `carrusel.txt`.
+Manda el `CONFIG`. Son dos líneas de comentario, y de paso conviene renombrar
+`parse_instagram_file()` — que además está duplicada y gana la segunda.
 
-Recomendada la **2**. Ojo: `mapa_manual.csv` ya tiene rellenos a mano que el script respeta para
-siempre — el emparejado nuevo no los pisa, así que se puede probar sin miedo.
-
-> ⚠️ Esto contradice lo que decían las notas antiguas ("los videos anteriores al pipeline no
-> tienen carpeta en `proyectos/`"). Sí la tienen; está un nivel más abajo de donde se busca.
+<a id="p-09"></a>
+**P-09 · ¿Se sigue usando el carrusel de Instagram?** Si no, el paso 06 y `carrusel.txt` salen del
+pipeline: ahorra $0.004 y 8 s por tema, y quita el contrato frágil de formato con el paso 02.
 
 <a id="p-07"></a>
-**P-07 · Basura de corridas viejas — ~750 MB recuperables.**
-Nada de esto se puede volver a crear (hay guardas en los pasos y en `run_pipeline.sh`), pero
-tampoco lo ha borrado nadie:
+**P-07 · Basura de corridas viejas — menos de lo que parecía.**
+La nota decía «~750 MB recuperables», pero **700 de esos son `videos_no_music/`**, que conviene
+conservar: es lo único que permite rehacer la mezcla de música sin re-renderizar (~6 min de CPU por
+video). La basura real son **35 MB**, y hay **279 GB libres**, así que no corre ninguna prisa.
 
-| Qué | Tamaño | Qué es |
-|---|---|---|
-| `videos_no_music/` (menos `T1/`) | ~700 MB | intermedio del paso 07; el entregable con música ya está en `videos/` |
-| `logs/_.log` | 4.6 MB | corrida con `PROYECTO` vacío |
-| `images_IA_guidance/` | 4.8 MB | 7 png de mayo; solo lo escribía `imagen_generator_source.py`, que ya no se usa |
-| `proyectos/social_posts/`, `proyectos/carousel_slides/`, `proyectos/source_images/` | pocos KB | corridas con `PROYECTO` vacío |
-| `proyectos/T1/{social_posts,carousel_slides,source_images,images_IA}/` | pocos MB | lo mismo, dentro del archivo |
-| `videos_no_music/T1/video_.mp4` | 13 MB | video de un tema sin nombre |
-| `test_voz.mp3`, `fonts/*.zip`, `__pycache__/` | 3.5 MB | pruebas y zips ya extraídos |
-
-Los 16 respaldos `Mundial*` conservan además slides obsoletos (`slide_06_cta.jpg` **y**
-`slide_07_cta.jpg` en la misma carpeta), de cuando el paso 06 no limpiaba su salida.
-
-⚠️ **Antes de borrar `videos_no_music/`**: es lo único que permite rehacer la mezcla de música sin
-volver a renderizar (~7 min de CPU por video). Si se quiere conservar la opción, borrar solo los
-temas ya publicados.
-
-Lo seguro, que no toca ningún entregable ni ningún respaldo real:
+Lo seguro, que no toca ningún entregable ni respaldo:
 
 ```bash
 rm -rf proyectos/social_posts proyectos/carousel_slides proyectos/source_images
@@ -339,7 +182,8 @@ rm -rf images_IA_guidance __pycache__
 rm -f  logs/_.log test_voz.mp3 fonts/*.zip "videos_no_music/T1/video_.mp4"
 ```
 
-Nada de eso está en git, así que no hay nada que commitear después.
+Nada de eso está en git. Los 16 respaldos `Mundial*` conservan además slides obsoletos
+(`slide_06_cta.jpg` **y** `slide_07_cta.jpg`), de cuando el paso 06 no limpiaba su salida.
 
 <a id="p-08"></a>
 **P-08 · Los 16 Mundial no tienen `descripcion.txt` ni `.srt`.** Son anteriores a la
@@ -348,84 +192,18 @@ pena regenerarlos: si se republican, se reescribe el texto a mano.
 
 ---
 
-## ⚪ Deuda
+## Resueltos
 
-<a id="p-09"></a>
-**P-09 · ¿Se sigue usando el carrusel de Instagram?** Si no, el paso 06 y `carrusel.txt` salen del
-pipeline: ahorra $0.004 y 8 s por tema, y quita el contrato frágil de formato con el paso 02.
+Los anclajes se conservan porque el código y las otras notas enlazan aquí. El detalle de cada uno,
+con lo que se midió, está en [HISTORIAL.md](HISTORIAL.md).
 
-<a id="p-09b"></a>
-**P-09b · Automatizar la recogida de métricas por API.** Hoy son ~15 min por semana de descargas
-y tecleo, que es asumible. Cuando pase de ahí o superes ~50 videos, en este orden:
-
-1. **YouTube Analytics API** — gratis, 10 000 unidades/día, pero **OAuth obligatorio** (son datos
-   privados del canal; una API key no basta). `pip install google-api-python-client
-   google-auth-oauthlib`, alcance `yt-analytics.readonly`. Lo único que no se puede descargar de
-   ninguna otra forma es la **curva de retención**: `dimensions="elapsedVideoTimeRatio"` con
-   `metrics="audienceWatchRatio,relativeRetentionPerformance"`. Empieza por ahí — es justo lo que
-   pide [P-12](#p-12).
-2. **Meta** — Instagram Graph API, `GET /{ig-media-id}/insights` con
-   `metric=plays,reach,saved,shares,total_interactions`. Aprovecha que `desuso/publisher.py` ya espera
-   esas credenciales (ver P-10): las mismas sirven para publicar y para leer.
-3. **TikTok, la última.** Hay que registrar una app y pasar una revisión: semanas de trámite para
-   la red que menos aporta y donde más hay que teclear.
-
-💡 Antes de nada, mira si tu plan de **Metricool** incluye exportar analíticas a CSV: ya tiene las
-cuatro cuentas conectadas y sería una descarga en vez de cinco. No te dará la curva de retención.
-
-<a id="p-10"></a>
-**P-10 · `desuso/publisher.py` sigue incompleto.** Le faltan `META_ACCESS_TOKEN`,
-`FACEBOOK_PAGE_ID`, `INSTAGRAM_ACCOUNT_ID` y `THREADS_USER_ID`, y apunta a `post_images/`, que no
-existe. Además lee `03_instagram.txt` y `04_facebook.txt`, que el paso 02 dejó de generar en
-agosto. La publicación es manual. Está en `desuso/` justamente por eso: si algún día se retoma,
-vuelve a `herramientas/`.
-
-<a id="p-11"></a>
-<a id="p-18"></a>
-**P-18 · La cabecera del paso 06 miente sobre su propia entrada.**
-El docstring de [06_carrusel_generator.py](pipeline/06_carrusel_generator.py) dice que lee
-`social_posts/03_instagram.txt`, un archivo que **dejó de existir** cuando el paso 02 se
-reestructuró; su `CONFIG` apunta bien a `carrusel.txt`. Manda el `CONFIG`, pero quien abra el
-archivo por primera vez va a buscar un contrato que ya no existe. Son dos líneas de comentario, y
-de paso conviene renombrar `parse_instagram_file()` — que además está duplicada, y gana la segunda.
-
-**P-11 · ✅ HECHO en lo esencial (15 ago) · 85 tests. Queda ampliar a los pasos 03-06.**
-
-`tests/` con **85 tests** de `unittest` (stdlib, sin red, ~0.07 s):
-
-| Archivo | Qué cubre |
-|---|---|
-| [test_reporte.py](tests/test_reporte.py) | `comparar_lotes()`, `TIPO_METRICA`, el signo de la comparación, mediana vs promedio, y que los nombres de lote del paso 10 y del 11 no diverjan |
-| [test_metricas.py](tests/test_metricas.py) | la pegajosidad del lote, el índice a dos niveles, los decimales de Facebook, la fila de TikTok sin escapar, la fusión que no pisa valores llenos |
-| [test_estado.py](tests/test_estado.py) | el sello del tema, los reintentos, y **que todo modelo nombrado en `pipeline/` esté en `PRECIOS_OPENAI`** (hoy detecta `gpt-4.1` y `gpt-5.4`) |
-| [test_pipeline.py](tests/test_pipeline.py) | `verificar_reglas_mecanicas()`, `sanear_valor_env()`, `separar_hashtags()`, `recortar_a_limite()`, `_truncar_titulo()`, `repartir_planos()`, `dispersar_planos()` |
-
-Se eligieron **por tipo de fallo, no por cobertura**: en el pipeline un error se nota —el tema
-aborta o el video sale mal—, pero en las métricas no se nota nada, el informe se genera igual y
-afirma lo contrario de lo que pasó. **Verificados por mutación**: reintroduciendo cada bug
-(`grupos[-2] += grupos.pop()`, el voraz eligiendo el primer plano, `dispersar_planos: False`
-ignorado, `sanear_valor_env()` sin recolapsar, los absolutos como graves, la pegajosidad del lote,
-`vistas_por_dia` como tasa, el signo invertido, media en vez de mediana) fallan los tests que le
-tocan y solo esos.
-
-> ⚠️ **Corrección a lo que decía esta nota:** el obstáculo NO obliga a mover las guardas a
-> `main()`. Los pasos sí trabajan al importarse, pero eso se resuelve **desde fuera** — `chdir` a
-> un temporal, claves de API falsas y `pipeline/` en `sys.path` (ver `cargar_paso()`). No se
-> modificó ni una línea de `pipeline/`, y los tests corren **con un lote en marcha**.
-
-**Queda:** el parseo de `carrusel.txt` del paso 06 y las funciones de los pasos 03, 04 y 05.
-
-Lo que hay que saber antes de intentarlo: **el obstáculo no son los prefijos numéricos**
-(`importlib.import_module("02_…")` funciona), sino que **los pasos trabajan al importarse**. Basta
-cargar el módulo para que se ejecute:
-
-| Paso | Qué pasa con solo importarlo |
-|---|---|
-| 01 | `SystemExit` si no hay `OPENAI_API_KEY`; instancia el cliente |
-| 02, 07 | `SystemExit` si no hay `PROYECTO`, y llaman a `verificar_estado()` |
-| 06 | `SystemExit` si no hay `PROYECTO` |
-| 03 | lee `script.txt` a nivel de módulo |
-
-O sea que un test tendría que preparar el entorno antes de importar. Lo barato es mover esas
-guardas dentro de `main()` en el paso que se quiera probar — un cambio por script, sin tocar la
-lógica.
+| # | Qué era | Cómo se cerró |
+|---|---|---|
+| <a id="p-02"></a>**P-02** | Guiones con datos falsos llegaban a publicarse | De raíz: la puerta del paso 01 **aborta el tema** en vez de avisar a un humano que no iba a leerlo |
+| <a id="p-03"></a>**P-03** | 4 de 8 títulos de YouTube pasaban de 70 caracteres | `acortar_titulo()` reescribe con el modelo y `_truncar_titulo()` garantiza el límite en Python. 0 de 7 fuera en el lote siguiente |
+| <a id="p-04"></a>**P-04** | La puerta de calidad no aprobaba nunca | Calibrada con los 7 temas reales: `nota >= 6` y `dudosas <= 3`. El problema no era el umbral, era el guionista |
+| <a id="p-05"></a>**P-05** | El paso 07 componía un mask fantasma | `bg_color=(0,0,0)` en el composite interno: **×1.59** de velocidad, píxel a píxel idéntico |
+| <a id="p-12"></a>**P-12** | `se_quedaron_pct` bajó en v2 | La curva de retención descartó gancho y cortes. Queda [P-20](#p-20), que es una pregunta distinta |
+| <a id="p-14"></a>**P-14** | `proyectos/T1/` anidado dejaba 78 de 147 filas sin `PROYECTO` | Glob a dos niveles en `indice_proyectos()`: 43 filas recuperadas |
+| <a id="p-15"></a>**P-15** | Los planos salían en pares de la misma imagen | `dispersar_planos()`: de 8 de 13 transiciones repetidas a **0 de 15-18** |
+| <a id="p-19"></a>**P-19** | `DELAY = 7.0` uniforme en el paso 05 | Separado por fuente (1.5 s Wikimedia / 7 s DDG): **−2.7 min por tema** |

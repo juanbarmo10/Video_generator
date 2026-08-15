@@ -7,7 +7,8 @@ Guía del proyecto para Claude Code. Escrita en español porque el proyecto, los
 Fábrica automatizada de contenido histórico viral para redes sociales. A partir de una lista de temas
 (`temas.csv`) genera, por cada tema y de punta a punta:
 
-- un guion de **65-75 palabras** (GPT-4.1) auditado por un segundo modelo,
+- un guion de **65-75 palabras** (`gpt-5.4`) auditado por `claude-opus-5`, que **aborta el tema**
+  si no lo aprueba,
 - narración en voz (ElevenLabs), acelerada ×1.10,
 - **6 imágenes** ilustradas por IA (fal.ai / Flux dev),
 - un video vertical 9:16 con subtítulos animados palabra por palabra + música a −14 LUFS,
@@ -630,7 +631,7 @@ que forma parte del pipeline, no lo forma.
 ### Tests
 
 ```bash
-python -m unittest discover tests      # desde la raíz, 85 tests, ~0.07 s
+python -m unittest discover tests      # desde la raíz, 98 tests, ~0.1 s
 ```
 
 Solo `unittest` de la stdlib, sin dependencias nuevas y **sin red**. Cubren
@@ -728,7 +729,9 @@ archivos de la raíz debe llamar a `verificar_estado()` (trampa 1).
     un paso). Qué era cada uno y por qué no funciona hoy:
     [§ Código en desuso](#código-en-desuso-está-en-git-no-lo-ejecuta-nadie).
     La publicación sigue siendo manual.
-12. Cada tema cuesta **~$0.25 real**: ~15 llamadas a GPT-4.1, 1 síntesis de ElevenLabs y 6 imágenes de
+12. Cada tema cuesta **~$0.29 real** (mediana medida sobre `Historia09`-`Historia15`; eran ~$0.24
+    antes del crítico de Opus y `gpt-5.4`): ~15 llamadas a OpenAI, la crítica en Anthropic, 1
+    síntesis de ElevenLabs y 6 imágenes de
     fal.ai a 832×1472 (el 74 % del coste son las imágenes) (fal cobra por megapíxel: subir la resolución sube el costo proporcionalmente).
     `estado.py` lleva la cuenta en `.costo_actual.json` y los pasos 02 y 04 la imprimen al terminar.
     **No corras `run_all.sh` para probar un cambio** — usa un solo tema.
