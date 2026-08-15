@@ -24,6 +24,17 @@ voice.mp3
 .estado_actual
 .costo_actual.json
 
+# ── Credenciales de Google (YouTube Analytics API) ────────────
+# ⚠️ Las dos son secretos, igual que el .env:
+#   client_secret*.json  lo descargas de Google Cloud Console
+#   token_youtube.json   lo escribe el flujo OAuth y da acceso REAL a las
+#                        analíticas del canal hasta que lo revoques
+# Van con comodín porque Google las descarga con un nombre larguísimo del tipo
+# client_secret_1234-abcd.apps.googleusercontent.com.json.
+client_secret*.json
+token_youtube.json
+credenciales/
+
 # ── Assets pesados que no cambian ─────────────────────────────
 music/
 

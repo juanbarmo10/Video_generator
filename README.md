@@ -65,8 +65,48 @@ De cada tema salen:
    en una semana limpia no llega ninguno. Pruébalo sin enviar nada con
    `python herramientas/12_recordatorio.py --dry-run`, y mira qué hizo en `logs/recordatorio.log`.
 
+5. **Opcional: métricas de YouTube por API.** Quita un tercio del trabajo semanal de métricas y es
+   **la única forma de obtener la curva de retención**, que ningún export trae.
+
+   Necesita OAuth, no una API key: son datos privados del canal.
+
+   ```bash
+   pip install google-api-python-client google-auth-oauthlib
+   ```
+
+   En [console.cloud.google.com](https://console.cloud.google.com), **con la cuenta dueña de
+   `@chistoricas3`** (si el canal es una *Cuenta de marca*, la cuenta personal que la administra —
+   con otra cuenta todo funciona y la API devuelve datos vacíos sin explicar por qué):
+
+   | | Dónde | Qué |
+   |---|---|---|
+   | 1 | Selector de proyecto | *Proyecto nuevo* → `chistoricas-metricas` |
+   | 2 | APIs y servicios → Biblioteca | Habilitar **YouTube Analytics API** y **YouTube Data API v3** |
+   | 3 | Pantalla de consentimiento de OAuth | Tipo **Externo** · nombre y correos · **añádete como usuario de prueba** |
+   | 4 | Misma pantalla | **Publicar aplicación → En producción** (ver el aviso de abajo) |
+   | 5 | Credenciales | *Crear credenciales → ID de cliente de OAuth* → **Aplicación de escritorio** → Descargar JSON |
+
+   ⚠️ **El paso 4 no es opcional aunque lo parezca.** Con la app en estado *Prueba*, Google
+   **caduca el refresh token a los 7 días** y habría que reautorizar cada semana, que es justo la
+   tarea manual que esto viene a quitar. Al estar publicada sin verificar, la primera autorización
+   muestra *«Google no ha verificado esta aplicación»*: **Configuración avanzada → Ir a … (no
+   seguro)**. La verificación solo hace falta para apps con usuarios ajenos; esta la usas tú.
+
+   Guarda el JSON y autoriza:
+
+   ```bash
+   mv ~/Descargas/client_secret_*.json credenciales/
+   python herramientas/13_youtube_api.py --autorizar
+   ```
+
+   Se abre el navegador una vez; después imprime a qué canal accede — **míralo**, es lo que
+   distingue "el mes fue malo" de "autoricé con la cuenta equivocada".
+
 ⚠️ El `.env` lleva claves en texto plano y **es estado mutable del pipeline** (los scripts escriben
-ahí `PROYECTO`, `TEMA` y `TITULO_VIDEO`). No se commitea nunca.
+ahí `PROYECTO`, `TEMA` y `TITULO_VIDEO`). No se commitea nunca. Lo mismo vale para
+`credenciales/`: el `client_secret*.json` y el `token_youtube.json` son secretos y están en
+`.gitignore` — el token da acceso de lectura a las analíticas del canal hasta que lo revoques en
+[myaccount.google.com/permissions](https://myaccount.google.com/permissions).
 
 ---
 

@@ -352,6 +352,7 @@ falta saber para orientarse:
 | **`herramientas/`**[`10_metricas.py`](herramientas/10_metricas.py) | Se corre cuando hay exports nuevos. No lo llama nadie automáticamente |
 | **`herramientas/`**[`11_reporte.py`](herramientas/11_reporte.py) | Convierte `metricas.csv` en `reportes/ultimo.html`. Se corre después del 10 |
 | **`herramientas/`**[`12_recordatorio.py`](herramientas/12_recordatorio.py) | Recordatorio semanal por Telegram. Lo llama `cron`, no un `.sh` |
+| **`herramientas/`**[`13_youtube_api.py`](herramientas/13_youtube_api.py) | Métricas de YouTube por API (OAuth). La **curva de retención** no la exporta ningún CSV |
 | **`desuso/`** | Código que **no ejecuta nadie**: `03_voice_generator_free.py`, `publisher.py`, `ink_filter.py`, `imagen_generator_source.py`. Sigue en git como referencia. Ver [§ Código en desuso](#código-en-desuso-está-en-git-no-lo-ejecuta-nadie) |
 | `requirements.txt` | `moviepy==1.0.3` fijado; ffmpeg va aparte (apt) |
 
@@ -533,6 +534,26 @@ guarda todas las fotos.
   decide un solo video viral y una mediana sin la n invita a concluir de más.
 - `retencion_pct` **puede pasar de 100 %** en YouTube (44 s de media sobre un video de 38 s): son
   los bucles de Shorts, no un error de cálculo.
+
+**[13_youtube_api.py](herramientas/13_youtube_api.py)** saca las métricas de YouTube por API.
+- **Requiere OAuth, no una API key**, porque son datos privados del canal. Dos archivos, los dos
+  secretos y los dos en `.gitignore`: `credenciales/client_secret*.json` (lo descargas de Google
+  Cloud Console) y `credenciales/token_youtube.json` (lo escribe el flujo, se guarda con permisos
+  `600` y **da acceso de lectura al canal hasta que se revoque**).
+- ⚠️ **La app tiene que estar publicada "En producción" en la consola.** En estado *Prueba* Google
+  caduca el refresh token a los **7 días**, o sea reautorizar cada semana — justo el trabajo manual
+  que esto viene a quitar. El montaje completo está en [README.md](README.md).
+- ⚠️ **`comprobar_canal()` no es un adorno: llámalo antes de fiarte de ningún número.** Si se
+  autoriza con una cuenta que no es dueña de `@chistoricas3`, la API responde **200 con datos
+  vacíos** en vez de dar error, y un informe de ceros parece un mal mes.
+- **Lo que justifica el archivo es `curva_de_retencion()`** (`dimensions=elapsedVideoTimeRatio`):
+  es el único dato que **ningún export masivo trae**, y el que responde a [P-12](TODO.md#p-12).
+  `resumir_curva()` lo reduce a la pregunta real —¿se van en el gancho (0-10 % del video) o en el
+  primer corte (10-25 %)?— porque las dos respuestas mandan a sitios opuestos: reescribir el texto
+  del guion, o cambiar el ritmo del montaje.
+  ⚠️ Un punto sin dato es `None`, **no cero**: contarlo como 0 hundiría la media y haría creer que
+  el gancho falla. `relativeRetentionPerformance` puede venir vacío si el video tiene pocas vistas;
+  no es un error.
 
 **[12_recordatorio.py](herramientas/12_recordatorio.py)** es el recordatorio semanal por Telegram.
 Lo llama `cron` (no `run_all.sh`: no tiene nada que ver con generar videos).

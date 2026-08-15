@@ -24,3 +24,8 @@ ddgs>=6.0
 
 # Binario externo requerido (no se instala con pip):
 #   ffmpeg / ffprobe  →  sudo apt install ffmpeg
+
+# Métricas de YouTube por API (herramientas/13_youtube_api.py) — opcional.
+# Solo hacen falta si usas la API en vez de descargar los CSV a mano.
+google-api-python-client
+google-auth-oauthlib

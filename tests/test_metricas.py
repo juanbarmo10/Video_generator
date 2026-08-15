@@ -13,7 +13,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from test_reporte import cargar
+from test_reporte import RAIZ, cargar
 
 met = cargar("10_metricas.py")
 
@@ -191,6 +191,69 @@ class TikTokSinEscapar(unittest.TestCase):
         self.assertEqual(filas[1]["Visualizaciones de video"], "2000",
                          "las métricas de la fila rota se leyeron corridas")
         self.assertEqual(filas[1]["Me gusta"], "20")
+
+
+yt = cargar("13_youtube_api.py")
+
+
+class CurvaDeRetencion(unittest.TestCase):
+    """`resumir_curva()` reduce la curva a la única pregunta que importa en
+    [P-12]: ¿la gente se va en el **gancho** (0-10 % del video) o en el **primer
+    corte** (10-25 %)? Las dos respuestas mandan a sitios opuestos — reescribir
+    el texto del guion, o cambiar el ritmo del montaje. Un tramo mal calculado
+    manda a rehacer lo que no era."""
+
+    def curva(self, valores):
+        return [{"video_id": "x", "ratio": i / len(valores),
+                 "audiencia": v, "relativa": None}
+                for i, v in enumerate(valores)]
+
+    def test_separa_el_gancho_del_primer_corte(self):
+        """Curva plana al 1.0 en el gancho y al 0.5 después: los dos tramos
+        tienen que salir distintos, no promediados juntos."""
+        valores = [1.0] * 10 + [0.5] * 90        # 0-10 % alto, resto bajo
+        r = yt.resumir_curva(self.curva(valores))
+        self.assertAlmostEqual(r["gancho"], 1.0)
+        self.assertAlmostEqual(r["primer_corte"], 0.5)
+
+    def test_la_caida_del_gancho_se_mide_contra_el_arranque(self):
+        valores = [1.0] + [0.8] * 9 + [0.5] * 90
+        r = yt.resumir_curva(self.curva(valores))
+        self.assertAlmostEqual(r["arranque"], 1.0)
+        self.assertGreater(r["caida_gancho"], 0)
+
+    def test_una_curva_vacia_no_revienta(self):
+        r = yt.resumir_curva([])
+        self.assertEqual(r["puntos"], 0)
+        self.assertIsNone(r["arranque"])
+        self.assertIsNone(r["caida_gancho"])
+
+    def test_los_puntos_sin_dato_no_cuentan_como_cero(self):
+        """Un None es 'YouTube no lo reporta', no 'no se quedó nadie'. Contarlo
+        como 0 hundiría la media y haría creer que el gancho falla."""
+        # Los 10 primeros puntos son el gancho: todos a 1.0 menos uno sin dato.
+        gancho = [1.0, None, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+        r = yt.resumir_curva(self.curva(gancho + [0.5] * 90))
+        self.assertAlmostEqual(r["gancho"], 1.0,
+                               msg="el None se está contando como 0")
+
+
+class CredencialesDeYouTube(unittest.TestCase):
+    def test_pide_los_dos_permisos(self):
+        """`yt-analytics.readonly` da las métricas y `youtube.readonly` dice qué
+        video es cada ID. Con uno solo, la mitad de las llamadas dan 403."""
+        scopes = yt.CONFIG["scopes"]
+        self.assertTrue(any("yt-analytics.readonly" in s for s in scopes))
+        self.assertTrue(any("youtube.readonly" in s for s in scopes))
+
+    def test_el_token_y_el_secreto_estan_en_gitignore(self):
+        """⚠️ Los dos son credenciales: el token da acceso de lectura a las
+        analíticas del canal hasta que se revoque. Si esto falla, un `git add -A`
+        las publica."""
+        reglas = (RAIZ / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn("client_secret", reglas)
+        self.assertIn("token_youtube.json", reglas)
+        self.assertTrue(yt.CONFIG["token"].startswith("credenciales/"))
 
 
 if __name__ == "__main__":
