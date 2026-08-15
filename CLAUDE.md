@@ -422,9 +422,18 @@ trae cada red.
   impresiones y seguimientos netos. Hay que descargar los dos.
 - Lo que no empareja se acumula en `metricas_export/mapa_manual.csv` con `PROYECTO` vacío: se
   rellena una vez y el script lo respeta siempre.
-- **`lote`** separa `baseline` de `v2-mas-cortes` (los `PROYECTO` de `temas.csv` más
-  `lote_nuevo_extra`, que hoy contiene `Test01`/Zidane, la prueba end-to-end del cambio). Es la
-  única columna con la que se compara.
+- **`lote`** es la única columna con la que se compara. Sale de los `PROYECTO` de `temas.csv` más
+  `lote_nuevo_extra`; todo lo demás es `baseline`.
+  ⚠️ **Es pegajoso, y tiene que serlo** (`lotes_ya_asignados()`): `temas.csv` cambia cada semana,
+  así que recalcularlo sin más **degrada la tanda anterior a `baseline` en silencio**. Pasó el
+  15 ago: al cargar `Historia09`-`Historia15`, los `Historia01`-`Historia08` cayeron de 23 filas de
+  `v2-mas-cortes` a 4 y el informe pasó de comparar n=6 vs 34 a **n=1 vs 44** sin decir nada. La
+  regla es asimétrica: **nunca degrada** un lote con nombre, pero **sí promueve** desde `baseline`
+  (un video que entró sin emparejar y luego reconoce su `PROYECTO` sube a su lote de verdad).
+  Un video pertenece a la tanda que lo produjo, no a la que esté cargada hoy.
+  ⚠️ **Sube `lote_nuevo` en el `CONFIG` al cargar un `temas.csv` con cambios de pipeline detrás**,
+  o dos tandas distintas comparten nombre y dejan de distinguirse. Hoy:
+  `v2-mas-cortes` (Historia01-08) y `v3-guion-y-dispersion` (Historia09-15).
 - ⚠️ **Entran TODOS los videos publicados, con `PROYECTO` reconocido o sin él.** Los anteriores al
   pipeline casi nunca emparejan —su respaldo está en `proyectos/T1/<TEMA>/`, un nivel por debajo
   del glob `proyectos/*/social_posts` (P-14)— pero son el baseline: descartarlos dejaba la

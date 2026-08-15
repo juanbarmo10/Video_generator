@@ -75,15 +75,21 @@ CONFIG = {
     # 0.55 va bien con captions largos; lo dudoso se manda al mapa manual.
     "umbral_match":   0.55,
 
-    # Marca del lote. Los PROYECTO de temas.csv son los del pipeline nuevo
-    # (más cortes, planos con movimiento, audio a −14 LUFS, gancho sin spoiler);
-    # todo lo demás es lo de antes y sirve de referencia.
-    "lote_nuevo":     "v2-mas-cortes",
+    # Marca del lote: los PROYECTO de temas.csv son la tanda EN CURSO.
+    # ⚠️ Súbelo cada vez que cargues un temas.csv nuevo con cambios de pipeline
+    # detrás; si no, dos tandas distintas comparten nombre y dejan de
+    # distinguirse. Las anteriores no se tocan: `lotes_ya_asignados()` impide
+    # que cambiar temas.csv las degrade a baseline.
+    #   v2-mas-cortes        Historia01-08 — más cortes, −14 LUFS, gancho sin spoiler
+    #   v3-guion-y-dispersion Historia09-15 — guionista gpt-5.4, crítico Opus 5,
+    #                        planos dispersados (P-15), títulos acortados (P-03)
+    "lote_nuevo":     "v3-guion-y-dispersion",
     "lote_baseline":  "baseline",
 
-    # Proyectos del pipeline nuevo que NO están en temas.csv. Test01 (Zidane) fue
-    # la prueba end-to-end del cambio: se renderizó con el código nuevo, así que
-    # dejarlo en baseline contaminaría justo el grupo contra el que se compara.
+    # Proyectos del lote EN CURSO que NO están en temas.csv. Test01 (Zidane) fue
+    # la prueba end-to-end de v2: se renderizó con aquel código, así que dejarlo
+    # en baseline contaminaría justo el grupo contra el que se compara. Sigue
+    # marcado como v2 porque el lote es pegajoso, no porque esté aquí.
     "lote_nuevo_extra": ["Test01"],
 }
 
@@ -921,8 +927,16 @@ def fusionar(previas: list[dict], nuevas: list[dict]) -> tuple[list[dict], int, 
     indice = {clave(f): f for f in previas}
     nuevas_filas = actualizadas = 0
 
+    lotes_previos = lotes_ya_asignados(previas)
+
     for fila in nuevas:
         k = clave(fila)
+        # ⚠️ El lote se decide UNA vez, la primera que se ve el video.
+        anterior = lotes_previos.get((fila.get("plataforma", ""),
+                                      fila.get("id_plataforma", "")))
+        if anterior:
+            fila = dict(fila, lote=anterior)
+
         if k in indice:
             indice[k].update({c: v for c, v in fila.items() if v not in ("", None)})
             actualizadas += 1
@@ -931,6 +945,33 @@ def fusionar(previas: list[dict], nuevas: list[dict]) -> tuple[list[dict], int, 
             nuevas_filas += 1
 
     return sorted(indice.values(), key=clave), nuevas_filas, actualizadas
+
+
+def lotes_ya_asignados(previas: list[dict],
+                       baseline: str = "baseline") -> dict[tuple[str, str], str]:
+    """{(plataforma, id_plataforma): lote} de los videos que YA tienen uno propio.
+
+    ⚠️ Existe porque `lote` se calcula desde `temas.csv`, y `temas.csv` cambia
+    cada semana. Sin esto, cargar la tanda siguiente **degrada la anterior a
+    `baseline` en silencio**: pasó el 15 ago — `Historia01`-`Historia08` cayeron
+    de 23 filas de `v2-mas-cortes` a 4, y el informe pasó de comparar n=6 vs 34 a
+    n=1 vs 44 sin avisar de nada. Un video pertenece a la tanda que lo produjo,
+    no a la que esté cargada hoy.
+
+    La regla es asimétrica a propósito:
+    - **Nunca se degrada** un lote con nombre → la historia no se reescribe.
+    - **Sí se promueve** desde `baseline` → un video que entró sin emparejar y
+      luego reconoce su `PROYECTO` puede subir a su lote de verdad.
+
+    `baseline` es aquí el valor "vacío", igual que en el resto de la fusión, que
+    tampoco pisa nunca un valor lleno con uno vacío.
+    """
+    asignados = {}
+    for f in previas:
+        lote = (f.get("lote") or "").strip()
+        if lote and lote != baseline:
+            asignados[(f.get("plataforma", ""), f.get("id_plataforma", ""))] = lote
+    return asignados
 
 
 def escribir(ruta: str, filas: list[dict]) -> None:
