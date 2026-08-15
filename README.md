@@ -7,8 +7,9 @@ cada uno con su texto, sus subtítulos y su carrusel.
 **Coste real: ~$0.25 y ~14 minutos por video.** Un lote de 8 son unos $2 y menos de dos horas.
 
 ```
-temas.csv  →  [ 8 pasos automáticos ]  →  publicar/<TEMA>/  →  Metricool
-                                                            ↘  metricas.csv
+temas.csv  →  bash run_all.sh  →  publicar/<TEMA>/  →  Metricool
+              (8 pasos + paquete)                          ↓
+                              metricas.csv  ←  python 10_metricas.py
 ```
 
 De cada tema salen:
@@ -90,13 +91,10 @@ imprimiendo el progreso.
 PROYECTO=Test01 TEMA="El cabezazo de Zidane" bash run_pipeline.sh
 ```
 
-## 3 · Empaquetar y revisar (~10 min)
+## 3 · Revisar el paquete (~10 min)
 
-```bash
-python 09_paquete_publicacion.py --desde 2026-08-20 --hora 19:00
-```
-
-Deja todo junto, una carpeta por tema:
+**Esto ya lo hace `run_all.sh` solo** al terminar el lote: empaqueta los temas que salieron bien
+—y solo esos— y te deja todo junto, una carpeta por tema:
 
 ```
 publicar/
@@ -108,12 +106,18 @@ publicar/
         carrusel/           ← slides de Instagram
 ```
 
-Opciones útiles: `--cada 2` (uno cada dos días), `--semanas` (agrupa en `semana_01/`, `semana_02/`),
-`--solo Historia01 Historia02`.
+Si quieres rehacerlo con otras fechas o cadencia, se corre a mano:
 
-⚠️ **Sin `--solo` empaqueta todo lo que haya en `videos/`**, incluidos los lotes viejos.
+```bash
+python 09_paquete_publicacion.py --solo Historia01 Historia02 --desde 2026-08-20 --hora 19:00
+python 09_paquete_publicacion.py --solo Historia01 --cada 2       # uno cada dos días
+python 09_paquete_publicacion.py --solo Historia01 --semanas      # agrupa en semana_01/, semana_02/
+```
 
-**Lo que tienes que mirar antes de programar** — el script te lo dice al terminar:
+⚠️ **Sin `--solo` empaqueta todo lo que haya en `videos/`**, incluidos los lotes viejos. Por eso
+`run_all.sh` le pasa siempre los `PROYECTO` de la tanda.
+
+**Lo que tienes que mirar antes de programar** — el script te lo dice al terminar del lote:
 
 ```
 ⚠️  5 guion(es) NO pasaron el control de calidad.
@@ -121,8 +125,9 @@ Opciones útiles: `--cada 2` (uno cada dos días), `--semanas` (agrupa en `seman
          "Un eclipse hizo desaparecer a un faraón para siempre."
 ```
 
-Eso es el crítico avisando de afirmaciones que no pudo verificar. **Léelos.** Un dato inventado que
-se publica es peor que un video menos.
+Eso es el crítico avisando de afirmaciones que no pudo verificar. **Léelos al programar**: un dato
+inventado que se publica es peor que un video menos. La nota de cada guion está también en
+`publicar/calendario.csv`, columna `revisar_a_mano`.
 
 ## 4 · Programar en Metricool (~15 min)
 
@@ -158,8 +163,14 @@ nombre empezando por la plataforma:
 | **Facebook** | *(también el export desde Facebook)* | `facebook2.csv` |
 | **Instagram** | Meta Business Suite → Insights → Contenido → Exportar | `instagram.csv` |
 
-⚠️ **Los dos de Facebook hacen falta**: el de Meta Business trae el título que emparejamos, el de
-Facebook trae guardados, impresiones y distribución. Se fusionan solos.
+⚠️ **Los dos de Facebook hacen falta.** Son las mismas publicaciones con el mismo id, y el script
+las fusiona: el de Meta Business trae el **título** que usamos para emparejar y el alcance; el de
+Facebook trae **guardados, impresiones, seguimientos netos y `Distribución`** (`+0.2x` frente a tus
+otras publicaciones, lo único que dice si Facebook te está repartiendo o te tiene frenado).
+
+⚠️ **TikTok solo exporta desde el navegador**, no desde el móvil, y la cuenta tiene que estar en
+modo Creador o Empresa. **Instagram exige cuenta Business o Creador** vinculada a una página de
+Facebook; con cuenta personal no hay Insights que valgan.
 
 💡 **En YouTube, selecciona todos los videos en la gráfica antes de exportar.** Solo se exporta la
 serie diaria de lo que esté dibujado, y de ahí salen las vistas a 24 h y 7 d. Si son muchos, hazlo
@@ -230,6 +241,40 @@ dicen algo no son las vistas:
 
 ---
 
+## Qué trae cada red
+
+Medido sobre los exports reales, no sobre la documentación de las plataformas:
+
+| Métrica | YouTube | TikTok | Facebook | Instagram |
+|---|:--:|:--:|:--:|:--:|
+| Vistas · me gusta · comentarios · compartidos | ✅ | ✅ | ✅ | ✅ |
+| Alcance | ✅ | ✍️ | ✅ | ✅ |
+| Impresiones | ✅ | ❌ | ✅ | ❌ |
+| **Retención %** | ✅ | ✍️ | ⚙️ | ✍️ |
+| **Duración media vista** | ✅ | ✍️ | ✅ | ✍️ |
+| **Se quedaron a mirar %** | ✅ | ✍️ | ❌ | ❌ |
+| Guardados | ❌ | ❌ | ✅ | ✅ |
+| Seguidores ganados | ✅ | ❌ | ✅ | ✅ |
+
+✅ viene en el export · ✍️ se teclea en `manual.csv` · ⚙️ la calcula el script · ❌ no existe
+
+**YouTube es la única red con la que puedes diagnosticar de verdad**, y trae dos cosas que las
+demás no:
+
+- **`se_quedaron_pct`** — el porcentaje que no deslizó en los primeros segundos. Es la métrica del
+  gancho, y viene en el export masivo: no hace falta abrir la curva de retención a mano.
+- **`ctr_pct`** — clics sobre impresiones. Separa dos problemas que se confunden: si el CTR es
+  bajo, no entran (el título); si entran y se van, es el gancho.
+
+También trae **`tiempo_total_h`** (horas totales vistas), que es *la* señal de ranking: YouTube
+reparte por tiempo retenido, no por clics.
+
+**El export de TikTok es el más pobre de los cuatro**: solo vistas, me gusta, comentarios y
+compartidos. Ni siquiera la duración del video — el script se la presta de otra red, porque es el
+mismo mp4 en las cuatro.
+
+---
+
 ## Si algo falla
 
 | Síntoma | Qué pasa |
@@ -251,5 +296,4 @@ Los logs por tema están en `logs/`. El coste del tema en curso, en `.costo_actu
 |---|---|
 | **[CLAUDE.md](CLAUDE.md)** | Arquitectura, qué hace cada paso y las trampas conocidas. **Léelo antes de tocar código** |
 | **[TODO.md](TODO.md)** | Auditoría de bugs, diagnóstico de contenido y lo que queda pendiente |
-| **[METRICAS.md](METRICAS.md)** | De dónde sale cada métrica, qué falta en cada red y cómo funciona el consolidador |
 | **[INSTRUCCIONES_CHATGPT.md](INSTRUCCIONES_CHATGPT.md)** | El prompt para que ChatGPT proponga temas que el pipeline aguante |

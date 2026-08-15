@@ -41,6 +41,7 @@ TOTAL=$(tail -n +2 "$TEMAS_FILE" | grep -c '.')
 CURRENT=0
 SUCCESS=0
 FAILED=0
+EXITOSOS=()      # los PROYECTO que terminaron, para empaquetar solo estos
 
 # ── Actualiza una variable en el .env sin borrar las demás ──────────────
 update_env() {
@@ -113,6 +114,7 @@ while IFS=',' read -r PROYECTO TEMA EXTRA <&9 || [[ -n "$PROYECTO" ]]; do
     if bash run_pipeline.sh </dev/null >> "$LOG_FILE" 2>&1; then
         echo "    ✅ Completado"
         SUCCESS=$((SUCCESS + 1))
+        EXITOSOS+=("$PROYECTO")
     else
         FAILED_STEP=$(grep -oP "(?<=Running: ).*" "$LOG_FILE" | tail -1)
         echo "    ❌ FALLÓ en: ${FAILED_STEP:-paso desconocido} — ver $LOG_FILE"
@@ -130,3 +132,23 @@ echo "   ❌ Fallidos : $FAILED"
 echo "   📁 Logs     : $LOG_DIR/"
 [[ $FAILED -gt 0 ]] && echo "   ⚠️  Fallos guardados en: $FAILED_FILE"
 echo "============================================"
+
+# ── Paquete de publicación ──────────────────────────────────────────────
+# El paso 09 no es del pipeline por tema: se corre UNA vez al final y junta
+# video + srt + descripcion.txt + carrusel en publicar/<TEMA>/.
+# ⚠️ Se le pasan los PROYECTO de ESTE lote con --solo: sin eso empaqueta todo
+# lo que haya en videos/, incluidos los lotes viejos.
+if [[ ${#EXITOSOS[@]} -gt 0 ]]; then
+    echo ""
+    echo "📦 Armando el paquete de publicación..."
+    if python 09_paquete_publicacion.py --solo "${EXITOSOS[@]}"; then
+        echo ""
+        echo "🏁 Listo para programar: publicar/ + publicar/calendario.csv"
+    else
+        echo "⚠️  El paquete falló, pero los videos están en videos/." >&2
+        echo "   Puedes rehacerlo con: python 09_paquete_publicacion.py --solo ${EXITOSOS[*]}" >&2
+    fi
+else
+    echo ""
+    echo "⏭️  Ningún tema terminó: no hay nada que empaquetar."
+fi

@@ -1122,8 +1122,9 @@ Detalles que importan al tocarlo:
 
 ## ✅ Métricas — resuelto (15 ago 2026)
 
-Toda la guía de dónde exportar y cómo consolidar vive en **[METRICAS.md](METRICAS.md)**; el
-paso a paso semanal, en **[README.md](README.md)**. Lo que se montó:
+La guía de dónde exportar, qué trae cada red y el paso a paso semanal vive en
+**[README.md](README.md)**; los internos del consolidador, en **[CLAUDE.md](CLAUDE.md)**.
+Lo que se montó:
 
 - **[10_metricas.py](10_metricas.py)** lee los exports **tal cual se descargan** (zips incluidos),
   normaliza los 5 formatos, empareja cada video con su `PROYECTO` por texto y consolida en
@@ -1329,6 +1330,23 @@ pena regenerarlos: si se republican, se reescribe el texto a mano.
 
 **P-09 · ¿Se sigue usando el carrusel de Instagram?** Si no, el paso 06 y `carrusel.txt` salen del
 pipeline: ahorra $0.004 y 8 s por tema, y quita el contrato frágil de formato con el paso 02.
+
+**P-09b · Automatizar la recogida de métricas por API.** Hoy son ~15 min por semana de descargas
+y tecleo, que es asumible. Cuando pase de ahí o superes ~50 videos, en este orden:
+
+1. **YouTube Analytics API** — gratis, 10 000 unidades/día, pero **OAuth obligatorio** (son datos
+   privados del canal; una API key no basta). `pip install google-api-python-client
+   google-auth-oauthlib`, alcance `yt-analytics.readonly`. Lo único que no se puede descargar de
+   ninguna otra forma es la **curva de retención**: `dimensions="elapsedVideoTimeRatio"` con
+   `metrics="audienceWatchRatio,relativeRetentionPerformance"`. Empieza por ahí.
+2. **Meta** — Instagram Graph API, `GET /{ig-media-id}/insights` con
+   `metric=plays,reach,saved,shares,total_interactions`. Aprovecha que `publisher.py` ya espera
+   esas credenciales (ver P-10): las mismas sirven para publicar y para leer.
+3. **TikTok, la última.** Hay que registrar una app y pasar una revisión: semanas de trámite para
+   la red que menos aporta y donde más hay que teclear.
+
+💡 Antes de nada, mira si tu plan de **Metricool** incluye exportar analíticas a CSV: ya tiene las
+cuatro cuentas conectadas y sería una descarga en vez de cinco. No te dará la curva de retención.
 
 **P-10 · `publisher.py` sigue incompleto.** Le faltan `META_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`,
 `INSTAGRAM_ACCOUNT_ID` y `THREADS_USER_ID`, y apunta a `post_images/`, que no existe. La

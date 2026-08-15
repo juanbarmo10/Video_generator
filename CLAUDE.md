@@ -204,7 +204,6 @@ esas variables ensucia el árbol de proyectos con rutas tipo `proyectos//` y `vi
 README.md              # manual de operación: el paso a paso de cada semana
 TODO.md                # auditoría de bugs + plan de crecimiento (documento de trabajo)
 INSTRUCCIONES_CHATGPT.md  # prompt para que ChatGPT proponga temas que el pipeline aguante
-METRICAS.md            # de dónde sacar las métricas de las 4 redes y cómo agilizarlo
 metricas.csv           # una fila por (PROYECTO, plataforma, fecha_snapshot)
 metricas_export/       # ← CSV crudos descargados de cada plataforma (ignorado por git)
 estado.py              # módulo compartido: sello de tema, costo, reintentos
@@ -230,8 +229,9 @@ fonts/                 # BungeeSpice (subtítulos y carrusel), Cossette_Texte
 perfil/                # imagen de perfil y banner para el slide CTA
 ```
 
-**[09_paquete_publicacion.py](09_paquete_publicacion.py)** no es un paso del pipeline: se corre
-UNA VEZ después de `run_all.sh`. Junta en `publicar/<TEMA>/` el video (con hardlink, cero espacio
+**[09_paquete_publicacion.py](09_paquete_publicacion.py)** no es un paso por tema: **`run_all.sh` lo
+llama UNA vez al final**, pasándole con `--solo` los `PROYECTO` que terminaron (sin eso empaquetaría
+también los lotes viejos). Junta en `publicar/<TEMA>/` el video (con hardlink, cero espacio
 extra), el `.srt`, `descripcion.txt` y el carrusel, y escribe `publicar/calendario.csv` con
 las fechas repartidas. Marca los temas incompletos y los guiones que **no** pasaron el control de
 calidad del paso 01 (que deja su veredicto en `proyectos/$PROYECTO/calidad_guion.json`).
@@ -243,8 +243,8 @@ Sin `--solo` empaqueta **todo** lo que haya en `videos/`, incluidos los lotes vi
 **[10_metricas.py](10_metricas.py)** tampoco es un paso del pipeline: consolida en `metricas.csv`
 los exports de YouTube, TikTok, Instagram y Facebook **tal cual se descargan** (zips sin
 descomprimir incluidos) y que se dejan en `metricas_export/` con el nombre empezando por la
-plataforma. Ver **[METRICAS.md](METRICAS.md)** para de dónde sale cada uno y qué métrica falta en
-cada red.
+plataforma. Ver **[README.md](README.md)** (bloque 5) para de dónde sale cada uno y qué métrica
+trae cada red.
 - **Normaliza primero, empareja después**: descomprime, elige el csv bueno de cada zip y escribe un
   csv por plataforma con columnas uniformes en `metricas_export/_normalizado/`.
 - **El mapeo de columnas es explícito** (`FUENTES`), con los nombres reales en español de esta
