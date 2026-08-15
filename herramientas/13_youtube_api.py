@@ -49,6 +49,13 @@ CONFIG = {
     # Desde cuándo pedir datos. El canal no tiene nada anterior a esto.
     "desde": "2026-05-01",
 
+    # ⚠️ El ID del canal, no su nombre ni su @identificador. Es lo único que no
+    # cambia: el nombre visible es "Curiosidades Historicas" y el identificador
+    # de YouTube es @curiosidadeshistoricas-03, que NO coincide con el
+    # @chistoricas3 de las otras redes (y de la marca de agua del carrusel).
+    # Comparar contra cualquiera de los dos daba un falso aviso en cada corrida.
+    "canal_esperado": "UCuXiD-UbvlLUxTCmij33Urg",
+
     "salida_retencion": "metricas_export/retencion_youtube.csv",
 
     # La curva viene en pasos de 1 % del video (0.00 … 1.00).
@@ -84,7 +91,7 @@ def _archivo_secreto() -> Path:
     return candidatos[0]
 
 
-def autorizar(forzar: bool = False):
+def autorizar(forzar: bool = False, abrir_navegador: bool = True):
     """Devuelve credenciales válidas, reusando el token si lo hay.
 
     ⚠️ El refresh token solo es permanente si la app está **publicada En
@@ -126,10 +133,18 @@ def autorizar(forzar: bool = False):
 
     flujo = InstalledAppFlow.from_client_secrets_file(
         str(_archivo_secreto()), CONFIG["scopes"])
-    print("🌐 Abriendo el navegador para autorizar…")
+    if abrir_navegador:
+        print("🌐 Abriendo el navegador para autorizar…")
+    else:
+        # ⚠️ Con el navegador abriéndose solo, un error de Google se queda EN el
+        # navegador y aquí no llega nada: el script sigue esperando el callback
+        # para siempre y parece colgado. Imprimir la URL permite ver qué se está
+        # pidiendo (scopes, client_id) y leer el código de error de la respuesta.
+        print("🔗 Abre esta URL a mano:\n")
     print("   Si sale 'Google no ha verificado esta aplicación':")
-    print("   Configuración avanzada → Ir a … (no seguro). Es tu propia app.")
-    cred = flujo.run_local_server(port=0, prompt="consent")
+    print("   Configuración avanzada → Ir a … (no seguro). Es tu propia app.\n")
+    cred = flujo.run_local_server(port=0, prompt="consent",
+                                  open_browser=abrir_navegador)
 
     ruta_token.parent.mkdir(parents=True, exist_ok=True)
     ruta_token.write_text(cred.to_json(), encoding="utf-8")
@@ -168,15 +183,21 @@ def comprobar_canal(cred) -> str:
             "   eligiendo la cuenta dueña de @chistoricas3."
         )
     canal = items[0]
-    nombre = canal["snippet"]["title"]
+    snippet = canal["snippet"]
     stats = canal.get("statistics", {})
-    print(f"📺 Canal: {nombre}  (id {canal['id']})")
+    print(f"📺 Canal: {snippet['title']}  ({snippet.get('customUrl', '')})")
+    print(f"   id {canal['id']}")
     print(f"   {stats.get('videoCount', '?')} videos · "
           f"{stats.get('subscriberCount', '?')} suscriptores · "
           f"{stats.get('viewCount', '?')} visualizaciones")
-    if "chistoricas" not in nombre.lower().replace(" ", ""):
-        print(f"⚠️  El canal no se llama como esperaba (@chistoricas3). "
-              f"Comprueba que es el correcto antes de guardar métricas.")
+
+    esperado = CONFIG.get("canal_esperado")
+    if esperado and canal["id"] != esperado:
+        print(f"\n⚠️  ESTE NO ES EL CANAL DE SIEMPRE.")
+        print(f"   esperado: {esperado}")
+        print(f"   obtenido: {canal['id']}")
+        print(f"   Las métricas que guardes serían de otro canal. Borra "
+              f"{CONFIG['token']} y autoriza con la cuenta correcta.")
     return canal["id"]
 
 
@@ -277,6 +298,8 @@ def main() -> None:
                    help="Hace el flujo OAuth y guarda el token")
     p.add_argument("--reautorizar", action="store_true",
                    help="Ignora el token guardado y vuelve a autorizar")
+    p.add_argument("--sin-navegador", action="store_true",
+                   help="Imprime la URL en vez de abrir el navegador (para diagnosticar)")
     p.add_argument("--canal", action="store_true",
                    help="Comprueba a qué canal se accede")
     p.add_argument("--retencion", metavar="VIDEO_ID",
@@ -289,7 +312,8 @@ def main() -> None:
         p.print_help()
         return
 
-    cred = autorizar(forzar=args.reautorizar)
+    cred = autorizar(forzar=args.reautorizar,
+                     abrir_navegador=not args.sin_navegador)
 
     if args.autorizar or args.reautorizar:
         print()

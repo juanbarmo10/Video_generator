@@ -533,7 +533,14 @@ guarda todas las fotos.
 - Todo se compara **por mediana y con la n al lado** (`n_minimo_fiable`, 5). Con n=6, un promedio lo
   decide un solo video viral y una mediana sin la n invita a concluir de más.
 - `retencion_pct` **puede pasar de 100 %** en YouTube (44 s de media sobre un video de 38 s): son
-  los bucles de Shorts, no un error de cálculo.
+  los bucles de Shorts, no un error de cálculo. Por lo mismo, `audienceWatchRatio` de la curva de
+  retención pasa de 1.0.
+- ⚠️ **`se_quedaron_pct` y `retencion_pct` NO miden lo mismo y pueden moverse en sentidos
+  opuestos sin que ninguna esté mal.** «Se quedaron para mirar» se normaliza sobre todos los que
+  el Short **empezó a reproducirse en el feed** —incluye a quien deslizó en menos de un segundo—
+  y `retencion_pct` sobre los que **se quedaron a verlo**. Medido el 15 ago: v2 sale −16 % en la
+  primera y +32 % en la segunda. La lectura correcta es «para el scroll menos gente, pero la que
+  para ve mucho más», no «una de las dos miente». Ver [P-12](TODO.md#p-12).
 
 **[13_youtube_api.py](herramientas/13_youtube_api.py)** saca las métricas de YouTube por API.
 - **Requiere OAuth, no una API key**, porque son datos privados del canal. Dos archivos, los dos

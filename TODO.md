@@ -27,7 +27,7 @@ reusa tal cual como `temas.csv`.
 |---|---|---|
 | ✅ | [P-02](#p-02) | ~~Guiones falsos publicados~~ — resuelto de raíz: la puerta aborta el tema |
 | ✅ | [P-04](#p-04) | ~~Calibrar la puerta~~ — hecho: `nota >= 6` y `dudosas <= 3`, 5 de 7 aprueban |
-| 🟠 | [P-12](#p-12) | `se_quedaron_pct` bajó — la única métrica que empeoró en v2 |
+| ✅ | [P-12](#p-12) | ~~`se_quedaron_pct` bajó~~ — la curva descarta gancho y cortes: es el frame 0 en el feed |
 | ✅ | [P-19](#p-19) | ~~`DELAY` uniforme en el paso 05~~ — hecho: −2.7 min/tema, −19 min/lote |
 | ⚪ | [P-06](#p-06) | Paralelizar los temas — evaluado: no compensa todavía |
 | 🔵 | [P-17](#p-17) | Afinar el recordatorio con unas semanas de uso (ya funciona y está en cron) |
@@ -137,19 +137,43 @@ sobreviven al filtro de comparabilidad — el resto de las que caían resultaron
 contaminados por la antigüedad. Que aparezca en las dos redes que la exportan, y en la misma
 dirección, le quita bastante de casualidad.
 
-Sospechosos, en orden: el título en pantalla dura 2.5 s y arranca en `y=200`; el primer corte
-llega a 1.75 s (antes 4.9 s), que puede leerse como brusco; el gancho generado abre pregunta
-pero ya no dice el desenlace, que es lo que retenía a quien buscaba respuesta rápida.
+✅ **RESUELTO el 15 ago con la curva de retención** (`herramientas/13_youtube_api.py
+--retencion-lote`, 31 videos con datos). **La respuesta no es ninguna de las dos que planteaba
+esta nota.** Comparando la curva a **segundos absolutos iguales** —y hay que hacerlo así, porque
+`elapsedVideoTimeRatio` es fracción del video y los lotes duran distinto (40 s vs 26 s), o sea que
+comparar al mismo % compara instantes distintos:
 
-**Acción:** en el próximo lote, contrastar con la **curva de retención** de dos o tres v2 en
-YouTube Studio (dimensión `elapsedVideoTimeRatio`; es lo único que ningún export masivo trae).
-Si la caída está en 0–2 s es el gancho; si está en 3–6 s es el ritmo del primer corte.
+| segundo | baseline | v2 | dif |
+|---:|---:|---:|---:|
+| 0.5 | 1.413 | 1.596 | **+12.9 %** |
+| 2 | 1.294 | 1.473 | +13.9 % |
+| 5 | 1.121 | 1.299 | +15.9 % |
+| 10 | 0.829 | 0.930 | +12.1 % |
+| 25 | 0.561 | 0.614 | +9.5 % |
 
-⚠️ **Ojo con lo que se mide ahora.** El lote que venga ya llevará los planos dispersados (P-15,
-hecho el 15 ago), que cambia el ritmo percibido a propósito. Si `se_quedaron_pct` sube, no habrá
-forma de saber si fue eso o el gancho. Si quieres separarlo, genera un par de temas con
-`dispersar_planos: False` en el `CONFIG` del paso 07 y compáralos — es un interruptor, no hay que
-tocar código.
+**v2 va por delante en TODOS los puntos, desde el segundo 0.5.** No hay caída en el gancho (0-2 s)
+ni en el primer corte (3-6 s). La ventaja es plana, así que ni el título ni el ritmo de los cortes
+están costando retención.
+
+**Dónde está entonces la pérdida: antes de que la curva empiece.** Las dos métricas miden
+denominadores distintos y por eso parecían contradecirse:
+
+| | Denominador | v2 vs baseline |
+|---|---|---:|
+| `se_quedaron_pct` | de los que el Short **empieza a reproducirse en el feed** | −16 % |
+| `audienceWatchRatio` (la curva) | de los que **se quedan a verlo** | +12 a +16 % |
+
+O sea: **para el scroll menos gente, pero la que para ve mucho más.** Encaja con el resto —
+`retencion_pct` +32 %, `vistas_24h` +513 %, y `duracion_media_s` solo −13 % con videos un 32 % más
+cortos.
+
+**Lo que queda es una pregunta distinta y más estrecha:** qué hace que menos gente pare el scroll
+en el primer instante. Los cortes y el título quedan descartados por la curva; lo que no toca la
+curva es lo que se ve **antes de reproducir** — el primer frame como miniatura en el feed. Es
+`images_IA/scene_0.png` con el título quemado encima.
+⚠️ n=6 en v2 y los dos lotes difieren en muchas cosas a la vez (duración, gancho, cortes, música),
+así que esto **acota** el problema, no lo demuestra. La forma barata de aislarlo es un par de temas
+con `title_duration` distinto o sin título en el frame 0.
 
 ---
 
