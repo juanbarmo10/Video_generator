@@ -115,11 +115,49 @@ De cada tema salen:
    python herramientas/13_youtube_api.py --retencion-lote  # la curva de retención
    ```
 
+6. **Opcional: Instagram y Facebook por API.** Un solo trámite sirve para **leer métricas** y para
+   **publicar** — son los mismos permisos.
+
+   **Requisito previo:** la cuenta de Instagram tiene que ser **Empresa o Creador** y estar
+   **vinculada a una página de Facebook**. Con cuenta personal no hay API que valga.
+
+   | | Dónde | Qué |
+   |---|---|---|
+   | 1 | [developers.facebook.com](https://developers.facebook.com) → Mis apps | *Crear app* → caso de uso **Otro** → tipo **Empresa** → `chistoricas-publica` |
+   | 2 | Panel de la app → Agregar producto | **Instagram** (Graph API) y **Facebook Login para empresas** |
+   | 3 | [Explorador de la API Graph](https://developers.facebook.com/tools/explorer/) | Elige tu app, marca los 7 permisos de abajo, *Generar token de acceso* |
+
+   Los siete permisos:
+
+   ```
+   instagram_basic              instagram_manage_insights
+   instagram_content_publish    pages_show_list
+   pages_read_engagement        pages_manage_posts
+   read_insights
+   ```
+
+   ⚠️ **No hace falta App Review.** Con la app en modo *Desarrollo*, tú como administradora tienes
+   todos esos permisos sobre tus propios activos. La revisión solo es para que otros usen tu app.
+
+   Pega el token en el `.env` como `META_ACCESS_TOKEN` y corre:
+
+   ```bash
+   python herramientas/14_meta_api.py --diagnostico
+   ```
+
+   **Descubre solo los dos IDs que faltan** (`FACEBOOK_PAGE_ID` e `INSTAGRAM_ACCOUNT_ID`), que no
+   están a la vista en ninguna pantalla obvia de Meta, comprueba permiso por permiso y te dice qué
+   escribir en el `.env`.
+
+   ⚠️ **Cambia el token de usuario por el de PÁGINA** cuando el diagnóstico te lo ofrezca: el de
+   usuario caduca a los 60 días, el de página no caduca.
+
 ⚠️ El `.env` lleva claves en texto plano y **es estado mutable del pipeline** (los scripts escriben
 ahí `PROYECTO`, `TEMA` y `TITULO_VIDEO`). No se commitea nunca. Lo mismo vale para
 `credenciales/`: el `client_secret*.json` y el `token_youtube.json` son secretos y están en
-`.gitignore` — el token da acceso de lectura a las analíticas del canal hasta que lo revoques en
-[myaccount.google.com/permissions](https://myaccount.google.com/permissions).
+`.gitignore` — el token de YouTube da acceso de lectura a las analíticas del canal hasta que lo
+revoques en [myaccount.google.com/permissions](https://myaccount.google.com/permissions), y el de
+Meta permite **publicar en tu nombre**.
 
 ---
 
