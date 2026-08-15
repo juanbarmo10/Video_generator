@@ -120,6 +120,23 @@ def diagnostico() -> dict:
     # 2 · Permisos: los que hay contra los que hacen falta
     concedidos = {p["permission"] for p in _graph("me/permissions").get("data", [])
                   if p.get("status") == "granted"}
+
+    # ⚠️ Meta partió la API de Instagram en dos caminos que NO son intercambiables:
+    #   · "con Facebook Login"  → instagram_basic…      · graph.facebook.com
+    #   · "con Instagram Login" → instagram_business_…  · graph.instagram.com
+    # Este archivo habla el primero, que es el único que además publica en la
+    # página de Facebook. Si la app se creó por el segundo camino, las llamadas
+    # fallan con "permiso no válido" sin decir que el problema es el camino.
+    if any(p.startswith("instagram_business_") for p in concedidos):
+        raise SystemExit(
+            "❌ La app se creó por el camino **Instagram API con Instagram Login**\n"
+            f"   (los permisos salen como `instagram_business_*`).\n\n"
+            "   Este pipeline necesita el otro: **Instagram API con Facebook Login**,\n"
+            "   porque el mismo reel va también a la página de Facebook, y ese camino\n"
+            "   es el único que toca las dos redes con un solo token.\n\n"
+            "   Créala de nuevo eligiendo el caso de uso que menciona la PÁGINA DE\n"
+            "   FACEBOOK y su cuenta de Instagram vinculada, no el de solo Instagram."
+        )
     faltan = [p for p in CONFIG["permisos_necesarios"] if p not in concedidos]
     print(f"\n🔐 Permisos: {len(concedidos & set(CONFIG['permisos_necesarios']))}"
           f"/{len(CONFIG['permisos_necesarios'])}")

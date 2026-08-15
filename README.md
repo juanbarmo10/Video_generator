@@ -121,9 +121,24 @@ De cada tema salen:
    **Requisito previo:** la cuenta de Instagram tiene que ser **Empresa o Creador** y estar
    **vinculada a una página de Facebook**. Con cuenta personal no hay API que valga.
 
+   ⚠️ **Meta partió la API de Instagram en dos caminos, y solo uno sirve aquí.**
+
+   | | **con Facebook Login** ← este | **con Instagram Login** |
+   |---|---|---|
+   | Requiere página de Facebook | Sí | No |
+   | Host | `graph.facebook.com` | `graph.instagram.com` |
+   | Permisos | `instagram_basic`, `instagram_content_publish`… | `instagram_business_basic`… |
+   | ¿Publica en Facebook? | **Sí** | **No** |
+
+   Hace falta el de **Facebook Login** porque el mismo reel va también a la página de Facebook, y
+   es el único que toca las dos redes con un solo token. Al crear la app, elige el caso de uso que
+   menciona **la página de Facebook y su cuenta de Instagram vinculada**, no el de solo Instagram.
+   (Si aún ves la opción **Otro**, sirve — pero está anunciada como que desaparece.)
+   `--diagnostico` **detecta el camino equivocado** y lo dice, así que no hay que acertar a ciegas.
+
    | | Dónde | Qué |
    |---|---|---|
-   | 1 | [developers.facebook.com](https://developers.facebook.com) → Mis apps | *Crear app* → caso de uso **Otro** → tipo **Empresa** → `chistoricas-publica` |
+   | 1 | [developers.facebook.com](https://developers.facebook.com) → Mis apps | *Crear app* → el caso de uso de página de Facebook + Instagram → `chistoricas-publica` |
    | 2 | Panel de la app → Agregar producto | **Instagram** (Graph API) y **Facebook Login para empresas** |
    | 3 | [Explorador de la API Graph](https://developers.facebook.com/tools/explorer/) | Elige tu app, marca los 7 permisos de abajo, *Generar token de acceso* |
 
