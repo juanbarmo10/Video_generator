@@ -243,6 +243,111 @@ mucho para esta herramienta: su columna `Título` es **el título exacto que gen
 que empareja perfecto, mientras que el otro solo trae el caption.
 
 Descarga los dos y suéltalos. El script hace el resto.
+---
+
+## Métricas que sí valen y que el export ya trae
+
+Estaban en tus archivos y las estaba tirando. Ya entran todas:
+
+| Columna | Red | Por qué importa |
+|---|---|---|
+| **`tiempo_total_h`** | YouTube | **Horas totales vistas.** Es *la* señal de ranking: YouTube reparte por tiempo retenido, no por clics |
+| **`ctr_pct`** | YouTube | Clics sobre impresiones. Separa dos problemas que se confunden: si el CTR es bajo, no entran (miniatura/título); si entran y se van, es el gancho |
+| **`vistas_interesadas`** | YouTube | Vistas de quien se quedó de verdad, no del que pasó deslizando |
+| **`distribucion`** | Facebook | `+0.2x` frente a tus otras publicaciones. **Lo único que dice si Facebook te está repartiendo o te tiene frenado** |
+| **`interacciones`** | Facebook | Total de interacciones, más completo que sumar reacciones a mano |
+| **`vistas_24h` / `vistas_7d`** | YouTube | Ver abajo — salen de la serie diaria |
+
+### Las ventanas de 24 h y 7 d, sin esperar a la semana que viene
+
+El zip de YouTube trae un tercer csv, **"Datos del gráfico"**, con una fila por video **y día**.
+Sumando los días desde la publicación salen las ventanas directamente:
+
+```
+Disco perdido de Michael_Jackson    24h=1216   7d=1638   total=1644
+Ulises y los Lestrigones            24h= 501   7d= 541   total= 541
+```
+
+⚠️ Solo cubre los videos que estuvieran **dibujados en la gráfica** al exportar — por defecto 5.
+**Selecciona todos los videos en la gráfica antes de darle a Exportar** y tendrás la ventana de
+24 h de todo el canal en una sola descarga. Es la diferencia entre saberlo hoy y esperar una semana
+a comparar dos snapshots.
+
+---
+
+## Procedimiento ágil para lo que falta
+
+Solo faltan dos cosas, y solo en dos redes: **el tiempo de visualización de Instagram** y **casi
+todo de TikTok**. Lo demás ya viene en los exports.
+
+### Paso 1 — Antes de exportar, pide más columnas (0 minutos extra)
+
+- **YouTube**: en *Modo avanzado*, selecciona todos los videos en la gráfica antes de exportar
+  → te llevas las ventanas de 24 h y 7 d de todos, no de 5.
+- **Meta Business Suite**: el diálogo de exportación deja **elegir métricas**. Mira si puedes
+  añadir tiempo de reproducción para Instagram; si está, Instagram deja de necesitar captura manual
+  y este apartado se acaba aquí.
+
+### Paso 2 — `manual.csv`, solo lo que de verdad no existe
+
+El script deja la plantilla **ya identificada** en `metricas_export/manual.csv`: plataforma, id,
+fecha y título puestos. Solo hay que teclear números, y **solo las celdas vacías** — las que llevan
+`—` son las que esa red sí exporta.
+
+```csv
+plataforma,id_plataforma,fecha_publicacion,titulo,alcance,duracion_media_s,se_quedaron_pct
+instagram,17865702348648738,2026-08-14,"La noche del 25 de enero…",—,,—
+tiktok,https://…/video/7673192015940685074,2026-08-12,"Robin Hood…",,,
+```
+
+| Red | Qué teclear | De dónde sacarlo |
+|---|---|---|
+| **Instagram** | `duracion_media_s` | App → el reel → *Ver estadísticas* → **Tiempo de reproducción medio** |
+| **TikTok** | `alcance`, `duracion_media_s`, `se_quedaron_pct` | TikTok Studio → *Analytics* → clic en el video → **Tiempo medio de reproducción** y **Vieron el video completo** |
+
+**No hace falta teclear la retención**: pones los segundos medios y el script calcula
+`retencion_pct` dividiendo por la duración del video, que ya la tiene.
+
+### Paso 3 — Vuelve a correr
+
+```bash
+python 10_metricas.py
+```
+
+Lo tecleado se fusiona y **se queda ahí para siempre**: `manual.csv` es el almacén, no una lista de
+tareas. Las filas rellenadas se conservan entre corridas; las nuevas se añaden ordenadas por fecha,
+con un tope de 25 (`manual_max_filas`) para que no se convierta en una tarde.
+
+### Cuánto cuesta en la práctica
+
+Son **1 número por reel de Instagram y 3 por video de TikTok**, y solo de los videos nuevos: unos
+**5 minutos por semana** con la cadencia de 1 video al día. Lo viejo se teclea una vez o no se
+teclea nunca — para comparar lotes basta con lo que ya viene en los exports.
+
+💡 **Si te da pereza, sáltate TikTok.** Es donde más hay que teclear y donde menos se decide: tu
+volumen está en YouTube y Facebook, y esos dos llegan completos solos.
+
+---
+
+## Los lotes: qué se compara contra qué
+
+La columna **`lote`** es la única que hace falta para medir si el cambio sirvió:
+
+| Valor | Qué es |
+|---|---|
+| `v2-mas-cortes` | Los `PROYECTO` de `temas.csv` **más los de `lote_nuevo_extra`** en el CONFIG. Ahí está `Test01` (Zidane), que fue la prueba end-to-end del cambio: se renderizó con el código nuevo, así que dejarlo en baseline contaminaría justo el grupo de referencia |
+| `baseline` | **Todo lo demás**, incluidos los videos anteriores al pipeline |
+
+⚠️ **Entran todos los videos publicados, tengan `PROYECTO` reconocido o no.** La mayoría del
+baseline son videos anteriores a este pipeline y no hay forma de emparejarlos con una carpeta de
+`proyectos/` — pero son exactamente la referencia contra la que hay que comparar, así que
+descartarlos sería tirar lo que más falta hace. Pasan de 7 a 34 videos solo en YouTube.
+
+Por eso la clave de fusión es **`id_plataforma`** (el id nativo del video en cada red), no el
+`PROYECTO`: es estable entre descargas y lo tienen todos. El `PROYECTO` se rellena cuando se
+reconoce y se queda vacío cuando no, sin que eso rompa nada.
+
+Para añadir un proyecto suelto al lote nuevo se toca `lote_nuevo_extra` en el `CONFIG` y nada más.
 
 ## El plan que yo seguiría
 

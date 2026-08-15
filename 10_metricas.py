@@ -53,6 +53,10 @@ CONFIG = {
     "dir_export":     "metricas_export",
     "dir_normalizado": "metricas_export/_normalizado",
     "mapa_manual":    "metricas_export/mapa_manual.csv",
+    "manual":         "metricas_export/manual.csv",
+    # Cuántas filas dejar en la plantilla manual. Con 25 se cubre lo reciente
+    # sin que teclear se convierta en una tarde.
+    "manual_max_filas": 25,
     "dir_proyectos":  "proyectos",
     "temas":          "temas.csv",
     "salida":         "metricas.csv",
@@ -82,11 +86,29 @@ CONFIG = {
 COLUMNAS = [
     "lote", "PROYECTO", "tema", "titulo", "plataforma", "id_plataforma",
     "fecha_snapshot", "fecha_publicacion",
-    "duracion_s", "vistas", "alcance", "impresiones",
-    "retencion_pct", "duracion_media_s", "se_quedaron_pct",
+    "duracion_s", "vistas", "vistas_24h", "vistas_7d", "vistas_interesadas",
+    "alcance", "impresiones", "ctr_pct",
+    "retencion_pct", "duracion_media_s", "se_quedaron_pct", "tiempo_total_h",
     "me_gusta", "comentarios", "compartidos", "guardados", "seguidores_ganados",
+    "interacciones", "distribucion",
     "notas",
 ]
+
+# Lo que hay que teclear EN CADA RED, porque su export no lo trae (ver `manual.csv`).
+# Es por plataforma a propósito: pedirle a Facebook el "se quedaron a mirar", que
+# es un concepto de YouTube, solo sería fricción inútil.
+CAMPOS_MANUALES = {
+    # El export de TikTok es el más pobre: solo vistas, likes, comentarios y
+    # compartidos. Todo lo demás está en pantalla, video por video.
+    "tiktok":    ["alcance", "duracion_media_s", "se_quedaron_pct"],
+    # Instagram no da NADA de tiempo de visualización en el export.
+    "instagram": ["duracion_media_s"],
+    # YouTube y Facebook lo traen todo: no se piden a mano.
+    "youtube":   [],
+    "facebook":  [],
+}
+
+TODOS_LOS_MANUALES = sorted({c for cs in CAMPOS_MANUALES.values() for c in cs})
 
 
 # ══════════════════════════════════════════════════════════════
@@ -116,6 +138,9 @@ FUENTES = {
             "comentarios":        "Comentarios agregados",
             "compartidos":        "Elementos compartidos",
             "seguidores_ganados": "Suscriptores obtenidos",
+            "vistas_interesadas": "Vistas interesadas",
+            "tiempo_total_h":     "Tiempo de reproducción (horas)",
+            "ctr_pct":            "Tasa de clics de las impresiones (%)",
         },
     },
     "tiktok": {
@@ -167,6 +192,10 @@ FUENTES = {
             "compartidos":        "Veces que se compartió",
             "guardados":          "Veces que se guardó",
             "seguidores_ganados": "Seguimientos netos",
+            "interacciones":      "Interacciones",
+            # "+0.2x" frente al resto de tus publicaciones. No es un número
+            # suelto: es lo único que dice si Facebook te está repartiendo.
+            "distribucion":       "Distribución",
         },
         "alternativas": {                    # si falta la principal, usar esta
             "alcance": "Espectadores",
@@ -233,9 +262,39 @@ def archivos_de(plataforma: str, cfg: dict) -> list[Path]:
     return sorted(sueltos) + del_zip
 
 
-def leer_csv(ruta: Path) -> list[dict]:
+URL_TIKTOK = re.compile(r"^https?://(www\.)?tiktok\.com/", re.IGNORECASE)
+
+
+def leer_csv(ruta: Path, plataforma: str | None = None) -> list[dict]:
+    """Lee un export. En TikTok repara las filas que vienen rotas.
+
+    ⚠️ TikTok exporta los caption SIN escapar las comillas internas: un caption
+    que cita 'Living With Michael Jackson' termina el campo antes de tiempo y el
+    resto se parte por las comas, dejando la fila con 15 campos en vez de 8 y
+    todas las métricas corridas. Se rehace apoyándose en que la URL del video
+    marca dónde vuelve a alinearse con la cabecera.
+    """
     with open(ruta, encoding="utf-8-sig", newline="") as f:
-        return [dict(fila) for fila in csv.DictReader(f)]
+        lector = csv.reader(f)
+        try:
+            cabecera = next(lector)
+        except StopIteration:
+            return []
+
+        filas = []
+        for cruda in lector:
+            if len(cruda) != len(cabecera):
+                if plataforma != "tiktok":
+                    continue
+                url = next((i for i, v in enumerate(cruda) if URL_TIKTOK.match(v.strip())), None)
+                if url is None or url < 2:
+                    continue
+                # [0] Time · [1..url-1] el caption despedazado · [url..] el resto
+                cruda = [cruda[0], ", ".join(cruda[1:url])] + cruda[url:]
+                if len(cruda) != len(cabecera):
+                    continue
+            filas.append(dict(zip(cabecera, cruda)))
+        return filas
 
 
 # ══════════════════════════════════════════════════════════════
@@ -260,7 +319,8 @@ def normalizar(texto: str) -> str:
 # ⚠️ Esta distinción no es un lujo: Facebook exporta los segundos medios vistos
 # como "9.378" y una regla genérica de "3 dígitos detrás = separador de miles"
 # lo leía como 9378 segundos, dando retenciones del 17.000 %.
-CAMPOS_DECIMALES = {"retencion_pct", "duracion_media_s", "se_quedaron_pct"}
+CAMPOS_DECIMALES = {"retencion_pct", "duracion_media_s", "se_quedaron_pct",
+                    "tiempo_total_h", "ctr_pct"}
 
 
 def limpiar_numero(valor: str, decimal: bool = False) -> str:
@@ -339,6 +399,24 @@ def limpiar_fecha(valor: str) -> str:
 # 🔄  NORMALIZACIÓN
 # ══════════════════════════════════════════════════════════════
 
+def calcular_retencion(fila: dict) -> None:
+    """Rellena `retencion_pct` a partir de los segundos medios y la duración.
+
+    Facebook e Instagram no dan el porcentaje, pero con los segundos medios
+    vistos y la duración del video sale, y queda comparable con el de YouTube.
+    ⚠️ No es idéntico conceptualmente: el de YouTube pasa del 100 % cuando el
+    Short se ve en bucle, este no.
+    """
+    if fila.get("retencion_pct"):
+        return
+    media, total = fila.get("duracion_media_s"), fila.get("duracion_s")
+    try:
+        if media and total and float(total) > 0:
+            fila["retencion_pct"] = f"{float(media) / float(total) * 100:.1f}"
+    except (ValueError, TypeError):
+        pass
+
+
 def normalizar_filas(plataforma: str, crudas: list[dict]) -> list[dict]:
     """Pasa un export al formato canónico. Ignora lo que no sea video."""
     spec = FUENTES[plataforma]
@@ -368,16 +446,7 @@ def normalizar_filas(plataforma: str, crudas: list[dict]) -> list[dict]:
             fila[campo] = (limpiar_fecha(valor) if campo == "fecha_publicacion"
                            else limpiar_numero(valor, campo in CAMPOS_DECIMALES))
 
-        # Facebook e Instagram no dan el % de retención, pero sí los segundos
-        # medios vistos y la duración: dividiendo sale, y es comparable con YouTube.
-        if not fila.get("retencion_pct"):
-            media, total = fila.get("duracion_media_s"), fila.get("duracion_s")
-            try:
-                if media and total and float(total) > 0:
-                    fila["retencion_pct"] = f"{float(media) / float(total) * 100:.1f}"
-            except ValueError:
-                pass
-
+        calcular_retencion(fila)
         salida.append(fila)
 
     return salida
@@ -413,6 +482,129 @@ def escribir_normalizado(cfg: dict, plataforma: str, filas: list[dict]) -> Path:
         for fila in filas:
             escritor.writerow({c: fila.get(c, "") for c in columnas})
     return ruta
+
+
+# ══════════════════════════════════════════════════════════════
+# 📈  VENTANAS DE 24 H Y 7 D (solo YouTube)
+# ══════════════════════════════════════════════════════════════
+
+def ventanas_youtube(cfg: dict) -> dict:
+    """{id_video: {"vistas_24h": n, "vistas_7d": n}} desde la serie diaria.
+
+    El zip de YouTube trae un tercer csv, "Datos del gráfico", con una fila por
+    video y día. Sumando los días desde la publicación salen las ventanas de
+    24 h y 7 d **sin esperar a la descarga de la semana siguiente**, que es como
+    hay que sacarlas en las otras tres plataformas.
+
+    ⚠️ Solo cubre los videos que estuvieran dibujados en la gráfica al exportar
+    (por defecto 5). Para tenerlos todos hay que seleccionarlos en la gráfica
+    antes de darle a Exportar.
+    """
+    carpeta = Path(cfg["dir_normalizado"]) / "_crudo" / "youtube"
+    grafico = next((p for p in carpeta.glob("*.csv")
+                    if "grafico" in normalizar(p.stem)), None) if carpeta.is_dir() else None
+    if not grafico:
+        return {}
+
+    por_video: dict[str, list] = {}
+    for fila in leer_csv(grafico):
+        vid = (fila.get("Contenido") or "").strip()
+        if not vid or vid == "Total":
+            continue
+        por_video.setdefault(vid, []).append(fila)
+
+    ventanas = {}
+    for vid, filas in por_video.items():
+        publicado = limpiar_fecha(filas[0].get("Tiempo de publicación del video", ""))
+        try:
+            pub = date.fromisoformat(publicado)
+        except ValueError:
+            continue
+
+        dias = []
+        for f in filas:
+            try:
+                dias.append(((date.fromisoformat(f["Fecha"]) - pub).days,
+                             int(limpiar_numero(f.get("Vistas interesadas", "0")) or 0)))
+            except (ValueError, KeyError):
+                continue
+
+        if dias:
+            ventanas[vid] = {
+                "vistas_24h": str(sum(v for d, v in dias if 0 <= d <= 1)),
+                "vistas_7d":  str(sum(v for d, v in dias if 0 <= d <= 6)),
+            }
+    return ventanas
+
+
+# ══════════════════════════════════════════════════════════════
+# ✍️  CAPTURA MANUAL DE LO QUE NINGÚN EXPORT TRAE
+# ══════════════════════════════════════════════════════════════
+
+def cargar_manual(cfg: dict) -> dict:
+    """{(plataforma, id): {campo: valor}} de lo tecleado a mano."""
+    ruta = Path(cfg["manual"])
+    if not ruta.exists():
+        return {}
+    datos = {}
+    for fila in leer_csv(ruta):
+        valores = {c: fila[c].strip() for c in TODOS_LOS_MANUALES
+                   if (fila.get(c) or "").strip() not in ("", "—", "-")}
+        if valores:
+            datos[(fila.get("plataforma", ""), fila.get("id_plataforma", ""))] = valores
+    return datos
+
+
+def guardar_plantilla_manual(cfg: dict, filas: list[dict]) -> int:
+    """Deja en `manual.csv` las filas a las que les falta algo, ya identificadas.
+
+    Solo hay que teclear los números: la plataforma, el id y el título ya vienen
+    puestos. Se conserva lo que ya estuviera relleno y se ordena por fecha de
+    publicación descendente, para que lo reciente quede arriba.
+    """
+    ruta = Path(cfg["manual"])
+    columnas = ["plataforma", "id_plataforma", "fecha_publicacion", "titulo"] + TODOS_LOS_MANUALES
+
+    previas = {(f.get("plataforma", ""), f.get("id_plataforma", "")): f
+               for f in (leer_csv(ruta) if ruta.exists() else [])}
+
+    # ⚠️ Las filas YA rellenadas se conservan siempre. Este archivo no es una
+    # lista de tareas: es donde viven los números tecleados, y si se borrase la
+    # fila al completarse, el dato se perdería en la siguiente corrida.
+    rellenadas = [f for f in previas.values()
+                  if any((f.get(c) or "").strip() not in ("", "—", "-")
+                         for c in TODOS_LOS_MANUALES)]
+    ya_estan = {(f.get("plataforma", ""), f.get("id_plataforma", "")) for f in rellenadas}
+
+    pendientes = []
+    for fila in filas:
+        clave = (fila["plataforma"], fila.get("id_plataforma", ""))
+        pedidos = CAMPOS_MANUALES.get(fila["plataforma"], [])
+        if not pedidos or clave in ya_estan or all(fila.get(c) for c in pedidos):
+            continue
+        base = previas.get(clave, {})
+        pendientes.append({
+            "plataforma": fila["plataforma"],
+            "id_plataforma": fila.get("id_plataforma", ""),
+            "fecha_publicacion": fila.get("fecha_publicacion", ""),
+            "titulo": fila.get("titulo", ""),
+            # Solo se dejan abiertas las celdas que esa red no exporta; el resto
+            # se marca con "—" para que se vea de un vistazo que no hay que tocarlas.
+            **{c: (base.get(c, "") if c in pedidos else "—") for c in TODOS_LOS_MANUALES},
+        })
+
+    pendientes.sort(key=lambda f: f.get("fecha_publicacion", ""), reverse=True)
+    pendientes = pendientes[:cfg.get("manual_max_filas", 25)]
+
+    todo = rellenadas + pendientes
+    todo.sort(key=lambda f: (f.get("fecha_publicacion", ""), f.get("plataforma", "")),
+              reverse=True)
+
+    with open(ruta, "w", newline="", encoding="utf-8") as f:
+        escritor = csv.DictWriter(f, fieldnames=columnas, extrasaction="ignore")
+        escritor.writeheader()
+        escritor.writerows(todo)
+    return len(pendientes)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -695,6 +887,14 @@ def main() -> None:
     print(f"\n🔎 {len(indice)} proyectos indexados · {len(nuevos)} marcados como "
           f"'{cfg['lote_nuevo']}' (de {cfg['temas']})")
 
+    ventanas = ventanas_youtube(cfg)
+    if ventanas:
+        print(f"📈 {len(ventanas)} video(s) con serie diaria → vistas a 24 h y 7 d")
+
+    a_mano = cargar_manual(cfg)
+    if a_mano:
+        print(f"✍️  {len(a_mano)} video(s) con métricas tecleadas en {cfg['manual']}")
+
     manual = cargar_mapa_manual(cfg)
     if manual:
         print(f"🖐️  {len(manual)} emparejado(s) fijados a mano en {cfg['mapa_manual']}")
@@ -709,7 +909,7 @@ def main() -> None:
             print(f"   ⏭️  {plataforma}: sin archivos")
             continue
 
-        bloques = [normalizar_filas(plataforma, leer_csv(r)) for r in archivos]
+        bloques = [normalizar_filas(plataforma, leer_csv(r, plataforma)) for r in archivos]
         filas = fusionar_por_id(bloques) if len(bloques) > 1 else bloques[0]
 
         ruta = escribir_normalizado(cfg, plataforma, filas) if not args.dry_run else None
@@ -735,6 +935,13 @@ def main() -> None:
                 "id_plataforma": fila["_id"],
                 "fecha_snapshot": hoy,
             })
+            # Ventanas de 24 h / 7 d y lo tecleado a mano. Ninguno de los dos
+            # pisa un valor que ya venga del export.
+            limpia.update({c: v for c, v in ventanas.get(fila["_id"], {}).items()
+                           if not limpia.get(c)})
+            limpia.update({c: v for c, v in a_mano.get((plataforma, fila["_id"]), {}).items()
+                           if not limpia.get(c)})
+            calcular_retencion(limpia)     # los segundos tecleados también cuentan
             todas.append(limpia)
 
         for i, (candidato, score) in sin_asignar.items():
@@ -772,7 +979,12 @@ def main() -> None:
 
     escribir(cfg["salida"], fusionadas)
     guardar_mapa_manual(cfg, pendientes)
+    n_manual = guardar_plantilla_manual(cfg, todas)
     print(f"✅ Guardado: {cfg['salida']}")
+    if n_manual:
+        print(f"✍️  {cfg['manual']}: {n_manual} video(s) esperando los números que\n"
+              f"   ninguna plataforma exporta. Vienen ya identificados; solo hay que\n"
+              f"   teclear. Lo que dejes vacío se ignora.")
     print("\n💡 Vuelve a exportar cada semana: los deltas de 24 h y 7 d salen de\n"
           "   comparar dos fechas de snapshot, no de una sola descarga.")
 

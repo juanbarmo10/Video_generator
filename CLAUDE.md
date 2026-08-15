@@ -269,6 +269,20 @@ cada red.
   referencia en 7 videos en vez de 34. Por eso la clave de fusión es **`id_plataforma`** (el id
   nativo de cada red), no el `PROYECTO` — con `PROYECTO` como clave todos los desconocidos habrían
   colisionado en la misma fila vacía.
+- **`ventanas_youtube()`** saca `vistas_24h` y `vistas_7d` del tercer csv del zip ("Datos del
+  gráfico", una fila por video y día) sumando desde la publicación — sin esperar al snapshot de la
+  semana siguiente. ⚠️ Solo cubre los videos dibujados en la gráfica al exportar (5 por defecto):
+  hay que seleccionarlos todos antes de darle a Exportar.
+- **`metricas_export/manual.csv`** recoge lo que ningún export trae, y `CAMPOS_MANUALES` dice qué
+  pedir **por plataforma** (TikTok: alcance, segundos medios, % que vio completo · Instagram:
+  segundos medios · YouTube y Facebook: nada). ⚠️ Es el **almacén** de esos números, no una lista
+  de tareas: las filas ya rellenadas se conservan aunque estén completas, porque borrarlas perdería
+  el dato. Las celdas con `—` son las que esa red sí exporta.
+- `calcular_retencion()` deriva `retencion_pct` de los segundos medios y la duración, y **se llama
+  otra vez después de fusionar lo manual**, para que teclear los segundos baste.
+- ⚠️ **TikTok exporta los caption sin escapar las comillas internas.** Una fila que cite algo
+  ("Living With Michael Jackson") sale con 15 campos en vez de 8 y todas las métricas corridas.
+  `leer_csv()` la rehace apoyándose en que la URL del video marca dónde vuelve a alinearse.
 - `fecha_snapshot`: un export trae vistas ACUMULADAS, así que los deltas de 24 h y 7 d salen de
   restar dos fotos. Fusiona por `(plataforma, id_plataforma, fecha_snapshot)` y nunca pisa un valor
   lleno con uno vacío.
