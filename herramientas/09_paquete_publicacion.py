@@ -14,10 +14,10 @@ tema por tema. Esto deja una carpeta por tema con todo junto, más un
 calendario.csv con las fechas ya asignadas.
 
 Uso:
-    python 09_paquete_publicacion.py                       # desde mañana, 1/día
-    python 09_paquete_publicacion.py --desde 2026-09-01 --hora 19:00
-    python 09_paquete_publicacion.py --cada 2              # 1 cada 2 días
-    python 09_paquete_publicacion.py --solo Mundial06 Mundial07
+    python herramientas/09_paquete_publicacion.py                       # desde mañana, 1/día
+    python herramientas/09_paquete_publicacion.py --desde 2026-09-01 --hora 19:00
+    python herramientas/09_paquete_publicacion.py --cada 2              # 1 cada 2 días
+    python herramientas/09_paquete_publicacion.py --solo Mundial06 Mundial07
 
 El video se enlaza con hardlink (mismo disco, cero espacio extra); si no se
 puede, se copia.

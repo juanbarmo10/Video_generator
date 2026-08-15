@@ -32,9 +32,12 @@ fi
 cd /home/juanb/video_generator
 conda activate ai_video_bot
 
+# Los pasos viven en pipeline/, pero se ejecutan con la RAÍZ como directorio de
+# trabajo (el cd de arriba): todas las rutas de datos —script.txt, images_IA/,
+# videos/…— siguen siendo relativas a la raíz. Solo cambió dónde está el .py.
 run_step() {
     echo "Running: $1"
-    python "$1" "${@:2}"
+    python "pipeline/$1" "${@:2}"
 }
 
 echo "🚀 Iniciando: $PROYECTO | $TEMA"

@@ -31,7 +31,11 @@ LOG_DIR="logs"
 FAILED_FILE="$LOG_DIR/failed.csv"
 
 mkdir -p "$LOG_DIR"
-> "$FAILED_FILE"
+# ⚠️ Con encabezado, porque failed.csv está pensado para reusarse TAL CUAL como
+# temas.csv al reintentar. Este bucle salta la primera línea (`tail -n +2`), así
+# que sin encabezado el primer tema caído se perdía en silencio: con Historia07
+# y Historia08 dentro, un `cp logs/failed.csv temas.csv` solo reintentaba Einstein.
+echo "PROYECTO,TEMA" > "$FAILED_FILE"
 
 sed -i 's/\r//' "$TEMAS_FILE"
 # Garantiza salto de línea final SIN acumular líneas en blanco en cada corrida:
@@ -141,12 +145,12 @@ echo "============================================"
 if [[ ${#EXITOSOS[@]} -gt 0 ]]; then
     echo ""
     echo "📦 Armando el paquete de publicación..."
-    if python 09_paquete_publicacion.py --solo "${EXITOSOS[@]}"; then
+    if python herramientas/09_paquete_publicacion.py --solo "${EXITOSOS[@]}"; then
         echo ""
         echo "🏁 Listo para programar: publicar/ + publicar/calendario.csv"
     else
         echo "⚠️  El paquete falló, pero los videos están en videos/." >&2
-        echo "   Puedes rehacerlo con: python 09_paquete_publicacion.py --solo ${EXITOSOS[*]}" >&2
+        echo "   Puedes rehacerlo con: python herramientas/09_paquete_publicacion.py --solo ${EXITOSOS[*]}" >&2
     fi
 else
     echo ""

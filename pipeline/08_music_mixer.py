@@ -2,7 +2,7 @@
 #%%
 """
 Toma el video final generado y le mezcla música de fondo royalty-free.
-Uso: python 08_music_mixer.py
+Uso: python pipeline/08_music_mixer.py
 
 ⚠️ Este paso NO recomprime el video (-c:v copy). Antes usaba moviepy, que volvía a
 codificar todo el video solo para cambiarle el audio y perdía por el camino el -crf,

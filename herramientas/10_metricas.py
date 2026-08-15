@@ -18,9 +18,9 @@ zips sin descomprimir, CSV con el nombre que traigan. El script se encarga.
         instagram_historico.csv    → export de Meta Business
 
 Uso:
-    python 10_metricas.py                # normaliza, empareja y escribe
-    python 10_metricas.py --dry-run      # enseña qué haría, sin escribir
-    python 10_metricas.py --umbral 0.45  # afloja el emparejado por texto
+    python herramientas/10_metricas.py                # normaliza, empareja y escribe
+    python herramientas/10_metricas.py --dry-run      # enseña qué haría, sin escribir
+    python herramientas/10_metricas.py --umbral 0.45  # afloja el emparejado por texto
 
 Qué hace, en orden:
   1. Descomprime los zip y localiza el csv bueno de cada uno.

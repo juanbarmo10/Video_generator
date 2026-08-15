@@ -162,7 +162,7 @@ Reglas del CSV, sin excepciones:
 2. Pedile: *"Dame 8 temas para la próxima tanda, universo: Mundiales de fútbol"*.
 3. Revisá la columna **Riesgo** de la tabla antes de aceptar.
 4. Copiá el bloque CSV a `temas.csv`.
-5. `bash run_all.sh` y después `python 09_paquete_publicacion.py`.
+5. `bash run_all.sh` — al terminar arma solo el paquete de publicación en `publicar/`.
 
 ## Por qué estos filtros y no otros
 
