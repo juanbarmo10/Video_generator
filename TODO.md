@@ -195,11 +195,12 @@ que **avise solo** de que toca trabajar.
 [12_recordatorio.py](herramientas/12_recordatorio.py) **ya está escrito y probado en seco**; lo que
 falta son dos claves, y eso solo lo puedes hacer tú:
 
-1. Hablarle a **`@BotFather`** → `/newbot` → guardar el token.
-2. Escribirle al bot y abrir `https://api.telegram.org/bot<TOKEN>/getUpdates` para sacar el
-   `chat_id`.
-3. Ponerlos en el `.env` como `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` (están ya en
-   `.env.example`).
+1. Hablarle a **`@BotFather`** → `/newbot` → pegar el token en el `.env` como
+   `TELEGRAM_BOT_TOKEN` (las dos líneas ya están puestas y vacías).
+2. Escribirle algo al bot y correr `bash herramientas/obtener_chat_id.sh`, que lee el token del
+   `.env`, consulta `getUpdates` e imprime el `chat_id`. Sin un mensaje previo al bot la consulta
+   vuelve vacía, y el script lo dice en vez de fallar.
+3. Pegar ese número como `TELEGRAM_CHAT_ID`.
 4. Programarlo:
    ```bash
    # crontab -e   →   lunes a las 9:00

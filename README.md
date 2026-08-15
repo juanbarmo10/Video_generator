@@ -38,10 +38,18 @@ De cada tema salen:
    `ANTHROPIC_API_KEY` es opcional pero **muy recomendable**: sin ella el crítico del guion cae en
    `gpt-4.1`, o sea el mismo modelo que lo escribió, y comparte sus puntos ciegos.
 3. **Saldo en fal.ai.** Es lo único que se agota y lo que aborta el lote a mitad.
-4. **Opcional: el recordatorio semanal.** Habla con `@BotFather` en Telegram (`/newbot`), guarda el
-   token, escríbele al bot y saca tu `chat_id` de
-   `https://api.telegram.org/bot<TOKEN>/getUpdates`. Ponlos en el `.env` como
-   `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`, y prográmalo:
+4. **Opcional: el recordatorio semanal.** Las dos claves van en el **`.env`**, junto a las demás:
+   ```bash
+   TELEGRAM_BOT_TOKEN=8123456789:AAF...   # te lo da @BotFather con /newbot
+   TELEGRAM_CHAT_ID=123456789             # ver abajo
+   ```
+   El token sale de hablar con **`@BotFather`** en Telegram y mandarle `/newbot`. Para el
+   `chat_id`: pega primero el token, **escríbele algo al bot** (sin un mensaje previo la consulta
+   sale vacía) y corre
+   ```bash
+   bash herramientas/obtener_chat_id.sh
+   ```
+   que lo lee de la API y te lo imprime. Luego prográmalo:
    ```bash
    # crontab -e   →   lunes a las 9:00
    0 9 * * 1  cd /home/juanb/video_generator && \
