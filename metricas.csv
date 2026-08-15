@@ -1,17 +1,17 @@
-PROYECTO,tema,fecha_publicacion,plataforma,vistas_24h,vistas_7d,retencion_pct,pct_llega_3s,comentarios,notas
-Mundial01,,,youtube,,,,,,baseline pre-auditoria
-Mundial02,,,youtube,,,,,,baseline pre-auditoria
-Mundial03,,,youtube,,,,,,baseline pre-auditoria
-Mundial04,,,youtube,,,,,,baseline pre-auditoria
-Mundial05,,,youtube,,,,,,baseline pre-auditoria
-Mundial06,Pelé,,youtube,,,,,,baseline pre-auditoria
-Mundial07,Selección Brasil,,youtube,,,,,,baseline pre-auditoria
-Mundial08,Mundial 2002,,youtube,,,,,,baseline pre-auditoria
-Mundial09,Mundial 1982,,youtube,,,,,,baseline pre-auditoria
-Mundial10,Selección Alemania,,youtube,,,,,,baseline pre-auditoria
-Mundial11,Maradona,,youtube,,,,,,baseline pre-auditoria
-Mundial12,Maranacazo,,youtube,,,,,,baseline pre-auditoria
-Mundial13,Selección de México,,youtube,,,,,,baseline pre-auditoria
-Mundial14,Mundial 2022,,youtube,,,,,,baseline pre-auditoria
-Mundial15,FIFA,,youtube,,,,,,baseline pre-auditoria
-Mundial16,Memo Ochoa,,youtube,,,,,,baseline pre-auditoria
+PROYECTO,tema,plataforma,fecha_snapshot,fecha_publicacion,vistas,alcance,retencion_pct,duracion_media_s,me_gusta,comentarios,compartidos,guardados,pct_llega_3s,notas
+Mundial01,,youtube,,,,,,,,,,,,baseline pre-auditoria
+Mundial02,,youtube,,,,,,,,,,,,baseline pre-auditoria
+Mundial03,,youtube,,,,,,,,,,,,baseline pre-auditoria
+Mundial04,,youtube,,,,,,,,,,,,baseline pre-auditoria
+Mundial05,,youtube,,,,,,,,,,,,baseline pre-auditoria
+Mundial06,Pelé,youtube,,,,,,,,,,,,baseline pre-auditoria
+Mundial07,Selección Brasil,youtube,,,,,,,,,,,,baseline pre-auditoria
+Mundial08,Mundial 2002,youtube,,,,,,,,,,,,baseline pre-auditoria
+Mundial09,Mundial 1982,youtube,,,,,,,,,,,,baseline pre-auditoria
+Mundial10,Selección Alemania,youtube,,,,,,,,,,,,baseline pre-auditoria
+Mundial11,Maradona,youtube,,,,,,,,,,,,baseline pre-auditoria
+Mundial12,Maranacazo,youtube,,,,,,,,,,,,baseline pre-auditoria
+Mundial13,Selección de México,youtube,,,,,,,,,,,,baseline pre-auditoria
+Mundial14,Mundial 2022,youtube,,,,,,,,,,,,baseline pre-auditoria
+Mundial15,FIFA,youtube,,,,,,,,,,,,baseline pre-auditoria
+Mundial16,Memo Ochoa,youtube,,,,,,,,,,,,baseline pre-auditoria

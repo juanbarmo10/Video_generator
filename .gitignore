@@ -51,3 +51,6 @@ fonts/*.zip
 
 # Paquete de publicacion (videos con hardlink + textos, regenerable)
 publicar/
+
+# Exports crudos de las plataformas (ruido; el consolidado va en metricas.csv)
+metricas_export/

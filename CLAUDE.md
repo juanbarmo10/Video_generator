@@ -201,7 +201,9 @@ esas variables ensucia el árbol de proyectos con rutas tipo `proyectos//` y `vi
 ```
 TODO.md                # auditoría de bugs + plan de crecimiento (documento de trabajo)
 INSTRUCCIONES_CHATGPT.md  # prompt para que ChatGPT proponga temas que el pipeline aguante
-metricas.csv           # una fila por video publicado: vistas 24h/7d, retención, comentarios
+METRICAS.md            # de dónde sacar las métricas de las 4 redes y cómo agilizarlo
+metricas.csv           # una fila por (PROYECTO, plataforma, fecha_snapshot)
+metricas_export/       # ← CSV crudos descargados de cada plataforma (ignorado por git)
 estado.py              # módulo compartido: sello de tema, costo, reintentos
 requirements.txt       # moviepy==1.0.3 fijado; ffmpeg va aparte (apt)
 .env.example           # plantilla del .env (el .env real NO se commitea)
@@ -234,6 +236,23 @@ Acepta `descripcion_general.txt` + `descripcion_detallada.txt` como alternativa 
 para no marcar como incompletos los respaldos anteriores a la fusión, y **borra los dos formatos del
 destino antes de copiar**, para que rehacer un paquete no deje el archivo viejo al lado del nuevo.
 Sin `--solo` empaqueta **todo** lo que haya en `videos/`, incluidos los lotes viejos.
+
+**[10_metricas.py](10_metricas.py)** tampoco es un paso del pipeline: consolida en `metricas.csv`
+los CSV que se descargan de YouTube, TikTok, Instagram y Facebook y se dejan en `metricas_export/`
+(el nombre del archivo tiene que empezar por la plataforma). Ver **[METRICAS.md](METRICAS.md)** para
+de dónde sale cada export.
+- **Empareja por texto, no por id**: las plataformas no conocen el `PROYECTO`, así que compara el
+  título/caption contra el `titulo` de `metadata.json` y el pie del reel de `descripcion.txt`. Lo
+  que no llega a `umbral_match` (0.60) **se reporta, no se adivina**.
+- **Los nombres de columna cambian con el idioma de la cuenta.** El mapeo va por el diccionario
+  `ALIAS` y ⚠️ **el orden dentro de cada lista es la prioridad**: sin eso, el export de YouTube
+  emparejaba `Contenido` (que es el id del video) como título y no encajaba ni una fila. Al terminar
+  imprime las columnas que no reconoció, para poder añadirlas al alias.
+- **`fecha_snapshot` es la clave del diseño**: un export trae vistas ACUMULADAS, no "vistas a 24 h".
+  Guardando una foto por fecha, los deltas salen de restar dos filas. Fusiona por
+  `(PROYECTO, plataforma, fecha_snapshot)` y nunca pisa un valor lleno con uno vacío.
+- `pct_llega_3s` **no sale de ningún export**: se lee a mano de la curva de retención de YouTube
+  Studio. Es la métrica que dice si el gancho funciona.
 
 Scripts fuera del pipeline: `publisher.py` (publicación a Meta/Threads), `ink_filter.py` (convierte fotos
 reales a estilo tinta/pergamino, alternativa local al paso 04), `imagen_generator_source.py` (versión

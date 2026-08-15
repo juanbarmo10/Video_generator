@@ -1293,7 +1293,12 @@ pena regenerarlos: si se republican, se reescribe el texto a mano.
 
 **P-09 · `metricas.csv` está vacío.** Tiene las 16 filas de baseline con `notas` puesto, pero
 ni una sola vista, retención ni `pct_llega_3s`. **Sin esa línea base no se puede saber si algo de
-todo esto funcionó.** Es media hora de copiar de YouTube Studio.
+todo esto funcionó.**
+Ya no hay que copiar a mano: **[METRICAS.md](METRICAS.md)** dice de dónde se exporta en bloque en
+cada red y **[10_metricas.py](10_metricas.py)** une los CSV en `metricas.csv` emparejando cada fila
+con su `PROYECTO`. Son ~20 min la primera vez y ~5 por semana. Lo único que sigue siendo manual es
+la **curva de retención de YouTube** (el `pct_llega_3s`), que no está en ningún export — y con
+mirarla en los 3 mejores y los 3 peores basta para diagnosticar.
 
 **P-10 · Preguntas abiertas que cambian el alcance.**
 - ¿Se sigue usando el carrusel de Instagram? Si no, el paso 06 y `carrusel.txt` salen del pipeline
