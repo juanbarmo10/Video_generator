@@ -214,14 +214,17 @@ def diagnostico() -> dict:
         print(f"\n📘 Páginas de Facebook: {len(paginas)}")
     for pg in paginas:
         print(f"   · {pg['name']}  →  FACEBOOK_PAGE_ID={pg['id']}")
-    if len(paginas) == 1:
-        hallado["FACEBOOK_PAGE_ID"] = paginas[0]["id"]
-        hallado["_token_pagina"] = paginas[0].get("access_token", "")
-    elif not paginas and "_error" not in resp:
+    if not paginas and "_error" not in resp:
         print("   ❌ Ninguna. La cuenta no administra ninguna página, o el token no\n"
               "      tiene `pages_show_list`.")
 
     # 4 · Cuenta de Instagram vinculada a cada página
+    #
+    # ⚠️ Y de paso, esto es lo que DESAMBIGUA la página cuando hay varias. Una
+    # cuenta personal suele administrar páginas de otros proyectos (aquí tres),
+    # y elegir «la primera» sería jugársela: el pipeline publicaría en la página
+    # equivocada. La página del canal es la única con el Instagram vinculado, así
+    # que ese es el criterio, no el nombre ni el orden.
     print(f"\n📸 Cuentas de Instagram:")
     encontradas = []
     for pg in paginas:
@@ -232,7 +235,7 @@ def diagnostico() -> dict:
             continue
         ig = d.get("instagram_business_account")
         if ig:
-            encontradas.append(ig)
+            encontradas.append((ig, pg))
             print(f"   · @{ig.get('username', '?')} en «{pg['name']}»  →  "
                   f"INSTAGRAM_ACCOUNT_ID={ig['id']}")
     if not encontradas and paginas:
@@ -240,7 +243,20 @@ def diagnostico() -> dict:
               "      La cuenta de Instagram tiene que ser **Empresa o Creador** y estar\n"
               "      vinculada a la página de Facebook. Con cuenta personal no hay API.")
     elif len(encontradas) == 1:
-        hallado["INSTAGRAM_ACCOUNT_ID"] = encontradas[0]["id"]
+        ig, pg = encontradas[0]
+        hallado["INSTAGRAM_ACCOUNT_ID"] = ig["id"]
+        hallado["FACEBOOK_PAGE_ID"] = pg["id"]
+        hallado["_token_pagina"] = pg.get("access_token", "")
+        hallado["_nombre_pagina"] = pg["name"]
+        if len(paginas) > 1:
+            print(f"\n   → De las {len(paginas)} páginas, la del canal es «{pg['name']}»:\n"
+                  f"     es la única con Instagram vinculado.")
+    elif len(encontradas) > 1:
+        print(f"\n   ⚠️  Hay {len(encontradas)} páginas con Instagram vinculado. Elige a mano\n"
+              f"      cuál es la del canal y pon sus dos IDs en el .env.")
+    elif len(paginas) == 1:
+        hallado["FACEBOOK_PAGE_ID"] = paginas[0]["id"]
+        hallado["_token_pagina"] = paginas[0].get("access_token", "")
 
     # 5 · Qué escribir en el .env
     if hallado:
@@ -248,10 +264,23 @@ def diagnostico() -> dict:
         for k in ("FACEBOOK_PAGE_ID", "INSTAGRAM_ACCOUNT_ID"):
             if k in hallado:
                 print(f"   {k}={hallado[k]}")
-        if hallado.get("_token_pagina") and expira:
-            print(f"\n   Y cambia META_ACCESS_TOKEN por el token de PÁGINA, que no\n"
-                  f"   caduca (los tokens de usuario sí, a los 60 días):")
-            print(f"   META_ACCESS_TOKEN={hallado['_token_pagina']}")
+        if hallado.get("_token_pagina"):
+            corto = expira and not hallado.get("_token_largo")
+            tk = hallado["_token_pagina"]
+            print(f"\n   Y cambia META_ACCESS_TOKEN por el token de PÁGINA de "
+                  f"«{hallado.get('_nombre_pagina', '?')}»:")
+            # ⚠️ Enmascarado a propósito. Es una credencial que permite PUBLICAR
+            # en tu nombre, y esta salida acaba en logs, en capturas y en el
+            # historial del terminal. Para ponerlo en el .env está --escribir-env,
+            # que además evita copiar 200 caracteres a mano.
+            print(f"   META_ACCESS_TOKEN={tk[:8]}…{tk[-6:]}  ({len(tk)} caracteres)")
+            print(f"   → escríbelo con:  python herramientas/14_meta_api.py "
+                  f"--diagnostico --escribir-env")
+            if corto:
+                print(f"\n   ⚠️  PERO ESTE TOKEN DE PÁGINA TAMBIÉN CADUCA, porque sale de un\n"
+                      f"   token de usuario corto. Alarga primero el de usuario (arriba),\n"
+                      f"   vuelve a correr el diagnóstico, y usa el token de página de ESA\n"
+                      f"   corrida — ese ya no caduca.")
 
     listo = not faltan and "FACEBOOK_PAGE_ID" in hallado and "INSTAGRAM_ACCOUNT_ID" in hallado
     if listo:
@@ -269,6 +298,42 @@ def diagnostico() -> dict:
     return hallado
 
 
+def escribir_env(hallado: dict, ruta: str = ".env") -> None:
+    """Mete en el .env lo que descubrió el diagnóstico, sin duplicar líneas.
+
+    ⚠️ `run_pipeline.sh` hace `source .env`: ese archivo lo lee **bash**. Aquí
+    los valores son ids y tokens (solo alfanuméricos y guiones), pero se
+    comprueba igual antes de escribir — un valor con espacios o comillas
+    rompería el `source` y abortaría el lote entero. Es el mismo susto que dio
+    `TITULO_VIDEO` en su día.
+    """
+    nuevos = {k: v for k, v in hallado.items() if not k.startswith("_")}
+    if hallado.get("_token_pagina"):
+        nuevos["META_ACCESS_TOKEN"] = hallado["_token_pagina"]
+    if not nuevos:
+        print("\n⚠️  Nada que escribir.")
+        return
+
+    import re as _re
+    for k, v in nuevos.items():
+        if not _re.fullmatch(r"[A-Za-z0-9_\-]+", str(v)):
+            raise SystemExit(f"❌ El valor de {k} tiene caracteres que romperían "
+                             f"el `source .env` de run_pipeline.sh. No se escribe nada.")
+
+    p = Path(ruta)
+    lineas = p.read_text(encoding="utf-8").splitlines() if p.exists() else []
+    for clave, valor in nuevos.items():
+        for i, linea in enumerate(lineas):
+            if linea.startswith(f"{clave}="):
+                lineas[i] = f"{clave}={valor}"
+                break
+        else:
+            lineas.append(f"{clave}={valor}")
+    p.write_text("\n".join(lineas) + "\n", encoding="utf-8")
+    print(f"\n✅ Escrito en {ruta}: {', '.join(nuevos)}")
+    print("   (el .env está en .gitignore, no se commitea)")
+
+
 #%% ══════════════════════════════════════════════════════════════
 #   CLI
 # ═══════════════════════════════════════════════════════════════
@@ -278,6 +343,8 @@ def main() -> None:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--diagnostico", action="store_true",
                    help="Comprueba el token y descubre los IDs. Empieza por aquí")
+    p.add_argument("--escribir-env", action="store_true",
+                   help="Con --diagnostico: escribe los IDs y el token de página en el .env")
     args = p.parse_args()
 
     if not any(vars(args).values()):
@@ -285,7 +352,9 @@ def main() -> None:
         return
 
     if args.diagnostico:
-        diagnostico()
+        hallado = diagnostico()
+        if args.escribir_env:
+            escribir_env(hallado)
 
 
 if __name__ == "__main__":
