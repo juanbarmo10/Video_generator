@@ -60,6 +60,16 @@ CONFIG = {
     "dir_proyectos":  "proyectos",
     "temas":          "temas.csv",
     "salida":         "metricas.csv",
+    "dir_procesados": "metricas_export/_procesados",
+
+    # ── Limpieza ──────────────────────────────────────────────────────────
+    # Tras consolidar, los exports crudos se MUEVEN a _procesados/<fecha>/.
+    # No es orden: es correctitud. Si se quedan, la semana que viene se vuelven
+    # a leer y se sellan con la fecha_snapshot NUEVA, creando filas que afirman
+    # que los números de la semana pasada son los de hoy.
+    "limpiar":        True,
+    # Tecleados a mano: NUNCA se mueven ni se borran. No se pueden recuperar.
+    "protegidos":     ["manual.csv", "mapa_manual.csv"],
 
     # Similitud mínima texto-exportación para dar por bueno un emparejado.
     # 0.55 va bien con captions largos; lo dudoso se manda al mapa manual.
@@ -228,7 +238,7 @@ def extraer_zips(cfg: dict) -> None:
     la última tanda pisaba a las anteriores y se perdían las series.
     """
     destino_base = Path(cfg["dir_normalizado"]) / "_crudo"
-    for z in sorted(Path(cfg["dir_export"]).glob("*.zip")):
+    for z in sorted(Path(cfg["dir_origen"]).glob("*.zip")):
         plataforma = detectar_plataforma(z)
         if not plataforma:
             print(f"   ⏭️  {z.name}: no sé de qué plataforma es")
@@ -265,7 +275,7 @@ def detectar_plataforma(ruta: Path) -> str | None:
 
 def archivos_de(plataforma: str, cfg: dict) -> list[Path]:
     """Los csv de esa plataforma: los sueltos y los que salieron de su zip."""
-    sueltos = [p for p in Path(cfg["dir_export"]).glob("*.csv")
+    sueltos = [p for p in Path(cfg["dir_origen"]).glob("*.csv")
                if detectar_plataforma(p) == plataforma]
 
     del_zip = []
@@ -915,6 +925,67 @@ def escribir(ruta: str, filas: list[dict]) -> None:
 
 
 # ══════════════════════════════════════════════════════════════
+# 🧹  LIMPIEZA
+# ══════════════════════════════════════════════════════════════
+
+def origen_y_fecha(cfg: dict) -> tuple[Path, str]:
+    """(carpeta de la que leer, fecha_snapshot que corresponde).
+
+    Si hay descargas nuevas en `metricas_export/`, se usan y la foto es de HOY.
+    Si no hay ninguna —porque ya se archivaron—, se reprocesa la tanda archivada
+    más reciente **con su fecha original**, no con la de hoy. Así volver a correr
+    para recoger lo que acabas de teclear en `manual.csv` es idempotente y no
+    inventa una foto nueva con números viejos.
+    """
+    export = Path(cfg["dir_export"])
+    protegidos = set(cfg.get("protegidos", []))
+    frescos = [f for f in export.iterdir()
+               if f.is_file() and f.name not in protegidos and not f.name.startswith("_")]
+    if frescos:
+        return export, date.today().isoformat()
+
+    procesados = Path(cfg["dir_procesados"])
+    tandas = sorted((d for d in procesados.iterdir() if d.is_dir()),
+                    reverse=True) if procesados.is_dir() else []
+    if tandas:
+        return tandas[0], tandas[0].name
+
+    return export, date.today().isoformat()
+
+
+def archivar_exports(cfg: dict, fecha: str) -> list[str]:
+    """Mueve los exports ya consolidados a `_procesados/<fecha>/`.
+
+    Tres categorías en `metricas_export/`, y cada una se trata distinto:
+
+    · **Tecleado a mano** (`protegidos`) — irrecuperable. No se toca jamás.
+    · **Crudo descargado** (los zip y csv de las plataformas) — se MUEVE, no se
+      borra: si algo salió mal, el original sigue ahí para volver a procesarlo.
+    · **Derivado** (`_normalizado/`, `_crudo/`) — se rehace solo en cada corrida.
+
+    Mover el crudo no es manía de orden: si se queda, la semana que viene se
+    vuelve a leer y se sella con la `fecha_snapshot` nueva, inventando filas que
+    dicen que los números de la semana pasada son los de hoy.
+    """
+    origen = Path(cfg["dir_export"])
+    destino = Path(cfg["dir_procesados"]) / fecha
+    protegidos = set(cfg.get("protegidos", []))
+    movidos = []
+
+    for archivo in sorted(origen.iterdir()):
+        if archivo.is_dir() or archivo.name in protegidos or archivo.name.startswith("_"):
+            continue
+        destino.mkdir(parents=True, exist_ok=True)
+        objetivo = destino / archivo.name
+        if objetivo.exists():                    # dos corridas el mismo día
+            objetivo.unlink()
+        shutil.move(str(archivo), str(objetivo))
+        movidos.append(archivo.name)
+
+    return movidos
+
+
+# ══════════════════════════════════════════════════════════════
 # ▶️  EJECUCIÓN
 # ══════════════════════════════════════════════════════════════
 
@@ -922,6 +993,8 @@ def main() -> None:
     p = argparse.ArgumentParser(description="Une los exports de las plataformas en metricas.csv")
     p.add_argument("--dry-run", action="store_true", help="Enseña qué haría, sin escribir")
     p.add_argument("--umbral", type=float, help="Similitud mínima para emparejar (0-1)")
+    p.add_argument("--no-limpiar", action="store_true",
+                   help="No archivar los exports después de consolidar")
     args = p.parse_args()
 
     cfg = dict(CONFIG)
@@ -929,6 +1002,18 @@ def main() -> None:
         cfg["umbral_match"] = args.umbral
 
     os.makedirs(cfg["dir_export"], exist_ok=True)
+    origen, hoy = origen_y_fecha(cfg)
+    cfg["dir_origen"] = str(origen)
+    reprocesando = origen != Path(cfg["dir_export"])
+    if reprocesando:
+        print(f"♻️  Sin descargas nuevas: reprocesando {origen}/ "
+              f"con su fecha original ({hoy})\n")
+
+    # _crudo es puro scratch: se rehace desde los zip en cada corrida. Es lo
+    # ÚNICO que el script borra de verdad.
+    crudo = Path(cfg["dir_normalizado"]) / "_crudo"
+    if crudo.exists():
+        shutil.rmtree(crudo)
 
     print("📦 Descomprimiendo…")
     extraer_zips(cfg)
@@ -953,7 +1038,6 @@ def main() -> None:
     if manual:
         print(f"🖐️  {len(manual)} emparejado(s) fijados a mano en {cfg['mapa_manual']}")
 
-    hoy = date.today().isoformat()
     todas, pendientes = [], []
     print("\n🔄 Normalizando:")
 
@@ -1055,6 +1139,15 @@ def main() -> None:
     guardar_mapa_manual(cfg, pendientes)
     n_manual = guardar_plantilla_manual(cfg, todas)
     print(f"✅ Guardado: {cfg['salida']}")
+
+    if cfg["limpiar"] and not args.no_limpiar and not reprocesando:
+        movidos = archivar_exports(cfg, hoy)
+        if movidos:
+            print(f"\n🧹 {len(movidos)} export(s) archivados en "
+                  f"{cfg['dir_procesados']}/{hoy}/")
+            print(f"   Se mueven, no se borran. {', '.join(cfg['protegidos'])} "
+                  f"no se tocan nunca.")
+
     if n_manual:
         print(f"✍️  {cfg['manual']}: {n_manual} video(s) esperando los números que\n"
               f"   ninguna plataforma exporta. Vienen ya identificados; solo hay que\n"

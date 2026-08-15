@@ -336,6 +336,54 @@ volumen está en YouTube y Facebook, y esos dos llegan completos solos.
 
 ---
 
+## La limpieza de `metricas_export/`
+
+El script archiva solo, después de consolidar. Lo hace porque **dejar los exports es un problema de
+correctitud, no de orden**: si se quedan ahí, la semana que viene se vuelven a leer y se sellan con
+la `fecha_snapshot` NUEVA, inventando filas que afirman que los números de la semana pasada son los
+de hoy.
+
+Hay tres clases de archivo en esa carpeta y cada una se trata distinto:
+
+| Clase | Cuáles | Qué les pasa |
+|---|---|---|
+| **Tecleado a mano** | `manual.csv`, `mapa_manual.csv` | **Nunca se tocan.** Son irrecuperables: nadie los puede volver a descargar |
+| **Crudo descargado** | los zip y csv de las plataformas | Se **mueven** a `_procesados/<fecha>/`. No se borran |
+| **Derivado** | `_normalizado/`, `_crudo/` | Se rehacen en cada corrida |
+
+**Lo único que se borra de verdad es `_crudo/`**, que son los zip descomprimidos y se regenera
+solo. Todo lo demás se mueve o se queda.
+
+```
+metricas_export/
+    manual.csv            ← tuyo, intocable
+    mapa_manual.csv       ← tuyo, intocable
+    _normalizado/         ← derivado, se rehace
+    _procesados/
+        2026-08-15/       ← los 8 exports de esta semana, guardados
+```
+
+La semana que viene sueltas las descargas nuevas en `metricas_export/` y corres: se procesan, se
+archivan en `_procesados/2026-08-22/` y la carpeta vuelve a quedar limpia.
+
+### Volver a correr sin descargas nuevas
+
+Pasa siempre que tecleas más números en `manual.csv` y quieres recogerlos. Si no hay descargas
+frescas, el script **reprocesa la tanda archivada más reciente con su fecha original**, no con la de
+hoy:
+
+```
+♻️  Sin descargas nuevas: reprocesando metricas_export/_procesados/2026-08-15/
+    con su fecha original (2026-08-15)
+```
+
+Así es idempotente: correrlo tres veces seguidas deja `metricas.csv` byte a byte igual, y lo que
+acabas de teclear entra en la foto que le corresponde en vez de crear una nueva con números viejos.
+
+Con `--no-limpiar` se consolida sin archivar nada.
+
+---
+
 ## Los lotes: qué se compara contra qué
 
 La columna **`lote`** es la única que hace falta para medir si el cambio sirvió:

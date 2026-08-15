@@ -290,6 +290,15 @@ cada red.
 - ⚠️ **TikTok exporta los caption sin escapar las comillas internas.** Una fila que cite algo
   ("Living With Michael Jackson") sale con 15 campos en vez de 8 y todas las métricas corridas.
   `leer_csv()` la rehace apoyándose en que la URL del video marca dónde vuelve a alinearse.
+- **Limpia solo tras consolidar**: los exports crudos se **mueven** a `_procesados/<fecha>/`.
+  ⚠️ No es orden, es correctitud: si se quedan en `metricas_export/`, la corrida siguiente los
+  relee y los sella con la `fecha_snapshot` nueva, afirmando que los números viejos son los de hoy.
+  `protegidos` (`manual.csv`, `mapa_manual.csv`) **no se tocan jamás** — son irrecuperables. Lo
+  único que se borra de verdad es `_crudo/`, que se regenera desde los zip.
+- **Sin descargas nuevas, `origen_y_fecha()` reprocesa la tanda archivada más reciente con SU
+  fecha**, no con la de hoy. Es el caso de teclear más datos en `manual.csv` y volver a correr:
+  así es idempotente (tres corridas seguidas dejan `metricas.csv` idéntico) en vez de crear una
+  foto nueva con números viejos.
 - `fecha_snapshot`: un export trae vistas ACUMULADAS, así que los deltas de 24 h y 7 d salen de
   restar dos fotos. Fusiona por `(plataforma, id_plataforma, fecha_snapshot)` y nunca pisa un valor
   lleno con uno vacío.
