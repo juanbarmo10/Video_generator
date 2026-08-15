@@ -165,6 +165,61 @@ class ReglasMecanicas(unittest.TestCase):
         self.assertTrue(graves)
 
 
+class LaPuerta(unittest.TestCase):
+    """`cumple_la_puerta()` decide **qué se publica**, no solo cuándo dejar de
+    reintentar. Con `abortar_si_ninguno_pasa: True` y nadie leyendo los guiones,
+    es lo único que separa un dato falso de YouTube. Los umbrales están
+    calibrados sobre Historia09-15 y estos tests los congelan."""
+
+    def veredicto(self, nota=8, dudosas=0):
+        return {"nota": nota, "afirmaciones_dudosas": ["x"] * dudosas,
+                "problemas": []}
+
+    def test_un_guion_limpio_pasa(self):
+        pasa, motivos = p01.cumple_la_puerta([], self.veredicto(8, 0))
+        self.assertTrue(pasa)
+        self.assertEqual(motivos, [])
+
+    def test_una_falta_grave_lo_tumba_aunque_el_critico_lo_adore(self):
+        """Las graves son mecánicas y objetivas: una fecha en el guion no se
+        compensa con un 10 del crítico."""
+        pasa, motivos = p01.cumple_la_puerta(["Contiene la fecha '1762'."],
+                                             self.veredicto(10, 0))
+        self.assertFalse(pasa)
+        self.assertTrue(any("grave" in m for m in motivos))
+
+    def test_el_umbral_de_dudosas_es_el_calibrado(self):
+        """3 pasa y 4 no: es exactamente donde cae la frontera medida entre
+        Historia15 (datos documentados) e Historia09 ('lujo romano')."""
+        cfg = p01.CONFIG
+        self.assertEqual(cfg["dudosas_max"], 3, "umbral calibrado el 15 ago")
+        self.assertTrue(p01.cumple_la_puerta([], self.veredicto(6, 3))[0])
+        self.assertFalse(p01.cumple_la_puerta([], self.veredicto(6, 4))[0])
+
+    def test_la_nota_minima_sigue_siendo_un_suelo(self):
+        pasa, motivos = p01.cumple_la_puerta(
+            [], self.veredicto(p01.CONFIG["nota_minima"] - 1, 0))
+        self.assertFalse(pasa)
+        self.assertTrue(any("nota" in m for m in motivos))
+
+    def test_los_motivos_explican_todos_los_fallos_no_solo_el_primero(self):
+        """El mensaje de aborto es lo único que queda en el log cuando el tema
+        se cae: tiene que decir todo lo que falló, no cortar en el primero."""
+        _, motivos = p01.cumple_la_puerta(["grave"], self.veredicto(2, 9))
+        self.assertEqual(len(motivos), 3, motivos)
+
+    def test_un_veredicto_incompleto_no_revienta_y_no_aprueba(self):
+        """Si el crítico devuelve algo raro, el fallo seguro es NO publicar."""
+        pasa, _ = p01.cumple_la_puerta([], {})
+        self.assertFalse(pasa)
+
+    def test_el_flujo_automatico_esta_activado(self):
+        """⚠️ Congela la decisión del 15 ago: nadie lee los guiones, así que un
+        guion que no pasa la puerta no puede convertirse en video. Si alguien
+        pone esto en False, publica lo que entre."""
+        self.assertTrue(p01.CONFIG["abortar_si_ninguno_pasa"])
+
+
 # ═══════════════════════════════════════════════════════════════════════
 #   PASO 02 — lo que va al .env lo lee BASH
 # ═══════════════════════════════════════════════════════════════════════

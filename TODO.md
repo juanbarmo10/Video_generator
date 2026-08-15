@@ -17,12 +17,15 @@ repetidas** de 15-18 en los 7 videos, y **0 de 7 títulos** fuera del límite de
 **Nada del pipeline está roto.** Lo que queda es elección de temas, costo, tiempo y orden del
 repositorio.
 
-⚠️ Los 8 guiones publicados ya están **leídos uno por uno** (15 ago, desde los `.srt`): dos afirman
-cosas falsas y no deben publicarse tal cual. Ver [P-02](#p-02).
+⚠️ **La decisión de operación es que el flujo sea automático: nadie revisa guiones a mano.** Eso
+cambia dónde está la seguridad — la puerta del paso 01 aborta el tema en vez de avisar
+([P-02](#p-02), [P-04](#p-04)), y lo que queda por hacer se mide por si **reduce intervención
+humana**, no por si mejora un número. `logs/failed.csv` es la salida de los temas que se caen y se
+reusa tal cual como `temas.csv`.
 
 | | # | Pendiente |
 |---|---|---|
-| 🔴 | [P-02](#p-02) | `Historia07` y `Historia06` afirman cosas falsas — el primero estaba programado |
+| ✅ | [P-02](#p-02) | ~~Guiones falsos publicados~~ — resuelto de raíz: la puerta aborta el tema |
 | ✅ | [P-04](#p-04) | ~~Calibrar la puerta~~ — hecho: `nota >= 6` y `dudosas <= 3`, 5 de 7 aprueban |
 | 🟠 | [P-12](#p-12) | `se_quedaron_pct` bajó — la única métrica que empeoró en v2 |
 | 🟡 | [P-19](#p-19) | `DELAY = 7.0` uniforme en el paso 05 — ~2-3 min/video dormidos |
@@ -64,14 +67,19 @@ Revisados los 8 `.srt` uno por uno (15 ago):
 | Historia02 Halys | 🟡 | *«dos ejércitos **lidian** bajo el mismo sol»* — se comió a los **lidios**. No es falso, se lee como el verbo *lidiar*, pero el espectador nunca sabe quiénes eran |
 | Historia04, Historia05, Historia08 | ✅ | Limpios. Robin Hood, el tesoro de San Lorenzo y el examen de ingreso al ETH están bien contados (único matiz: Einstein conoció a Grossmann ya en el ETH, no en el año de Aarau) |
 
-**Acción: `Historia07` fuera de `publicar/calendario.csv` — estaba programado para el 16 ago — y
-`Historia06` no se publica tal cual.**
+✅ **Resuelto de raíz, no leyéndolos.** La decisión (15 ago) es que **nadie va a revisar guiones a
+mano**: el pipeline tiene que ser automático. Así que la puerta del paso 01 dejó de ser un aviso y
+pasó a ser el filtro — `abortar_si_ninguno_pasa: True`, y lo que no pasa **no llega a ser video**
+(ver [CLAUDE.md, paso 01](CLAUDE.md#arquitectura-del-pipeline)). Simulado sobre `Historia09`-`15`,
+habría producido 5 videos y mandado 2 a `logs/failed.csv` — los dos con afirmaciones falsas.
+
+`Historia01`-`Historia08` ya no están en `publicar/calendario.csv` (el paso 09 lo reescribe con
+`--solo`), así que los dos rojos no se publican por omisión. Si alguna vez se republican,
+`Historia07` y `Historia06` son los que no deben salir; `Historia08` sí, estaba limpio.
 
 Lo que esto dice del pipeline: **el crítico viejo (gpt-4.1) dejó pasar los dos rojos.** El de Opus
-sí los habría visto — su crítica a `Historia09` nombra a Valerios Stais, el Museo Nacional de
-Atenas, el año 1902 y corrige «lujo romano» → objetos griegos. La puerta no aprueba nunca
-([P-04](#p-04)), pero **el diagnóstico ya vale**: léelo como lista de verificación antes de
-programar, que es justo para lo que sirve hoy.
+sí los ve — su crítica a `Historia09` nombra a Valerios Stais, el Museo Nacional de Atenas, el año
+1902 y corrige «lujo romano» → objetos griegos.
 
 Y el problema de fondo sigue entrando por `temas.csv`: `2016`, `Eclipse`, `Odisea` y
 `Surrealismo` son categorías, no incidentes. Cuando el tema no trae una historia concreta, el

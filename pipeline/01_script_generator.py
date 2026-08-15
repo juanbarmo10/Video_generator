@@ -111,7 +111,14 @@ CONFIG = {
     # 2 y no 3: con la puerta vieja el bucle no salía nunca antes de tiempo, y
     # el tercer intento pagaba una crítica de $0.029 para nada. Súbelo si ves
     # que muchos temas se quedan a un intento de pasar.
-    "intentos_max": 2,          # generación + crítica por intento
+    # Generación + crítica por intento, ~$0.043 cada uno. Solo se paga el que
+    # hace falta: el bucle corta en cuanto uno pasa.
+    # ⚠️ Sube a 3 con `abortar_si_ninguno_pasa: True`, y no es lo mismo que
+    # antes: ahora agotar los intentos cuesta el TEMA ENTERO, no un aviso. Un
+    # tercer intento son $0.043 contra perder un hueco del calendario. Medido
+    # sobre Historia09-15, la puerta calibrada aprueba 5 de 7 en ≤2 intentos,
+    # así que el tercero solo lo pagan los dos que iban a caerse igualmente.
+    "intentos_max": 3,
 
     # ⚠️ PROVISIONALES, calibrados con UNA medición (gpt-5.4 sobre el faro de
     # Eddystone: 6/10 con 2 dudosas). El 7 anterior venía del crítico gpt-4.1,
@@ -138,10 +145,17 @@ CONFIG = {
     # "lujo romano" cuando la carga era griega; Historia10) traen 4.
     # Con 3: aprueban 5 de 7 en vez de 3, y ninguno de los dos falsos pasa.
     "dudosas_max": 3,           # afirmaciones dudosas toleradas para aprobar
-    # Si ningún intento pasa: False = usa el mejor con aviso ruidoso,
-    # True = aborta el tema. Abortar aquí es barato (el paso 01 es el primero,
-    # no hay nada pagado todavía) pero corta el lote de run_all.sh.
-    "abortar_si_ninguno_pasa": False,
+    # ⚠️ True desde el 15 ago, y es lo que hace el flujo automático seguro.
+    # Con False, el guion que no pasa se usa igual "con un aviso ruidoso" — y un
+    # aviso solo sirve si alguien lo lee. Nadie lee los guiones, así que
+    # `Historia09` habría llegado a YouTube diciendo "lujo romano" de una carga
+    # que era griega. Con True, lo que no pasa la puerta NO llega a ser video.
+    #
+    # No corta el lote: `run_pipeline.sh` aborta ESE tema, `run_all.sh` lo anota
+    # en `logs/failed.csv` —reusable tal cual como `temas.csv`— y sigue con el
+    # siguiente. Y aborta en el paso 01, que es el primero: se tira ~$0.09 de
+    # control de calidad y no las imágenes ($0.18) ni la voz.
+    "abortar_si_ninguno_pasa": True,
 
     # ── Límites mecánicos ─────────────────────────────────────
     "palabras_min": 65,
@@ -736,17 +750,7 @@ def escribir_guion_con_control(tema: str, cfg: dict = CONFIG) -> str:
         for p in leves:
             print(f"   · {p}")
 
-        # ⚠️ La puerta NO decide si se publica —eso es manual, ver P-02— sino
-        # cuándo dejar de pagar reintentos. Por eso tolera dudosas: exigir cero
-        # con el crítico de Anthropic es exigir lo imposible (las encuentra en
-        # los 8 guiones medidos, incluido el mejor), y el bucle acababa
-        # quemando todos los intentos siempre, escribiera quien escribiera.
-        # Las dudosas quedan igualmente en calidad_guion.json para revisarlas.
-        pasa = (
-            not graves
-            and len(dudosas) <= cfg["dudosas_max"]
-            and nota >= cfg["nota_minima"]
-        )
+        pasa, motivos = cumple_la_puerta(graves, veredicto, cfg)
 
         if nota_final > mejor_nota:
             mejor, mejor_nota = script, nota_final
@@ -766,8 +770,22 @@ def escribir_guion_con_control(tema: str, cfg: dict = CONFIG) -> str:
         f"⚠️  Ningún intento pasó el control de calidad tras "
         f"{cfg['intentos_max']} intentos."
     )
+    # El veredicto se guarda ANTES de decidir si se aborta: si no, el tema que
+    # más interesa revisar sería justo el único que no deja rastro en disco.
+    registrar_calidad(False, mejor_intento, mejor_veredicto, mejor)
+
     if cfg["abortar_si_ninguno_pasa"]:
-        raise SystemExit(f"❌ {mensaje} Tema abortado.")
+        _, motivos = cumple_la_puerta(
+            verificar_reglas_mecanicas(mejor, cfg)[0], mejor_veredicto, cfg)
+        raise SystemExit(
+            f"❌ {mensaje}\n"
+            f"   El mejor fue el intento {mejor_intento}, y aun así: "
+            f"{'; '.join(motivos)}.\n"
+            f"   Tema abortado — queda en logs/failed.csv y el veredicto en "
+            f"proyectos/{os.environ.get('PROYECTO', '?')}/calidad_guion.json.\n"
+            f"   Abortar es lo barato: el paso 01 es el primero y no hay "
+            f"imágenes ni voz pagadas."
+        )
 
     print(f"\n{mensaje}")
     print(f"   Se usa el del intento {mejor_intento}. REVÍSALO A MANO antes de publicar.")
@@ -775,8 +793,48 @@ def escribir_guion_con_control(tema: str, cfg: dict = CONFIG) -> str:
         print("   Lo que el crítico le objetó A ESE guion:")
         for cita in mejor_veredicto["afirmaciones_dudosas"]:
             print(f'     ⚠️  "{cita}"')
-    registrar_calidad(False, mejor_intento, mejor_veredicto, mejor)
     return mejor
+
+
+def cumple_la_puerta(graves: list, veredicto: dict,
+                     cfg: dict = CONFIG) -> tuple[bool, list[str]]:
+    """¿Este guion se publica? Devuelve (pasa, motivos_del_rechazo).
+
+    ⚠️ **Esta función decide qué se publica, no solo cuándo dejar de reintentar.**
+    Antes era lo segundo: el guion que no pasaba se usaba igual con un aviso, y
+    alguien lo leía antes de programarlo. Desde el 15 ago el flujo es automático
+    —nadie lee los guiones— así que con `abortar_si_ninguno_pasa: True` lo que
+    no pasa por aquí **no llega a ser video**. Si la aflojas, publicas lo que
+    entre.
+
+    Los tres criterios y por qué cada uno:
+
+    - **`graves`** son faltas mecánicas medidas en Python (fechas, el gancho
+      demasiado largo, un inicio prohibido). Son objetivas y no se negocian.
+    - **`dudosas <= dudosas_max`** es el criterio que de verdad discrimina; el
+      umbral está calibrado sobre `Historia09`-`Historia15` (ver `CONFIG`).
+    - **`nota >= nota_minima`** no filtra nada en los datos medidos —cinco de
+      siete empataron en 6— y se conserva solo como suelo por si cambia el
+      guionista.
+
+    Las dudosas quedan igualmente en `calidad_guion.json`: la puerta las tolera
+    hasta el umbral, pero no las borra.
+    """
+    motivos = []
+
+    if graves:
+        motivos.append(f"{len(graves)} falta(s) mecánica(s) grave(s)")
+
+    n_dudosas = len(veredicto.get("afirmaciones_dudosas", []))
+    if n_dudosas > cfg["dudosas_max"]:
+        motivos.append(f"{n_dudosas} afirmaciones dudosas "
+                       f"(máximo {cfg['dudosas_max']})")
+
+    nota = veredicto.get("nota", 0)
+    if nota < cfg["nota_minima"]:
+        motivos.append(f"nota {nota}/10 (mínimo {cfg['nota_minima']})")
+
+    return not motivos, motivos
 
 
 def registrar_calidad(aprobado: bool, intento: int, veredicto: dict,

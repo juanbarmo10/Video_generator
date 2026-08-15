@@ -124,8 +124,20 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
      thinking + respuesta *juntos*: si se queda corto, el JSON sale truncado. `critico_effort`
      (`medium`) es la palanca de costo real.
 
-  Si no pasa, **reescribe pasándole los fallos concretos** hasta `intentos_max` (3). Si ninguno pasa,
-  usa el mejor con un aviso ruidoso (`abortar_si_ninguno_pasa` lo cambia a abortar).
+  Si no pasa, **reescribe pasándole los fallos concretos** hasta `intentos_max` (3).
+
+  ⚠️ **Si ninguno pasa, el tema se ABORTA** (`abortar_si_ninguno_pasa: True`, desde el 15 ago), y
+  eso convierte a `cumple_la_puerta()` en el filtro de publicación, no solo en el freno de los
+  reintentos. El motivo es de operación, no de código: **el flujo es automático y nadie lee los
+  guiones antes de programarlos**, así que la alternativa —usar el mejor con un aviso ruidoso— es
+  publicar el aviso junto al video. `Historia09` habría salido diciendo *"lujo romano"* de una
+  carga que era griega.
+  No corta el lote: `run_pipeline.sh` aborta **ese** tema, `run_all.sh` lo anota en
+  `logs/failed.csv` —que se reusa tal cual como `temas.csv`— y sigue con el siguiente; `--solo`
+  hace que el paso 09 empaquete únicamente los que terminaron. Y aborta en el **paso 01**, el
+  primero: se tiran ~$0.09 de control de calidad, no los $0.18 de imágenes ni la voz.
+  Simulado sobre `Historia09`-`Historia15`: **5 videos y 2 a `failed.csv`**, que son justo los dos
+  con afirmaciones falsas.
 
   **Aprendizaje entre temas** (`lecciones_de_guiones_previos()`): destila los
   `proyectos/*/calidad_guion.json` acumulados en ~200 tokens que se inyectan **solo en el primer
