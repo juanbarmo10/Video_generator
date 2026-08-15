@@ -27,7 +27,7 @@ programarlos**.
 | 🟠 | [P-15](#p-15) | Los planos de una misma imagen salen consecutivos: se perciben la mitad de los cortes |
 | 🟡 | [P-05](#p-05) | Composite del paso 07 sin `bg_color` — hallazgo sin confirmar |
 | 🟡 | [P-06](#p-06) | Paralelizar los temas (bloqueado por el estado global de la raíz) |
-| 🔵 | [P-17](#p-17) | Dar de alta el bot de Telegram (el script ya está; faltan las 2 claves) |
+| 🔵 | [P-17](#p-17) | Afinar el recordatorio con unas semanas de uso (ya funciona y está en cron) |
 | ⚪ | [P-14](#p-14) | `proyectos/T1/` anidado: 78 de 147 filas de métricas sin `PROYECTO` |
 | ⚪ | [P-07](#p-07) | Basura de corridas viejas (~750 MB recuperables) |
 | ⚪ | [P-08](#p-08) | Los 16 Mundial no tienen `descripcion.txt` ni `.srt` |
@@ -191,38 +191,24 @@ El informe ya existe ([11_reporte.py](herramientas/11_reporte.py), hecho el 15 a
 que **avise solo** de que toca trabajar.
 
 <a id="p-17"></a>
-**P-17 · Dar de alta el bot de Telegram.**
-[12_recordatorio.py](herramientas/12_recordatorio.py) **ya está escrito y probado en seco**; lo que
-falta son dos claves, y eso solo lo puedes hacer tú:
+**P-17 · Afinar el recordatorio con unas semanas de uso.**
 
-1. Hablarle a **`@BotFather`** → `/newbot` → pegar el token en el `.env` como
-   `TELEGRAM_BOT_TOKEN` (las dos líneas ya están puestas y vacías).
-2. Escribirle algo al bot y correr `bash herramientas/obtener_chat_id.sh`, que lee el token del
-   `.env`, consulta `getUpdates` e imprime el `chat_id`. Sin un mensaje previo al bot la consulta
-   vuelve vacía, y el script lo dice en vez de fallar.
-3. Pegar ese número como `TELEGRAM_CHAT_ID`.
-4. Programarlo:
-   ```bash
-   # crontab -e   →   lunes a las 9:00
-   0 9 * * 1  cd /home/juanb/video_generator && \
-              /home/juanb/miniforge3/envs/ai_video_bot/bin/python \
-              herramientas/12_recordatorio.py
-   ```
+El bot **ya funciona** (`@CHvideo_bot`, primer mensaje enviado el 15 ago) y está en `cron`: domingo
+10:00 y 16:00, más `--si-falta` de lunes a sábado por si ese domingo tuviste el equipo apagado. El
+montaje está en
+[HISTORIAL.md](HISTORIAL.md#-el-recordatorio-semanal-por-telegram-15-ago-2026).
 
-Sin las claves **no se rompe**: imprime el mensaje por consola, igual que el paso 01 sin
-`ANTHROPIC_API_KEY`. Pruébalo cuando quieras con
-`python herramientas/12_recordatorio.py --dry-run`.
+Lo que queda son dos ajustes que **solo se pueden decidir con unas semanas de uso**, no ahora:
 
-⚠️ **El token es una credencial**: al `.env`, que ya está en `.gitignore`, nunca al código. Y el
-`chat_id` va fijo — un bot que responda a cualquiera que le escriba es un bot con el que cualquiera
-puede leer tus métricas.
-
-**Qué queda por decidir cuando lleve unas semanas** (no hace falta ahora):
-- Si `nota_minima` (7) genera demasiado ruido. Hoy marca 7 guiones, que es mucho para un solo
-  mensaje; puede que convenga que avise solo de los que están **sin publicar**.
-- Adjuntar `reportes/ultimo.html` como archivo (`sendDocument`) en vez de nombrarlo. Se dejó fuera
-  porque el HTML pesa 51 KB y Telegram lo enseña como adjunto, no en línea: hay que ver si lo abres
-  de verdad desde el móvil antes de complicarlo.
+- **¿`nota_minima` (7) hace demasiado ruido?** Hoy marca 7 guiones en un solo mensaje, que es
+  mucho para leerlo en el móvil. Lo más probable es que convenga avisar solo de los que están
+  **pendientes de publicar**, no de todo el histórico — pero eso exige saber qué se publicó, y
+  hoy el repositorio no lo registra (`publicar/calendario.csv` dice cuándo *tocaba*, no si se
+  hizo). Es el mismo dato que le falta a la comprobación de "lote sin programar".
+- **¿Adjuntar `reportes/ultimo.html` con `sendDocument`?** Se dejó fuera a propósito: pesa 51 KB y
+  Telegram lo manda como archivo, no en línea, así que hay que abrirlo aparte. Si resulta que
+  nunca lo abres desde el móvil, mejor meter las 3-4 cifras en el propio mensaje (ya lo hace) y
+  no complicarlo.
 
 ---
 

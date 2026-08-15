@@ -49,17 +49,21 @@ De cada tema salen:
    ```bash
    bash herramientas/obtener_chat_id.sh
    ```
-   que lo lee de la API y te lo imprime. Luego prográmalo:
-   ```bash
-   # crontab -e   →   lunes a las 9:00
-   0 9 * * 1  cd /home/juanb/video_generator && \
-              /home/juanb/miniforge3/envs/ai_video_bot/bin/python \
-              herramientas/12_recordatorio.py
-   ```
-   Cada lunes mira el repositorio y te escribe **solo si hay algo que hacer**: temas caídos sin
-   reintentar, guiones que no pasaron el control, videos con fecha de publicación ya pasada o
-   métricas de hace más de una semana. Si no hay nada, calla. Pruébalo sin enviar nada con
-   `python herramientas/12_recordatorio.py --dry-run`.
+   que lo lee de la API y te lo imprime.
+
+   **Ya está programado en `cron`** (`crontab -l` para verlo, `crontab -e` para cambiarlo):
+
+   | Cuándo | Qué |
+   |---|---|
+   | Domingo 10:00 | El aviso principal, al abrir la semana |
+   | Domingo 16:00 | Segundo toque, por si el de la mañana se quedó sin leer |
+   | Lunes a sábado 10:00 | Recuperación con `--si-falta`: **no hace nada** si ya se envió algo esa semana. Solo dispara si el domingo tuviste el equipo apagado |
+
+   Mira el repositorio y te escribe **solo si hay algo que hacer**: temas caídos sin reintentar,
+   guiones que no pasaron el control, videos con fecha de publicación ya pasada o métricas de hace
+   más de una semana. Si no hay nada, calla — así que esas tres entradas **no son tres mensajes**:
+   en una semana limpia no llega ninguno. Pruébalo sin enviar nada con
+   `python herramientas/12_recordatorio.py --dry-run`, y mira qué hizo en `logs/recordatorio.log`.
 
 ⚠️ El `.env` lleva claves en texto plano y **es estado mutable del pipeline** (los scripts escriben
 ahí `PROYECTO`, `TEMA` y `TITULO_VIDEO`). No se commitea nunca.

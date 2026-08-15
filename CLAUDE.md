@@ -445,6 +445,14 @@ Lo llama `cron` (no `run_all.sh`: no tiene nada que ver con generar videos).
   mide la antigüedad de los videos.
 - Degrada sin romperse si faltan `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`: imprime y no envía,
   igual que el paso 01 sin `ANTHROPIC_API_KEY`. `--dry-run` nunca envía.
+- **Tres entradas de cron, no tres mensajes**: domingo 10:00 y 16:00, y `--si-falta` de lunes a
+  sábado. Esta última no hace nada si ya se envió algo esa semana; cubre el domingo con el equipo
+  apagado, que si no se perdería sin más. La semana empieza el domingo (`dia_inicio_semana`, 6):
+  **si mueves el cron a otro día, mueve eso con él** o la recuperación cuenta mal la semana.
+- ⚠️ `anotar_envio()` se llama **solo cuando Telegram confirma**, no al intentarlo. Si se anotara
+  antes, una caída de red el domingo marcaría la semana como avisada y la recuperación de los días
+  siguientes no dispararía — justo el caso para el que existe. La marca es `.ultimo_recordatorio`
+  (en `.gitignore`: es estado de esta máquina).
 - ⚠️ Al fallar el envío **imprime solo `description`, nunca la URL**: el token va dentro de la ruta
   y esto corre bajo cron, cuya salida acaba en un log o en un correo.
 

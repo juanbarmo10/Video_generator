@@ -59,6 +59,15 @@ CONFIG = {
     "videos": "videos",
     "informe": "reportes/ultimo.html",
 
+    # Fecha del último envío conseguido. Lo usa `--si-falta` para no repetir el
+    # aviso de una semana que ya se dio. Está en .gitignore: es estado local.
+    "marca_envio": ".ultimo_recordatorio",
+
+    # Qué día empieza la semana, para "¿ya avisé esta semana?". 6 = domingo en
+    # la numeración de Python (lunes=0), que es cuando corre el aviso principal.
+    # Si mueves el cron a otro día, mueve esto con él.
+    "dia_inicio_semana": 6,
+
     # Días sin consolidar métricas antes de avisar. Una semana: el ciclo es semanal.
     "dias_metricas_viejas": 7,
 
@@ -71,6 +80,42 @@ CONFIG = {
 
 # Cuánto se destaca cada aviso. El orden es el del mensaje.
 NIVELES = {"bloquea": "🔴", "revisar": "🟠", "toca": "🔵", "info": "ℹ️"}
+
+
+#%% ══════════════════════════════════════════════════════════════════════
+#   ¿YA AVISÉ ESTA SEMANA?
+# ═══════════════════════════════════════════════════════════════════════
+
+def inicio_de_semana(hoy: date) -> date:
+    """El último `dia_inicio_semana` (domingo por defecto), hoy incluido."""
+    from datetime import timedelta
+    retroceso = (hoy.weekday() - CONFIG["dia_inicio_semana"]) % 7
+    return hoy - timedelta(days=retroceso)
+
+
+def ya_avise_esta_semana(hoy: date) -> bool:
+    marca = Path(CONFIG["marca_envio"])
+    if not marca.exists():
+        return False
+    try:
+        ultimo = datetime.strptime(marca.read_text(encoding="utf-8").strip(),
+                                   "%Y-%m-%d").date()
+    except (ValueError, OSError):
+        return False
+    return ultimo >= inicio_de_semana(hoy)
+
+
+def anotar_envio(hoy: date) -> None:
+    """Deja constancia del envío conseguido.
+
+    Solo se llama cuando Telegram confirma: si se anotara al intentarlo, una
+    caída de red el domingo marcaría la semana como avisada y la recuperación
+    de los días siguientes no dispararía — justo el caso para el que existe.
+    """
+    try:
+        Path(CONFIG["marca_envio"]).write_text(hoy.isoformat(), encoding="utf-8")
+    except OSError:
+        pass
 
 
 #%% ══════════════════════════════════════════════════════════════════════
@@ -348,12 +393,21 @@ def main() -> None:
                         help="imprime el mensaje y no envía nada")
     parser.add_argument("--siempre", action="store_true",
                         help="envía aunque no haya ningún aviso")
+    parser.add_argument("--si-falta", action="store_true",
+                        help="no hace nada si ya se envió algo esta semana "
+                             "(para la recuperación diaria: cubre el domingo "
+                             "que tuviste el equipo apagado)")
     args = parser.parse_args()
 
     hoy = date.today()
     print("═" * 62)
     print(f"🔔 Recordatorio semanal · {hoy.isoformat()}")
     print("═" * 62)
+
+    if args.si_falta and ya_avise_esta_semana(hoy):
+        print(f"😴 Ya se avisó esta semana (desde {inicio_de_semana(hoy)}): "
+              f"nada que hacer.")
+        return
 
     avisos = [a for a in (
         temas_caidos(),
@@ -384,7 +438,8 @@ def main() -> None:
         print("😴 Nada urgente que contar: no se envía (usa --siempre para forzarlo).")
         return
 
-    enviar(mensaje)
+    if enviar(mensaje):
+        anotar_envio(hoy)
 
 
 if __name__ == "__main__":

@@ -31,6 +31,7 @@
 | [Informe de métricas](#-informe-de-métricas-y-la-trampa-de-la-antigüedad-15-ago-2026) | El HTML semanal, y por qué comparar acumulados entre lotes de 4 y 66 días miente |
 | [El `.env` corrompido](#-el-env-corrompido-por-un-título-de-dos-líneas-15-ago-2026) | Un título con salto de línea dejaba prosa que bash ejecutaba, y `failed.csv` sin encabezado |
 | [El veredicto acusaba a otro guion](#-el-veredicto-de-calidad-acusaba-a-otro-guion-15-ago-2026) | `calidad_guion.json` guardaba la crítica del último intento, no la del guion elegido |
+| [El recordatorio de Telegram](#-el-recordatorio-semanal-por-telegram-15-ago-2026) | Por qué calla si no hay nada, y por qué hay una entrada de cron de recuperación |
 | [Anexo — evidencia medida](#anexo--evidencia-medida) | Los comandos y los números crudos |
 
 ---
@@ -1466,6 +1467,53 @@ la pregunta que uno se hace al abrir el archivo.
 ⚠️ Los `calidad_guion.json` de `Historia07` y `Historia08` se escribieron **antes** del arreglo, así
 que siguen acusando al guion equivocado. Regenerarlos exigiría volver a correr el paso 01, que
 escribiría un guion distinto: no compensa. Léelos contra el `script.txt` de su carpeta.
+
+---
+
+## ✅ El recordatorio semanal por Telegram (15 ago 2026)
+
+El pipeline es semanal pero no avisaba de nada: si se pasaba un domingo, la semana se caía sola.
+[12_recordatorio.py](herramientas/12_recordatorio.py) lo cubre. Bot `@CHvideo_bot`, primer mensaje
+enviado el 15 ago.
+
+**No es una alarma de calendario.** Mira el estado real del repositorio —`logs/failed.csv`, los
+`calidad_guion.json`, `publicar/calendario.csv`, la `fecha_snapshot` máxima de `metricas.csv`— y
+**calla si no hay nada que decir**. Un bot que escribe todos los domingos aunque no pase nada se
+silencia a la tercera semana, y entonces tampoco avisa el día que importa. Ninguna API salvo la de
+enviar: todo lo que consulta son archivos que ya existen.
+
+**Importa `11_reporte.py` con `importlib` en vez de recalcular.** El nombre empieza por dígito, así
+que no se puede `import` normal. Es deliberado: el informe ya descarta lo no comparable, y un
+resumen que rehiciera las cuentas mandaría cada domingo un "+2493 % en vistas por día" que solo
+mide la antigüedad de los videos.
+
+### Tres entradas de cron que no son tres mensajes
+
+```
+0 10 * * 0    → domingo 10:00, el aviso principal
+0 16 * * 0    → domingo 16:00, segundo toque
+0 10 * * 1-6  → lunes a sábado, con --si-falta
+```
+
+Como el script calla cuando no hay pendientes, en una semana limpia no llega ninguno.
+
+La tercera existe porque **cron no dispara con el equipo apagado**, y ese aviso se perdería sin
+dejar rastro. `--si-falta` no hace nada si ya se envió algo esa semana, así que solo salta cuando
+el domingo no hubo máquina.
+
+⚠️ Dos detalles de los que depende que la recuperación funcione:
+- **`anotar_envio()` se llama solo cuando Telegram confirma**, no al intentarlo. Si se anotara
+  antes, una caída de red el domingo marcaría la semana como avisada y la recuperación no
+  dispararía — justo el caso para el que existe.
+- **La semana empieza el domingo** (`dia_inicio_semana`, 6), igual que el cron. Si se mueve el
+  horario a otro día hay que mover eso con él, o la recuperación cuenta mal la semana.
+
+Se verificó ejecutando la orden con el entorno pelado de cron (`env -i` con solo `PATH` y `HOME`),
+que es donde fallan estas cosas: cron no hereda tu shell, así que sin `PATH` explícito no encuentra
+el python del entorno conda.
+
+`herramientas/obtener_chat_id.sh` saca el `chat_id` leyendo el token del `.env`, para no tener que
+abrir en el navegador una URL que lleva el token dentro y leer el JSON a mano.
 
 ---
 
