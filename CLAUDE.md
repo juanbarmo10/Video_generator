@@ -567,12 +567,20 @@ que forma parte del pipeline, no lo forma.
 ### Tests
 
 ```bash
-python -m unittest discover tests      # desde la raíz, 36 tests, ~0.01 s
+python -m unittest discover tests      # desde la raíz, 52 tests, ~0.05 s
 ```
 
 Solo `unittest` de la stdlib, sin dependencias nuevas y **sin red**. Cubren
-[herramientas/10_metricas.py](herramientas/10_metricas.py) y
-[herramientas/11_reporte.py](herramientas/11_reporte.py), no el pipeline.
+[herramientas/10_metricas.py](herramientas/10_metricas.py),
+[herramientas/11_reporte.py](herramientas/11_reporte.py) y
+[pipeline/estado.py](pipeline/estado.py).
+
+⚠️ **`estado.py` escribe `.estado_actual` y `.costo_actual.json` relativos al directorio de
+trabajo**, o sea el estado del tema EN CURSO. `EnTmpDir` en
+[tests/test_estado.py](tests/test_estado.py) hace `chdir` a un temporal y **comprueba que no es la
+raíz** antes de nada: sin esa guarda, correr los tests con un lote en marcha le borraría el sello
+y los pasos siguientes trabajarían con el tema anterior. Si añades tests que toquen la raíz,
+heredan de `EnTmpDir`.
 
 ⚠️ **La elección de qué probar no es por cobertura, es por tipo de fallo.** En el pipeline un error
 se nota: el tema aborta, o el video sale mal y se ve. En estos dos archivos **no se nota nada** —

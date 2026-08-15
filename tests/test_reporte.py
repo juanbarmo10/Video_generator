@@ -21,14 +21,24 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 
 
-def cargar(nombre: str):
-    """Importa un `herramientas/NN_*.py`. Con importlib porque el nombre empieza
-    por dígito y `import` no lo acepta (mismo truco que usa 12_recordatorio.py)."""
-    ruta = RAIZ / "herramientas" / nombre
+def _cargar(ruta: Path):
+    """Importa por ruta. Con importlib porque los nombres empiezan por dígito y
+    `import` no los acepta (mismo truco que usa 12_recordatorio.py)."""
     spec = importlib.util.spec_from_file_location(ruta.stem, ruta)
     modulo = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(modulo)
     return modulo
+
+
+def cargar(nombre: str):
+    """Un `herramientas/NN_*.py`."""
+    return _cargar(RAIZ / "herramientas" / nombre)
+
+
+def cargar_pipeline(nombre: str):
+    """Un módulo de `pipeline/`. ⚠️ Hoy solo vale para `estado.py`: los 8 pasos
+    trabajan al importarse, que es el obstáculo real de P-11."""
+    return _cargar(RAIZ / "pipeline" / nombre)
 
 
 rep = cargar("11_reporte.py")

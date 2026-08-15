@@ -33,7 +33,7 @@ cosas falsas y no deben publicarse tal cual. Ver [P-02](#p-02).
 | ⚪ | [P-09b](#p-09b) | Automatizar la recogida de métricas por API |
 | ⚪ | [P-10](#p-10) | `publisher.py` sigue incompleto |
 | ⚪ | [P-18](#p-18) | La cabecera del paso 06 miente sobre su entrada |
-| ⚪ | [P-11](#p-11) | No hay tests |
+| 🟡 | [P-11](#p-11) | Tests: hecho `herramientas/` + `estado.py` (52), falta `pipeline/` |
 
 ---
 
@@ -348,15 +348,20 @@ reestructuró; su `CONFIG` apunta bien a `carrusel.txt`. Manda el `CONFIG`, pero
 archivo por primera vez va a buscar un contrato que ya no existe. Son dos líneas de comentario, y
 de paso conviene renombrar `parse_instagram_file()` — que además está duplicada, y gana la segunda.
 
-**P-11 · Tests: hecha la mitad de `herramientas/`, falta `pipeline/`.**
+**P-11 · Tests: hechos `herramientas/` y `estado.py`, faltan los 8 pasos.**
 
-✅ **Hecho el 15 ago:** `tests/` con **36 tests** de `unittest` (stdlib, sin red, ~0.01 s) sobre
-[10_metricas.py](herramientas/10_metricas.py) y [11_reporte.py](herramientas/11_reporte.py) —
-`comparar_lotes()`, `TIPO_METRICA`, el signo de la comparación, mediana vs promedio, la
-pegajosidad del lote, el índice a dos niveles, los decimales de Facebook y la fila de TikTok sin
-escapar. Se eligieron **por tipo de fallo, no por cobertura**: ahí un error no rompe nada, solo
-hace que el informe afirme lo contrario de lo que pasó. Verificados por mutación — desactivando
-cada mecanismo, los tests correspondientes fallan.
+✅ **Hecho el 15 ago:** `tests/` con **52 tests** de `unittest` (stdlib, sin red, ~0.05 s) sobre
+[10_metricas.py](herramientas/10_metricas.py), [11_reporte.py](herramientas/11_reporte.py) y
+[estado.py](pipeline/estado.py) — `comparar_lotes()`, `TIPO_METRICA`, el signo de la comparación,
+mediana vs promedio, la pegajosidad del lote, el índice a dos niveles, los decimales de Facebook,
+la fila de TikTok sin escapar, el sello del tema, los reintentos y **que todo modelo nombrado en
+`pipeline/` esté en `PRECIOS_OPENAI`** (hoy detecta `gpt-4.1` y `gpt-5.4`).
+
+Se eligieron **por tipo de fallo, no por cobertura**: en el pipeline un error se nota —el tema
+aborta o el video sale mal—, pero aquí no se nota nada, el informe se genera igual y afirma lo
+contrario de lo que pasó. Verificados por mutación: desactivando cada mecanismo (pegajosidad del
+lote, glob a dos niveles, `vistas_por_dia` como tasa, signo invertido, media en vez de mediana),
+los tests correspondientes fallan.
 
 **Queda `pipeline/`:** `separar_hashtags()`, `repartir_planos()`, `dispersar_planos()`,
 `verificar_reglas_mecanicas()`, `sanear_valor_env()` y el parseo de `carrusel.txt` del paso 06.
