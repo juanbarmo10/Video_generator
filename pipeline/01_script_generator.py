@@ -63,7 +63,14 @@ if anthropic_api_key:
 
 CONFIG = {
     # ── Modelos ───────────────────────────────────────────────
-    "modelo_guionista": "gpt-4.1",
+    # Medido sobre el mismo tema, juzgado por el crítico de Opus 5:
+    #   gpt-4.1   2/10, 6 dudosas   $0.0026/guion
+    #   opus-5    5/10, 4 dudosas   $0.0123   (y pierde la independencia)
+    #   gpt-5.4   6/10, 2 dudosas   $0.0040   ← gana a los dos por $0.0014 más
+    # ⚠️ gpt-5.5 NO: razona antes de responder y esos tokens se facturan como
+    # salida — 2560 tokens de razonamiento para un guion de 70 palabras,
+    # $0.085 (33× gpt-4.1) y 35 s en vez de 2. Ver PRECIOS_OPENAI en estado.py.
+    "modelo_guionista": "gpt-5.4",
 
     # 🔀 El crítico corre en OTRO PROVEEDOR a propósito. Un modelo de la misma
     # familia que el generador comparte sus puntos ciegos: si gpt-4.1 se cree

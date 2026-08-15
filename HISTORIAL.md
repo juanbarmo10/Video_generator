@@ -37,6 +37,7 @@
 | [El composite fantasma](#-el-composite-fantasma-del-paso-07--159-15-ago-2026) | Render ×1.59 con un argumento, y por qué solo hay que tocar uno de los dos |
 | [Paralelizar: evaluado](#-paralelizar-los-temas-evaluado-y-descartado-por-ahora-15-ago-2026) | 203 % de CPU, la RAM justa, y el `.env` como bloqueo real |
 | [El generador aprende](#-el-generador-aprende-de-los-veredictos-15-ago-2026) | Dos capas —una gratis— y por qué NO se le enseñan las frases rechazadas |
+| [El guionista sube a gpt-5.4](#-el-guionista-sube-a-gpt-54-15-ago-2026) | Por qué no escribir con Opus, y por qué gpt-5.5 cuesta 33× |
 | [Anexo — evidencia medida](#anexo--evidencia-medida) | Los comandos y los números crudos |
 
 ---
@@ -1769,6 +1770,51 @@ esos datos (3 en el mejor guion, 7 en el peor), así que `nota_final` le resta `
 desempate — un peso lo bastante bajo para no invertir nunca una diferencia real de nota.
 
 Y el umbral quedó inalcanzable: ver [P-04](TODO.md#p-04).
+
+---
+
+## ✅ El guionista sube a gpt-5.4 (15 ago 2026)
+
+El proyecto llevaba 16 meses escribiendo con `gpt-4.1` (abril 2025) sin que nadie mirara si había
+algo mejor. La cuenta tiene acceso hasta `gpt-5.6`.
+
+La pregunta de partida era otra —«¿y si escribimos directamente con Opus?»— y midiendo salió que
+no. Todo sobre el mismo tema (*el faro de Eddystone*), juzgado por el mismo crítico de Opus 5:
+
+| Escritor | Nota | Dudosas | $/guion | Proveedores distintos |
+|---|---:|---:|---:|:--:|
+| `gpt-4.1` | 2/10 | 6 | $0.0026 | ✅ |
+| `claude-opus-5` | 5/10 | 4 | $0.0123 | ❌ |
+| **`gpt-5.4`** | **6/10** | **2** | **$0.0040** | ✅ |
+| `gpt-5.5` | — | — | **$0.0854** | ✅ |
+
+`gpt-5.4` gana a los dos, incluido Opus, por $0.0014 más que el modelo viejo — y mantiene la
+independencia de proveedor que P-04 acababa de comprar.
+
+**Por qué NO escribir con Opus, que era la idea original:** la generación es solo el **9 %** del
+costo del control de calidad ($0.009 de $0.096); el 91 % es el crítico. Cambiar el generador para
+ahorrar ataca el lado pequeño de la cuenta, y Opus escribiendo cuesta 3× lo que `gpt-5.4`. Tampoco
+puede recuperarlo evitando reintentos, porque **la puerta de aprobación es inalcanzable** y el bucle
+corre los 3 intentos escriba quien escriba.
+
+⚠️ **`gpt-5.5` es la misma trampa que el thinking de Opus**: razona antes de responder y esos tokens
+se facturan como salida. Medido, **2560 tokens de razonamiento para 137 de texto** — $0.085 por
+guion, 33× `gpt-4.1`, más caro que escribirlo con Opus, y 35 s frente a 2. Un modelo «más
+inteligente» puede salir carísimo por dónde factura, no por lo que cobra el token.
+
+**El calibre de los guiones se ve en el contenido, no solo en la nota.** Sobre el faro de Eddystone,
+`gpt-4.1` inventó a *«un cirujano, John Smeaton»* (era ingeniero civil); `gpt-5.4` y Opus contaron
+los dos la historia real de Henry Winstanley, que murió dentro de su propio faro en la gran tormenta.
+
+⚠️ **Trampa al cambiar de modelo:** `registrar_openai()` hace `if not precio: return`, así que un
+modelo que no esté en `PRECIOS_OPENAI` **no se cobra y `.costo_actual.json` miente en silencio**.
+Los precios se añadieron desde la página oficial antes de tocar el modelo, y la prueba comprobó que
+el costo se registrara ($0.0039, contra los $0.0040 estimados).
+
+Los pasos 02, 04 y 05 se quedan en `gpt-4.1`: son extracción mecánica, no criterio.
+
+⚠️ Todo esto es **n=1**: un tema, una comparación por modelo. Suficiente para decidir un cambio de
+$0.0014, no para dar por hecho el salto de calidad. El próximo lote lo confirma o lo desmiente.
 
 ---
 

@@ -88,7 +88,7 @@ en la raíz del proyecto**.
 
 | Paso | Script | Entrada | Salida | Servicio |
 |---|---|---|---|---|
-| 01 | [01_script_generator.py](pipeline/01_script_generator.py) | `$TEMA` | `script.txt`, `.estado_actual` | OpenAI `gpt-4.1` |
+| 01 | [01_script_generator.py](pipeline/01_script_generator.py) | `$TEMA` | `script.txt`, `.estado_actual` | OpenAI `gpt-5.4` + Anthropic `claude-opus-5` |
 | 02 | [02_social_media_generator.py](pipeline/02_social_media_generator.py) | `script.txt` | `social_posts/descripcion.txt` + insumos internos, `TITULO_VIDEO` en `.env` | OpenAI `gpt-4.1` |
 | 03 | [03_voice_generator.py](pipeline/03_voice_generator.py) | `script.txt` | `voice.mp3` (acelerado ×1.10) | ElevenLabs `eleven_multilingual_v2` + ffmpeg |
 | 04 | [04_image_generator.py](pipeline/04_image_generator.py) | `script.txt` | `images_IA/scene_0..5.png` | OpenAI + fal.ai `fal-ai/flux/dev` |
@@ -148,6 +148,19 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
   desempate: en esos datos las dudosas sí discriminan (3 en el mejor, 7 en el peor).
   Costo real medido: **~$0.029 por crítica a `effort: "low"`** (vs $0.040 a `medium`, misma nota),
   o sea ~$0.10 por tema con 3 intentos frente a los ~$0.019 del crítico gpt-4.1.
+
+  **El guionista es `gpt-5.4`, y la elección está medida.** Sobre el mismo tema, juzgados por el
+  crítico de Opus 5: `gpt-4.1` 2/10 con 6 dudosas ($0.0026); `claude-opus-5` escribiendo 5/10 con 4
+  ($0.0123, y pierde la independencia de proveedor); **`gpt-5.4` 6/10 con 2 ($0.0040)** — gana a los
+  dos por $0.0014 más y mantiene OpenAI-escribe / Anthropic-critica.
+  ⚠️ **`gpt-5.5` no**: razona antes de responder y esos tokens se facturan como **salida**. Medido,
+  2560 tokens de razonamiento para un guion de 70 palabras: **$0.085, 33× `gpt-4.1`**, más caro que
+  escribirlo con Opus, y 35 s en vez de 2. Es la misma trampa que el thinking de Opus.
+  Los pasos 02, 04 y 05 siguen en `gpt-4.1` a propósito: son extracción mecánica (queries, contexto,
+  validación visual), no criterio.
+  ⚠️ **Antes de cambiar de modelo en cualquier paso, añádelo a `PRECIOS_OPENAI` en
+  [estado.py](pipeline/estado.py).** `registrar_openai()` hace `if not precio: return`, así que un
+  modelo desconocido **no se cobra y el contador miente en silencio**.
 - **02** — Hace 6 llamadas a OpenAI. Produce **UN solo texto publicable**, `descripcion.txt`, porque
   el mismo reel se sube a Facebook, Instagram, TikTok y YouTube con la misma descripción y programar
   una semana en Metricool tiene que ser abrir un archivo por video, no dos. Cinco secciones:

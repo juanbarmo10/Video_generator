@@ -22,9 +22,20 @@ ARCHIVO_ESTADO = ".estado_actual"
 ARCHIVO_COSTO = ".costo_actual.json"
 
 # Precios por 1M de tokens (USD), a mayo 2026. Ajusta si cambian.
+# ⚠️ Un modelo que NO esté aquí no se cobra: `registrar_openai()` hace
+# `if not precio: return` y el contador miente en silencio. Si cambias de
+# modelo en cualquier paso, añádelo aquí ANTES.
+# Precios de developers.openai.com/api/docs/pricing (consultados 15 ago 2026).
 PRECIOS_OPENAI = {
     "gpt-4.1":      {"in": 2.00, "out": 8.00},
     "gpt-4.1-mini": {"in": 0.40, "out": 1.60},
+    "gpt-5.4":      {"in": 2.50, "out": 15.00},
+    "gpt-5.4-mini": {"in": 0.75, "out": 4.50},
+    "gpt-5.2":      {"in": 1.75, "out": 14.00},
+    # ⚠️ gpt-5.5 razona antes de responder y esos tokens se facturan como
+    # SALIDA: medido en este guion, 2560 tokens de razonamiento para 137 de
+    # texto → $0.085 por guion, 33× gpt-4.1 y más caro que escribirlo con Opus.
+    "gpt-5.5":      {"in": 5.00, "out": 30.00},
 }
 
 # Anthropic (agosto 2026). Los tokens de "thinking" se facturan como salida.
