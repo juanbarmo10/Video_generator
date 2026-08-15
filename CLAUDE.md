@@ -125,7 +125,29 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
 
   Si no pasa, **reescribe pasándole los fallos concretos** hasta `intentos_max` (3). Si ninguno pasa,
   usa el mejor con un aviso ruidoso (`abortar_si_ninguno_pasa` lo cambia a abortar).
-  Cuesta 2 llamadas por intento: **~$0.019 en el peor caso frente a $0.003 sin control**.
+
+  **Aprendizaje entre temas** (`lecciones_de_guiones_previos()`): destila los
+  `proyectos/*/calidad_guion.json` acumulados en ~200 tokens que se inyectan **solo en el primer
+  intento** (en una reescritura ya hay feedback específico, que vale más y no conviene diluir).
+  ⚠️ **Lleva frecuencias y ejemplos POSITIVOS, nunca las frases rechazadas.** Un ejemplo concreto
+  es la señal más fuerte de un prompt —el modelo imita tono, longitud y estructura—, así que
+  enseñarle "no escribas *como si pescaran sardinas*" es enseñarle a escribir símiles. Y el prompt
+  **ya prohíbe** en prosa casi todo lo que el crítico objeta: lo que faltaba no eran más reglas
+  sino saber **cuáles de las suyas rompe más**, con la cuenta al lado.
+  El guion se guarda dentro de `calidad_guion.json` porque `script.txt` vive en la raíz y lo pisa
+  el tema siguiente — sin eso los guiones **aprobados** se perdían, que son la mitad útil.
+  `ABSOLUTOS`, `SIMILES` y `VERBOS_MENTE` en `verificar_reglas_mecanicas()` salen de los mismos
+  datos y cuestan **cero**: cazan en Python lo que el crítico cobraría por señalar. Van como
+  **leves**, no graves — "nunca robó a los ricos" estaba en el único guion aprobado.
+
+  ⚠️ **El umbral está descalibrado para el crítico de Anthropic y hay que medirlo.** Sobre los
+  mismos 8 guiones, Opus 5 comprime todas las notas entre **2 y 3** (el que gpt-4.1 puntuó con 8
+  saca un 3) y encuentra afirmaciones dudosas en **todos**. Como aprobar exige `nota >= 7` **y**
+  cero dudosas, con este crítico **no aprueba nunca** y cada tema quema los 3 intentos. Por eso la
+  nota sola dejó de servir para elegir el mejor intento y `nota_final` resta `0.1 × dudosas` como
+  desempate: en esos datos las dudosas sí discriminan (3 en el mejor, 7 en el peor).
+  Costo real medido: **~$0.029 por crítica a `effort: "low"`** (vs $0.040 a `medium`, misma nota),
+  o sea ~$0.10 por tema con 3 intentos frente a los ~$0.019 del crítico gpt-4.1.
 - **02** — Hace 6 llamadas a OpenAI. Produce **UN solo texto publicable**, `descripcion.txt`, porque
   el mismo reel se sube a Facebook, Instagram, TikTok y YouTube con la misma descripción y programar
   una semana en Metricool tiene que ser abrir un archivo por video, no dos. Cinco secciones:

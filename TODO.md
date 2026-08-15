@@ -66,12 +66,34 @@ temas del próximo lote con esas instrucciones, y no publicar los 5 sin leerlos.
 ## 🟠 Calidad del producto
 
 <a id="p-04"></a>
-**P-04 · El crítico de Anthropic nunca se ha ejecutado.**
-No hay `ANTHROPIC_API_KEY` en el `.env`, así que `critico_proveedor: "auto"` siempre cayó a
-`gpt-4.1` — es decir, **el generador y el crítico son el mismo modelo y comparten puntos ciegos**.
-Ese es justo el fallo que la separación de proveedor debía evitar. Al poner la clave, vigilar en
-la primera corrida que el JSON no salga truncado: en Opus 5 el thinking está on por defecto y
-`critico_max_tokens` limita thinking + respuesta juntos.
+**P-04 · Calibrar el umbral de aprobación para el crítico de Anthropic.**
+✅ La clave ya está puesta (15 ago) y el crítico corre en `claude-opus-5`. Encontró en la primera
+prueba un error que gpt-4.1 no habría visto: llamaba **cirujano** a John Smeaton, que era ingeniero
+civil. También se añadió el aprendizaje entre temas (ver
+[HISTORIAL.md](HISTORIAL.md#-el-generador-aprende-de-los-veredictos-15-ago-2026)).
+
+**Lo que queda es que el umbral no vale para este crítico.** Medido sobre los 8 guiones:
+
+| Tema | gpt-4.1 | Opus 5 | dudosas |
+|---|---:|---:|---:|
+| Historia02 | 3 | 2 | 7 |
+| Historia05 | 4 | 2 | 5 |
+| Historia08 | 6 | 2 | 6 |
+| Historia04 (el único aprobado) | 8 | **3** | 3 |
+
+Opus comprime todo entre 2 y 3 y encuentra dudosas en **todos**. Aprobar exige `nota >= 7` **y**
+cero dudosas, así que **no aprueba nunca**: cada tema quema los 3 intentos, ~$0.10 de control de
+calidad frente a los ~$0.019 de antes.
+
+⚠️ **No lo ajustes a ojo.** No hay ni un dato de qué puntúa Opus a un guion que él considere bueno
+—los 4 medidos son malos para su criterio—, así que bajar `nota_minima` a 4 o 5 es adivinar.
+**Corre el próximo lote, mira la distribución de notas y dudosas, y fija el umbral con eso.** Si
+sale que ni el mejor pasa de 3, la conclusión no es bajar el listón: es que el formato de 70
+palabras no puede ser "sin afirmaciones dudosas" y el crítico vale como **lista de verificación**
+(P-02), no como puerta.
+
+Mientras tanto: `intentos_max: 2` ahorraría un tercio del costo, porque el tercer intento paga una
+crítica de $0.029 para una puerta que no se abre.
 
 <a id="p-12"></a>
 **P-12 · `se_quedaron_pct` bajó: la única métrica que empeoró en v2.**

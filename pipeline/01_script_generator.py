@@ -83,7 +83,19 @@ CONFIG = {
     #   claude-opus-5     $0.0327   ← +9% sobre un tema de $0.23
     # El effort es la palanca de costo real en Opus 5: "medium" rinde muy bien
     # en tareas acotadas como esta. Súbelo a "high" si ves fallos de criterio.
-    "critico_effort": "medium",             # low | medium | high | xhigh | max
+    # ── Aprendizaje entre temas ───────────────────────────────
+    # Destila los `calidad_guion.json` acumulados en un bloque corto para el
+    # generador: qué reglas suyas rompe más (con la cuenta) y un guion propio
+    # que sí pasó. Cuesta ~200 tokens de entrada y solo en el primer intento.
+    "lecciones_activas": True,
+    "lecciones_min_historial": 3,   # con menos temas, la frecuencia es ruido
+    "lecciones_max_ejemplos": 1,    # ejemplos POSITIVOS (nunca los rechazados)
+    "lecciones_max_chars": 700,
+
+    # Medido sobre el mismo guion: "low" $0.029 vs "medium" $0.040 (-26%) con
+    # la misma nota y las mismas objeciones de fondo. Es la palanca de costo
+    # real del paso 01 — súbelo solo si ves que se le escapan errores.
+    "critico_effort": "low",                # low | medium | high | xhigh | max
     # En Opus 5 el thinking está ON por defecto y max_tokens limita
     # thinking + respuesta JUNTOS: si se queda corto, el JSON sale truncado.
     "critico_max_tokens": 4096,
@@ -115,6 +127,32 @@ MULETILLAS = [
 ]
 
 PALABRAS_ACADEMICAS = ["acontecimiento", "suceso", "hecho histórico"]
+
+# ── Patrones sacados de lo que el crítico objetó DE VERDAD ──────────────
+# No son intuiciones: salen de leer los 8 primeros `calidad_guion.json`. El
+# prompt ya prohíbe todo esto en prosa y el generador lo incumple igual, así
+# que aquí se comprueba en Python — gratis, y ANTES de pagar la crítica.
+#
+# ⚠️ Van como LEVES, no como graves. "nunca robó a los ricos" estaba en el
+# único guion que aprobó (Historia04): un absoluto puede ser perfectamente
+# verificable. Como leve entra en la reescritura sin bloquear ni penalizar
+# la nota; como grave habría tirado el mejor guion del lote.
+ABSOLUTOS = [
+    "nadie ", "ninguna", "ninguno", "nunca", "jamas", "siempre",
+    "el mas ", "la mas ", "los mas ", "el unico", "la unica",
+    "el primero", "la primera vez", "todos los", "todas las",
+]
+
+# "como si pescaran sardinas", "como un secreto incómodo" — el crítico llamó
+# a esto "recursos poéticos en vez de hechos verificables" en 4 de 8 guiones.
+SIMILES = ["como si ", "como un ", "como una "]
+
+# Verbos de mente ajena. El guion no puede saber qué pensó nadie.
+VERBOS_MENTE = [
+    "penso", "pensaba", "imagino", "imaginaba", "sintio", "sentia",
+    "creyo", "temio", "temia", "sospecho", "sospechaba", "espero que",
+    "queria", "deseaba", "sabia que",
+]
 
 MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
          "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
@@ -204,6 +242,28 @@ def verificar_reglas_mecanicas(script: str, cfg: dict = CONFIG) -> tuple[list, l
         leves.append(
             f"{len(largas)} frase(s) pasan de {cfg['frase_max']} palabras: "
             + " / ".join(f'"{f[:45]}…"' for f in largas[:2])
+        )
+
+    # ── Los tres patrones que el crítico repite tema tras tema ──────────
+    hallados = [a for a in ABSOLUTOS if a in plano]
+    if hallados:
+        leves.append(
+            f"Absoluto(s) sin fuente: {', '.join(repr(a.strip()) for a in hallados[:3])}. "
+            "El crítico los objeta salvo que se puedan comprobar."
+        )
+
+    similes = [s for s in SIMILES if s in plano]
+    if similes:
+        leves.append(
+            f"Símil poético ({', '.join(repr(s.strip()) for s in similes[:2])}): "
+            "el drama tiene que venir del hecho, no del adorno."
+        )
+
+    mentes = [v for v in VERBOS_MENTE if re.search(rf"\b{v}", plano)]
+    if mentes:
+        leves.append(
+            f"Atribuye estados mentales ({', '.join(repr(v) for v in mentes[:3])}): "
+            "nadie documentó qué pensó o sintió alguien."
         )
 
     return graves, leves
@@ -378,6 +438,104 @@ SYSTEM_GUIONISTA = (
 )
 
 
+# Cómo se agrupan las objeciones del crítico. Las claves son las etiquetas que
+# ve el generador; los valores, trozos que aparecen literalmente en el campo
+# `problemas` de los `calidad_guion.json` reales. Si el crítico cambia de
+# vocabulario, esto deja de clasificar y hay que reajustarlo — por eso el
+# bloque enseña también cuántas objeciones NO encajaron en ninguna categoría.
+CATEGORIAS_FALLO = {
+    "afirmaciones sin fuente verificable": [
+        "no existe evidencia", "no hay evidencia", "sin fuente", "no verificable",
+        "no documentad", "carece de referencias", "no respaldad", "sin respaldo",
+        "no comprobabl", "especulativ", "no hay fuentes", "no hay pruebas",
+        "sin aportar ninguna evidencia", "no hay documentacion",
+    ],
+    "atribuir intenciones, emociones o actos privados": [
+        "atribuye", "emociones", "intenciones", "acciones privadas",
+        "percepciones", "subjetiv", "imposible de verificar historicamente",
+    ],
+    "exageración, superlativos y absolutos": [
+        "exageracion", "exageraciones", "superlativ", "afirmacion absoluta",
+        "adjetivos dramaticos", "dramatiza", "recursos poeticos", "coloquial",
+    ],
+    "el gancho adelanta el desenlace": [
+        "adelanta el desenlace", "desvela el desenlace", "debilita el gancho",
+    ],
+    "interpretación presentada como hecho": [
+        "interpretativ", "es una interpretacion", "puede prestarse a debate",
+        "segun la traduccion",
+    ],
+}
+
+
+def lecciones_de_guiones_previos(cfg: dict = CONFIG) -> str:
+    """Destila los veredictos acumulados en un bloque corto para el prompt.
+
+    El generador ya tiene TODAS las reglas escritas en su prompt —«prohibido
+    atribuir pensamientos», «prohibido exagerar», «la primera frase no revela
+    el desenlace»— y las incumple igual. Añadir más reglas no arregla eso.
+    Lo que falta es decirle **cuáles de sus propias reglas rompe más**, con la
+    cuenta al lado, y enseñarle uno de sus guiones que sí pasó.
+
+    ⚠️ **No se le pasan las frases rechazadas.** Un ejemplo concreto es la señal
+    más fuerte de un prompt: el modelo imita su tono, su longitud y su
+    estructura. Enseñarle «no escribas *como si pescaran sardinas*» es
+    enseñarle a escribir símiles. Por eso van frecuencias (que reorientan la
+    atención) y ejemplos POSITIVOS (que sí se pueden imitar), nunca citas de lo
+    que salió mal.
+
+    Cuesta ~200 tokens de entrada = $0.0004 por llamada. Se amortiza si evita
+    un solo reintento cada ~100 temas, porque cada reintento arrastra una
+    crítica de Opus 5 (~$0.04).
+    """
+    if not cfg.get("lecciones_activas", True):
+        return ""
+
+    aprobados, fallos, total, sin_clasificar = [], {}, 0, 0
+    for archivo in sorted(Path("proyectos").glob("*/calidad_guion.json")):
+        try:
+            datos = json.loads(archivo.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+
+        total += 1
+        if datos.get("aprobado") and datos.get("guion"):
+            aprobados.append((datos.get("nota") or 0, datos["guion"].strip()))
+
+        for problema in datos.get("problemas", []):
+            plano = _sin_tildes(problema)
+            etiquetas = [nombre for nombre, claves in CATEGORIAS_FALLO.items()
+                         if any(c in plano for c in claves)]
+            if not etiquetas:
+                sin_clasificar += 1
+            for etiqueta in etiquetas:
+                fallos[etiqueta] = fallos.get(etiqueta, 0) + 1
+
+    if total < cfg.get("lecciones_min_historial", 3):
+        return ""     # con dos o tres temas la "frecuencia" es ruido
+
+    partes = [f"\nLO QUE TE HA RECHAZADO EL VERIFICADOR "
+              f"({len(aprobados)} aprobados de {total} guiones):"]
+
+    for etiqueta, veces in sorted(fallos.items(), key=lambda x: -x[1])[:3]:
+        partes.append(f"- {etiqueta} — {veces} veces")
+    if sin_clasificar:
+        partes.append(f"  (y {sin_clasificar} objeciones de otro tipo)")
+    partes.append("Son reglas que YA tienes arriba. Repásalas antes de escribir.")
+
+    # El ejemplo positivo va al final: es lo último que lee antes de escribir.
+    if aprobados:
+        aprobados.sort(reverse=True)
+        tope = max(1, int(cfg.get("lecciones_max_ejemplos", 1)))
+        partes.append("\nGuion tuyo que SÍ pasó. Copia el registro y el nivel de "
+                      "concreción, NO el tema:")
+        for nota, texto in aprobados[:tope]:
+            recorte = texto[:cfg.get("lecciones_max_chars", 700)]
+            partes.append(f'({nota}/10) "{recorte}"')
+
+    return "\n".join(partes) + "\n"
+
+
 def construir_prompt(tema: str, cfg: dict = CONFIG, correcciones: str = "") -> str:
     tema_instruccion = (
         f"El evento o historia DEBE ser sobre: {tema}. "
@@ -386,6 +544,10 @@ def construir_prompt(tema: str, cfg: dict = CONFIG, correcciones: str = "") -> s
         "Elige libremente un evento histórico real que muy poca gente conoce."
     )
 
+    # El histórico y las correcciones del intento anterior son EXCLUYENTES.
+    # En una reescritura ya hay feedback específico sobre ESTE guion, que vale
+    # mucho más que una estadística; meter las dos cosas solo diluye la
+    # concreta y paga tokens de más.
     bloque_correcciones = ""
     if correcciones:
         bloque_correcciones = f"""
@@ -395,6 +557,8 @@ def construir_prompt(tema: str, cfg: dict = CONFIG, correcciones: str = "") -> s
 No repitas los mismos fallos. Si una afirmación no se puede verificar en fuentes
 históricas, elimínala y apóyate en otra que sí lo sea.
 """
+    else:
+        bloque_correcciones = lecciones_de_guiones_previos(cfg)
 
     return f"""
 Eres un guionista de videos virales históricos. Tu especialidad es encontrar
@@ -512,7 +676,16 @@ def escribir_guion_con_control(tema: str, cfg: dict = CONFIG) -> str:
 
         # La nota del crítico penalizada por las faltas mecánicas: así el "mejor"
         # no es un guion bien escrito que incumple el formato.
-        nota_final = nota - 2 * len(graves)
+        #
+        # ⚠️ Las dudosas entran como DESEMPATE, y no es un adorno. Medido sobre
+        # los 8 primeros guiones, el crítico de Anthropic comprime todas las
+        # notas entre 2 y 3 —incluida la del guion que gpt-4.1 había puntuado
+        # con un 8—, así que la nota sola deja de distinguir un intento de
+        # otro y "el mejor de 3" se vuelve casi aleatorio. El número de
+        # afirmaciones dudosas sí discrimina en esos mismos datos: 3 en el
+        # mejor guion frente a 7 en el peor. Pesa 0.1 para no invertir nunca
+        # una diferencia real de nota.
+        nota_final = nota - 2 * len(graves) - 0.1 * len(dudosas)
 
         print(f"\n📏 {len(script.split())} palabras · "
               f"primera frase: {len(dividir_frases(script)[0].split())} palabras")
@@ -536,7 +709,7 @@ def escribir_guion_con_control(tema: str, cfg: dict = CONFIG) -> str:
 
         if pasa:
             print(f"\n✅ Guion aprobado en el intento {intento} (nota {nota}/10)")
-            registrar_calidad(True, intento, veredicto)
+            registrar_calidad(True, intento, veredicto, script)
             return script
 
         correcciones = formatear_correcciones(graves, leves, veredicto)
@@ -557,11 +730,12 @@ def escribir_guion_con_control(tema: str, cfg: dict = CONFIG) -> str:
         print("   Lo que el crítico le objetó A ESE guion:")
         for cita in mejor_veredicto["afirmaciones_dudosas"]:
             print(f'     ⚠️  "{cita}"')
-    registrar_calidad(False, mejor_intento, mejor_veredicto)
+    registrar_calidad(False, mejor_intento, mejor_veredicto, mejor)
     return mejor
 
 
-def registrar_calidad(aprobado: bool, intento: int, veredicto: dict) -> None:
+def registrar_calidad(aprobado: bool, intento: int, veredicto: dict,
+                      script: str = "") -> None:
     """Deja constancia de si el guion pasó el control.
 
     En un lote nocturno de 30 temas los avisos se pierden en los logs. El paso
@@ -570,6 +744,13 @@ def registrar_calidad(aprobado: bool, intento: int, veredicto: dict) -> None:
     ⚠️ `intento` y `veredicto` tienen que ser los del guion que de verdad se
     escribió en `script.txt` —el mejor—, no los del último que se probó. Si no,
     el archivo acusa a un texto que nadie va a publicar.
+
+    **El texto del guion se guarda aquí dentro, junto a su nota.** `script.txt`
+    vive en la raíz y lo pisa el tema siguiente, así que sin esto los guiones
+    APROBADOS se perdían — y son la mitad más útil del histórico: de un rechazo
+    aprendes qué no hacer, de un aprobado aprendes el registro que funciona.
+    Guardarlo en el mismo json que el veredicto es lo que impide que vuelvan a
+    descuadrarse.
     """
     if not PROYECTO:
         return
@@ -581,6 +762,8 @@ def registrar_calidad(aprobado: bool, intento: int, veredicto: dict) -> None:
             "aprobado": aprobado,
             "intento": intento,
             "nota": veredicto.get("nota"),
+            "tema": TEMA,
+            "guion": script,
             "afirmaciones_dudosas": veredicto.get("afirmaciones_dudosas", []),
             "problemas": veredicto.get("problemas", []),
         }, ensure_ascii=False, indent=2),

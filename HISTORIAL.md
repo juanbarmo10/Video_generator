@@ -36,6 +36,7 @@
 | [Los títulos de YouTube caben](#-los-títulos-de-youtube-caben-15-ago-2026) | Por qué aquí sí se vuelve a llamar al modelo en vez de truncar |
 | [El composite fantasma](#-el-composite-fantasma-del-paso-07--159-15-ago-2026) | Render ×1.59 con un argumento, y por qué solo hay que tocar uno de los dos |
 | [Paralelizar: evaluado](#-paralelizar-los-temas-evaluado-y-descartado-por-ahora-15-ago-2026) | 203 % de CPU, la RAM justa, y el `.env` como bloqueo real |
+| [El generador aprende](#-el-generador-aprende-de-los-veredictos-15-ago-2026) | Dos capas —una gratis— y por qué NO se le enseñan las frases rechazadas |
 | [Anexo — evidencia medida](#anexo--evidencia-medida) | Los comandos y los números crudos |
 
 ---
@@ -1696,6 +1697,78 @@ El requisito previo es barato y vale por sí solo: que el título viaje por
 **Veredicto:** techo real ~25-35 %, a cambio de reescribir `run_all.sh`, que es la pieza con más
 historial de bugs sutiles. P-19 (partir el `DELAY` del paso 05 por fuente) da un tercio de esa
 ganancia tocando una constante.
+
+---
+
+## ✅ El generador aprende de los veredictos (15 ago 2026)
+
+Con el crítico de Anthropic ya funcionando, la pregunta pasó a ser cómo hacer que el generador
+aprenda de sus aciertos y rechazos **sin gastar más**. Leer los 8 `calidad_guion.json` acumulados
+dio el diagnóstico:
+
+| Patrón que objeta el crítico | Ejemplos reales | Temas |
+|---|---|---|
+| Atribuir mentes y actos privados | *"Nadie había imaginado…"*, *"aprovechar el temor colectivo"* | 01, 02, 07 |
+| Superlativos y absolutos | *"el más popular de Roma"*, *"ninguna escapó"*, *"siguen extraviados"* | 03, 05, 07, 08 |
+| Cifras concretas sin respaldo | *"veinte sirvientas"*, *"millones en plata"* | 03, 07 |
+| Dramatización poética | *"como si pescaran sardinas"*, *"como un secreto incómodo"* | 02, 06, 07, 08 |
+| El gancho adelanta el desenlace | — | 05, 08 |
+
+**El hallazgo que decidió el diseño: el prompt YA prohíbe todo eso en prosa** —«prohibido atribuir
+pensamientos», «prohibido exagerar», «la primera frase no revela el desenlace»— y el generador lo
+incumple igual. Añadir más reglas no arregla nada. Así que se hicieron dos capas distintas:
+
+### Capa 1 — gratis, en Python
+
+`"Nadie esperaba"` aparece en tres guiones distintos y el crítico lo objeta las tres veces. Eso no
+necesita contexto: es una expresión regular. `ABSOLUTOS`, `SIMILES` y `VERBOS_MENTE` se comprueban
+en `verificar_reglas_mecanicas()` — **cero tokens, y antes de pagar la crítica**.
+
+⚠️ Van como **leves**, no graves: *"nunca robó a los ricos"* estaba en el único guion aprobado, así
+que un absoluto puede ser perfectamente verificable. Como leve entra en la reescritura sin bloquear;
+como grave habría tirado el mejor guion del lote.
+
+Validado contra los guiones reales: `Historia07` (4/10) dispara los tres patrones y caza justo lo
+que objetó el crítico; el aprobado saca un único aviso leve.
+
+### Capa 2 — ~200 tokens, solo en el primer intento
+
+`lecciones_de_guiones_previos()` destila el histórico en frecuencias («afirmaciones sin fuente — 14
+veces») más **un guion propio que sí pasó**.
+
+⚠️ **No se le pasan las frases rechazadas, y es deliberado.** Un ejemplo concreto es la señal más
+fuerte de un prompt: el modelo imita su tono, su longitud y su estructura. Enseñarle "no escribas
+*como si pescaran sardinas*" es enseñarle a escribir símiles. Por eso van frecuencias —que
+reorientan la atención hacia reglas que ya tiene— y ejemplos **positivos**, que sí se pueden imitar.
+
+Va solo en el intento 1: en una reescritura ya hay feedback específico sobre ese guion, que vale
+más que una estadística y no conviene diluir.
+
+**Requisito previo:** `script.txt` vive en la raíz y lo pisa el tema siguiente, así que los guiones
+**aprobados** se perdían — la mitad útil del histórico. Ahora el texto se guarda dentro de
+`calidad_guion.json`, junto a su nota. Los 8 anteriores se recuperaron de `logs/`, tomando de cada
+log el intento que dice el propio json (el guion aprobado de `Historia04` era el intento 3, no el 1).
+
+### El coste, medido y no estimado
+
+| | Antes | Ahora |
+|---|---:|---:|
+| Bloque de lecciones | — | 209 tokens = **$0.00042** por tema |
+| Crítica (`effort: low`) | $0.003 (gpt-4.1) | **$0.029** (Opus 5) |
+| Control de calidad por tema | ~$0.019 | **~$0.10** |
+
+La capa 1 es gratis y ahorra dinero (cada reintento evitado son $0.029). La capa 2 cuesta cuatro
+diezmilésimas. **Lo que subió el costo no fue el aprendizaje: fue cambiar de crítico**, y `effort:
+"low"` recorta un 26 % sobre `medium` con la misma nota y las mismas objeciones.
+
+### Lo que rompió el cambio de crítico
+
+Opus comprime **todas** las notas entre 2 y 3, así que la nota dejó de distinguir un intento de
+otro y «el mejor de 3» se volvía casi aleatorio. El número de afirmaciones dudosas sí discrimina en
+esos datos (3 en el mejor guion, 7 en el peor), así que `nota_final` le resta `0.1 × dudosas` como
+desempate — un peso lo bastante bajo para no invertir nunca una diferencia real de nota.
+
+Y el umbral quedó inalcanzable: ver [P-04](TODO.md#p-04).
 
 ---
 
