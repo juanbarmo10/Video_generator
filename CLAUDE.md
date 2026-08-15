@@ -567,13 +567,22 @@ que forma parte del pipeline, no lo forma.
 ### Tests
 
 ```bash
-python -m unittest discover tests      # desde la raíz, 52 tests, ~0.05 s
+python -m unittest discover tests      # desde la raíz, 85 tests, ~0.07 s
 ```
 
 Solo `unittest` de la stdlib, sin dependencias nuevas y **sin red**. Cubren
 [herramientas/10_metricas.py](herramientas/10_metricas.py),
-[herramientas/11_reporte.py](herramientas/11_reporte.py) y
-[pipeline/estado.py](pipeline/estado.py).
+[herramientas/11_reporte.py](herramientas/11_reporte.py),
+[pipeline/estado.py](pipeline/estado.py) y las funciones puras de los pasos
+**01**, **02** y **07** ([tests/test_pipeline.py](tests/test_pipeline.py)).
+
+⚠️ **Los pasos trabajan al importarse, y aun así se prueban sin tocarlos.** Hacen `SystemExit` si
+falta `PROYECTO`, instancian clientes de API y llaman a `verificar_estado()`. No hace falta mover
+esas guardas a `main()`: `cargar_paso()` les prepara el entorno desde fuera y con eso basta —
+`chdir` a un temporal (sin sello, `verificar_estado()` vuelve sin abortar y ningún `open()`
+relativo toca el tema en curso), claves de API **falsas** (los clientes se instancian pero no
+llaman a nadie) y `pipeline/` en `sys.path` (por el `from estado import ...`). Se pueden correr
+**con un lote en marcha**.
 
 ⚠️ **`estado.py` escribe `.estado_actual` y `.costo_actual.json` relativos al directorio de
 trabajo**, o sea el estado del tema EN CURSO. `EnTmpDir` en

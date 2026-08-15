@@ -33,7 +33,7 @@ cosas falsas y no deben publicarse tal cual. Ver [P-02](#p-02).
 | ⚪ | [P-09b](#p-09b) | Automatizar la recogida de métricas por API |
 | ⚪ | [P-10](#p-10) | `publisher.py` sigue incompleto |
 | ⚪ | [P-18](#p-18) | La cabecera del paso 06 miente sobre su entrada |
-| 🟡 | [P-11](#p-11) | Tests: hecho `herramientas/` + `estado.py` (52), falta `pipeline/` |
+| ✅ | [P-11](#p-11) | ~~No hay tests~~ — 85 tests; queda ampliar a los pasos 03-06 |
 
 ---
 
@@ -348,23 +348,31 @@ reestructuró; su `CONFIG` apunta bien a `carrusel.txt`. Manda el `CONFIG`, pero
 archivo por primera vez va a buscar un contrato que ya no existe. Son dos líneas de comentario, y
 de paso conviene renombrar `parse_instagram_file()` — que además está duplicada, y gana la segunda.
 
-**P-11 · Tests: hechos `herramientas/` y `estado.py`, faltan los 8 pasos.**
+**P-11 · ✅ HECHO en lo esencial (15 ago) · 85 tests. Queda ampliar a los pasos 03-06.**
 
-✅ **Hecho el 15 ago:** `tests/` con **52 tests** de `unittest` (stdlib, sin red, ~0.05 s) sobre
-[10_metricas.py](herramientas/10_metricas.py), [11_reporte.py](herramientas/11_reporte.py) y
-[estado.py](pipeline/estado.py) — `comparar_lotes()`, `TIPO_METRICA`, el signo de la comparación,
-mediana vs promedio, la pegajosidad del lote, el índice a dos niveles, los decimales de Facebook,
-la fila de TikTok sin escapar, el sello del tema, los reintentos y **que todo modelo nombrado en
-`pipeline/` esté en `PRECIOS_OPENAI`** (hoy detecta `gpt-4.1` y `gpt-5.4`).
+`tests/` con **85 tests** de `unittest` (stdlib, sin red, ~0.07 s):
+
+| Archivo | Qué cubre |
+|---|---|
+| [test_reporte.py](tests/test_reporte.py) | `comparar_lotes()`, `TIPO_METRICA`, el signo de la comparación, mediana vs promedio, y que los nombres de lote del paso 10 y del 11 no diverjan |
+| [test_metricas.py](tests/test_metricas.py) | la pegajosidad del lote, el índice a dos niveles, los decimales de Facebook, la fila de TikTok sin escapar, la fusión que no pisa valores llenos |
+| [test_estado.py](tests/test_estado.py) | el sello del tema, los reintentos, y **que todo modelo nombrado en `pipeline/` esté en `PRECIOS_OPENAI`** (hoy detecta `gpt-4.1` y `gpt-5.4`) |
+| [test_pipeline.py](tests/test_pipeline.py) | `verificar_reglas_mecanicas()`, `sanear_valor_env()`, `separar_hashtags()`, `recortar_a_limite()`, `_truncar_titulo()`, `repartir_planos()`, `dispersar_planos()` |
 
 Se eligieron **por tipo de fallo, no por cobertura**: en el pipeline un error se nota —el tema
-aborta o el video sale mal—, pero aquí no se nota nada, el informe se genera igual y afirma lo
-contrario de lo que pasó. Verificados por mutación: desactivando cada mecanismo (pegajosidad del
-lote, glob a dos niveles, `vistas_por_dia` como tasa, signo invertido, media en vez de mediana),
-los tests correspondientes fallan.
+aborta o el video sale mal—, pero en las métricas no se nota nada, el informe se genera igual y
+afirma lo contrario de lo que pasó. **Verificados por mutación**: reintroduciendo cada bug
+(`grupos[-2] += grupos.pop()`, el voraz eligiendo el primer plano, `dispersar_planos: False`
+ignorado, `sanear_valor_env()` sin recolapsar, los absolutos como graves, la pegajosidad del lote,
+`vistas_por_dia` como tasa, el signo invertido, media en vez de mediana) fallan los tests que le
+tocan y solo esos.
 
-**Queda `pipeline/`:** `separar_hashtags()`, `repartir_planos()`, `dispersar_planos()`,
-`verificar_reglas_mecanicas()`, `sanear_valor_env()` y el parseo de `carrusel.txt` del paso 06.
+> ⚠️ **Corrección a lo que decía esta nota:** el obstáculo NO obliga a mover las guardas a
+> `main()`. Los pasos sí trabajan al importarse, pero eso se resuelve **desde fuera** — `chdir` a
+> un temporal, claves de API falsas y `pipeline/` en `sys.path` (ver `cargar_paso()`). No se
+> modificó ni una línea de `pipeline/`, y los tests corren **con un lote en marcha**.
+
+**Queda:** el parseo de `carrusel.txt` del paso 06 y las funciones de los pasos 03, 04 y 05.
 
 Lo que hay que saber antes de intentarlo: **el obstáculo no son los prefijos numéricos**
 (`importlib.import_module("02_…")` funciona), sino que **los pasos trabajan al importarse**. Basta
