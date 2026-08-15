@@ -30,6 +30,7 @@ Uso:
 import argparse
 import csv
 import json
+import re
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -287,6 +288,197 @@ def ids_publicados() -> dict[str, str]:
     return ids
 
 
+# ══════════════════════════════════════════════════════════════
+# 📊  MÉTRICAS POR VIDEO — lo que sustituye a descargar los 4 zips
+# ══════════════════════════════════════════════════════════════
+
+# Métricas del API → columnas de metricas.csv.
+# ⚠️ Dos columnas del export NO existen en la API y hay que seguir sacándolas
+# del CSV si se quieren: `se_quedaron_pct` ("Se quedaron para mirar", que es
+# específica de Shorts) y `alcance` (espectadores únicos por video). Por eso
+# esto REDUCE el trabajo manual, no lo elimina del todo. Ojo: `se_quedaron_pct`
+# es justo la métrica de P-12, así que si se sigue investigando, el export hace
+# falta.
+METRICAS_API = [
+    "views", "estimatedMinutesWatched", "averageViewDuration",
+    "averageViewPercentage", "likes", "comments", "shares",
+    "subscribersGained",
+]
+
+
+def _iso8601_a_segundos(iso: str) -> int | None:
+    """'PT1M14S' → 74. Es como la Data API devuelve la duración."""
+    m = re.fullmatch(r"P(?:(\d+)D)?T(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?", iso or "")
+    if not m:
+        return None
+    d, h, mi, s = (float(x) if x else 0 for x in m.groups())
+    return int(d * 86400 + h * 3600 + mi * 60 + s)
+
+
+def catalogo_de_videos(cred) -> dict[str, dict]:
+    """{video_id: {titulo, fecha_publicacion, duracion_s}} de todo el canal.
+
+    Sale de la Data API, no de Analytics: la duración y la fecha de publicación
+    son propiedades del video, no métricas.
+    """
+    _, data = servicios(cred)
+    canal = data.channels().list(part="contentDetails", mine=True).execute()
+    subidas = canal["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
+
+    ids, pagina = [], None
+    while True:
+        r = data.playlistItems().list(part="contentDetails", playlistId=subidas,
+                                      maxResults=50, pageToken=pagina).execute()
+        ids += [i["contentDetails"]["videoId"] for i in r.get("items", [])]
+        pagina = r.get("nextPageToken")
+        if not pagina:
+            break
+
+    catalogo = {}
+    # videos().list acepta 50 ids por llamada; en tandas para no pasarse.
+    for i in range(0, len(ids), 50):
+        r = data.videos().list(part="snippet,contentDetails",
+                               id=",".join(ids[i:i + 50])).execute()
+        for v in r.get("items", []):
+            catalogo[v["id"]] = {
+                "titulo": v["snippet"]["title"],
+                "fecha_publicacion": v["snippet"]["publishedAt"][:10],
+                "duracion_s": _iso8601_a_segundos(
+                    v["contentDetails"].get("duration", "")),
+            }
+    return catalogo
+
+
+def metricas_por_video(cred, desde: str = None, hasta: str = None) -> dict[str, dict]:
+    """{video_id: {metrica: valor}} acumulado en el periodo."""
+    analytics, _ = servicios(cred)
+    r = analytics.reports().query(
+        ids="channel==MINE",
+        startDate=desde or CONFIG["desde"],
+        endDate=hasta or date.today().isoformat(),
+        metrics=",".join(METRICAS_API),
+        dimensions="video",
+        sort="-views",
+        maxResults=200,
+    ).execute()
+
+    columnas = [c["name"] for c in r.get("columnHeaders", [])]
+    salida = {}
+    for fila in r.get("rows", []):
+        d = dict(zip(columnas, fila))
+        salida[d.pop("video")] = d
+    return salida
+
+
+def a_filas_de_metricas(catalogo: dict, metricas: dict, hoy: str) -> list[dict]:
+    """Pasa lo del API al esquema de metricas.csv.
+
+    Solo se incluyen los videos que tienen métricas: uno recién subido sin
+    ninguna vista no aporta una fila, aporta ruido.
+    """
+    filas = []
+    for vid, m in metricas.items():
+        info = catalogo.get(vid, {})
+        fila = {
+            "plataforma": "youtube",
+            "id_plataforma": vid,
+            "fecha_snapshot": hoy,
+            "titulo": " ".join((info.get("titulo") or "").split())[:90],
+            "fecha_publicacion": info.get("fecha_publicacion", ""),
+            "duracion_s": str(info["duracion_s"]) if info.get("duracion_s") else "",
+            "vistas": _n(m.get("views")),
+            "me_gusta": _n(m.get("likes")),
+            "comentarios": _n(m.get("comments")),
+            "compartidos": _n(m.get("shares")),
+            "seguidores_ganados": _n(m.get("subscribersGained")),
+            "duracion_media_s": _n(m.get("averageViewDuration")),
+            "retencion_pct": _n(m.get("averageViewPercentage"), 1),
+            "tiempo_total_h": _n(_div(m.get("estimatedMinutesWatched"), 60), 1),
+        }
+        filas.append(fila)
+    return filas
+
+
+def _n(v, decimales: int = 0) -> str:
+    if v is None:
+        return ""
+    return f"{float(v):.{decimales}f}" if decimales else f"{float(v):.0f}"
+
+
+def _div(v, d):
+    return None if v is None else float(v) / d
+
+
+def guardar_en_metricas(cred, dry_run: bool = False) -> None:
+    """Descarga y funde en metricas.csv **reusando el paso 10**.
+
+    ⚠️ No se reimplementa la fusión ni el emparejado a propósito. `fusionar()`
+    del paso 10 ya sabe lo que costó aprender: no pisar un valor lleno con uno
+    vacío, conservar las fotos de otros días, y que el `lote` se decide una vez
+    y no se degrada. Reescribir eso aquí sería tener dos versiones de las mismas
+    reglas y que una se quedara atrás.
+    """
+    met = _paso10()
+    cfg10 = met.CONFIG
+    hoy = date.today().isoformat()
+
+    print("📥 Leyendo el catálogo del canal…")
+    catalogo = catalogo_de_videos(cred)
+    print(f"   {len(catalogo)} videos")
+
+    print("📊 Pidiendo métricas…")
+    metricas = metricas_por_video(cred)
+    print(f"   {len(metricas)} con datos en el periodo")
+
+    filas = a_filas_de_metricas(catalogo, metricas, hoy)
+
+    # Emparejar con los PROYECTO, con la misma lógica que el paso 10.
+    indice = met.indice_proyectos(cfg10)
+    nuevos = met.proyectos_del_lote_nuevo(cfg10)
+    temas = met.temas_por_proyecto(cfg10)
+    # `asignar_uno_a_uno()` trabaja con los campos internos del paso 10.
+    for f in filas:
+        f["_texto"] = f["titulo"]
+        f["_id"] = f["id_plataforma"]
+    asignado, _ = met.asignar_uno_a_uno(filas, indice, cfg10["umbral_match"], {})
+    for i, f in enumerate(filas):
+        proyecto = asignado.get(i, "")
+        f["PROYECTO"] = proyecto
+        f["lote"] = cfg10["lote_nuevo"] if proyecto in nuevos else cfg10["lote_baseline"]
+        f["tema"] = temas.get(proyecto, "")
+        for interno in ("_texto", "_id"):
+            f.pop(interno, None)
+        met.calcular_retencion(f)
+
+    con_nombre = sum(1 for f in filas if f["PROYECTO"])
+    print(f"   {con_nombre} con PROYECTO reconocido · "
+          f"{len(filas) - con_nombre} sin él (anteriores al pipeline)")
+
+    ruta = Path(cfg10["salida"])
+    previas = met.leer_csv(ruta) if ruta.exists() else []
+    fundidas, nuevas_n, actualizadas = met.fusionar(previas, filas)
+    print(f"\n📊 {nuevas_n} filas nuevas · {actualizadas} actualizadas · "
+          f"{len(fundidas)} en total")
+
+    if dry_run:
+        print("🧪 --dry-run: no se escribió nada")
+        return
+    met.escribir(cfg10["salida"], fundidas)
+    print(f"✅ Guardado: {cfg10['salida']}")
+    print("\nℹ️  `se_quedaron_pct` y `alcance` NO los da la API: si los quieres,\n"
+          "   sigue descargando el export de YouTube. La fusión no los pisa.")
+
+
+def _paso10():
+    """Importa 10_metricas.py (el nombre empieza por dígito: no vale `import`)."""
+    import importlib.util
+    ruta = Path(__file__).with_name("10_metricas.py")
+    spec = importlib.util.spec_from_file_location("met10", ruta)
+    modulo = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(modulo)
+    return modulo
+
+
 #%% ══════════════════════════════════════════════════════════════
 #   CLI
 # ═══════════════════════════════════════════════════════════════
@@ -306,6 +498,10 @@ def main() -> None:
                    help="Curva de retención de un video")
     p.add_argument("--retencion-lote", action="store_true",
                    help="Curva de todos los videos que ya están en metricas.csv")
+    p.add_argument("--metricas", action="store_true",
+                   help="Descarga las métricas por video y las funde en metricas.csv")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Con --metricas: enseña qué haría sin escribir")
     args = p.parse_args()
 
     if not any(vars(args).values()):
@@ -322,6 +518,12 @@ def main() -> None:
 
     if args.canal:
         comprobar_canal(cred)
+        return
+
+    if args.metricas:
+        comprobar_canal(cred)
+        print()
+        guardar_en_metricas(cred, dry_run=args.dry_run)
         return
 
     if args.retencion:
