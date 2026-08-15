@@ -32,9 +32,28 @@ load_dotenv()
 # ── Config ────────────────────────────────────────────────────────────────────
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
 OPENVERSE_API = "https://api.openverse.org/v1/images/"
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; ImageBot/1.0"}
+HEADERS = {"User-Agent": "chistoricas-bot/1.0 (+https://youtube.com/@chistoricas3)"}
 DOWNLOAD_HEADERS = {**HEADERS, "Referer": "https://commons.wikimedia.org/"}
-DELAY = 7.0          # seconds between requests (be polite)
+
+# ── Espera entre peticiones ───────────────────────────────────────────────────
+# ⚠️ Antes había un solo DELAY = 7.0 para las dos fuentes, y este paso era el más
+# lento del pipeline con casi todo el tiempo DORMIDO. No son lo mismo:
+#
+#   · Wikimedia Commons es una API pública documentada. Lo que pide su política
+#     no es lentitud, es identificarse (de ahí el User-Agent de arriba, con
+#     contacto) y no paralelizar. En serie, 1.5 s entre peticiones sobra.
+#   · DuckDuckGo es scraping tolerado y el que bloquea de verdad. Ahí los 7 s
+#     se quedan como estaban.
+#
+# No es un ahorro teórico: `validar_con_vision()` rechaza mucho y cada rechazo
+# pagaba otra espera completa — 28 rechazos o fallos medidos en `Historia08`,
+# que a 7 s son más de 3 minutos dormidos en un solo tema.
+#
+# Bajar a 1.5 s es seguro porque la red ya existe: `search_commons()` y
+# `get_image_url()` reintentan con backoff de 10/20/30 s ante un 429. Si alguna
+# vez Wikimedia se queja, el paso se frena solo en vez de fallar.
+DELAY_WIKIMEDIA = 1.5
+DELAY_DDG = 7.0
 THUMB_WIDTH = 1200   # px – request a reasonably large thumbnail
 
 # ── Validación visual ─────────────────────────────────────────────────────────
@@ -305,7 +324,7 @@ def process(entries: list[tuple[str, str]], out_dir: Path) -> None:
             title = candidate["title"]
             if title in used_titles:   # ← agrega esto
                 continue
-            time.sleep(DELAY)
+            time.sleep(DELAY_WIKIMEDIA)
             url = get_image_url(title)
             if not url:
                 continue
@@ -317,7 +336,7 @@ def process(entries: list[tuple[str, str]], out_dir: Path) -> None:
                 # corresponde, se borra y se prueba con la siguiente candidata.
                 if not validar_con_vision(dest, query):
                     dest.unlink(missing_ok=True)
-                    time.sleep(DELAY)
+                    time.sleep(DELAY_WIKIMEDIA)
                     continue
 
                 size_kb = dest.stat().st_size // 1024
@@ -325,9 +344,10 @@ def process(entries: list[tuple[str, str]], out_dir: Path) -> None:
                 resize_for_social(dest)
                 downloaded = True
                 break
-            time.sleep(DELAY)
+            time.sleep(DELAY_WIKIMEDIA)
         
 
+        uso_ddg = not downloaded
         if not downloaded:
             print("  → Intentando DuckDuckGo (⚠ puede tener derechos)…")
             # Intenta primero con query completa, luego con las 2 primeras palabras
@@ -351,7 +371,10 @@ def process(entries: list[tuple[str, str]], out_dir: Path) -> None:
                 print("  ✗ No encontrado en ninguna fuente — "
                       "el video seguirá sin esta foto real")
 
-        time.sleep(DELAY)
+        # Pausa entre imágenes. Corre SIEMPRE, se haya usado DDG o no — por eso
+        # era el sitio donde más tiempo se perdía: 7 s por imagen aunque la foto
+        # hubiera salido de Wikimedia a la primera.
+        time.sleep(DELAY_DDG if uso_ddg else DELAY_WIKIMEDIA)
 
 
 

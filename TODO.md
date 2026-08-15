@@ -28,7 +28,7 @@ reusa tal cual como `temas.csv`.
 | ✅ | [P-02](#p-02) | ~~Guiones falsos publicados~~ — resuelto de raíz: la puerta aborta el tema |
 | ✅ | [P-04](#p-04) | ~~Calibrar la puerta~~ — hecho: `nota >= 6` y `dudosas <= 3`, 5 de 7 aprueban |
 | 🟠 | [P-12](#p-12) | `se_quedaron_pct` bajó — la única métrica que empeoró en v2 |
-| 🟡 | [P-19](#p-19) | `DELAY = 7.0` uniforme en el paso 05 — ~2-3 min/video dormidos |
+| ✅ | [P-19](#p-19) | ~~`DELAY` uniforme en el paso 05~~ — hecho: −2.7 min/tema, −19 min/lote |
 | ⚪ | [P-06](#p-06) | Paralelizar los temas — evaluado: no compensa todavía |
 | 🔵 | [P-17](#p-17) | Afinar el recordatorio con unas semanas de uso (ya funciona y está en cron) |
 | ✅ | [P-14](#p-14) | ~~`proyectos/T1/` anidado~~ — hecho: 43 filas de métricas recuperadas |
@@ -178,16 +178,20 @@ ElevenLabs, $0.012 (5%).
 | 6 → 5 imágenes | $0.031/video (12%) | 5 imágenes para 14 cortes empieza a repetirse |
 
 <a id="p-19"></a>
-**P-19 · `DELAY = 7.0` uniforme en el paso 05.**
-Se aplica igual a Wikimedia Commons (líneas 308, 320, 328) que a DuckDuckGo (354). **Wikimedia es
-una API pública documentada y el que bloquea es DDG**, así que ~1.5 s en el primero y 7 s en el
-segundo es razonable y educado.
+**P-19 · ✅ HECHO (15 ago) · `DELAY` separado por fuente en el paso 05.**
+`DELAY_WIKIMEDIA = 1.5` y `DELAY_DDG = 7.0`. Wikimedia es una API pública documentada cuya política
+pide identificarse y no paralelizar, no ir lento — y `search_commons()` / `get_image_url()` ya
+reintentaban con backoff de 10/20/30 s ante un 429, así que la red de seguridad ya existía.
+De paso se arregló el `User-Agent`, que tenía un **paréntesis sin cerrar** y se hacía pasar por
+`Mozilla/5.0`; ahora se identifica con contacto, que es lo que Wikimedia pide de verdad.
 
-No es un ahorro teórico: el filtro de visión rechaza mucho y cada rechazo cuesta otra espera de
-7 s. Medido en el log de `Historia08`, **28 rechazos o fallos** en un solo tema.
+**Hallazgo:** la espera del final del bucle no era «la de DuckDuckGo» como decía esta nota. Es la
+pausa **entre imágenes** y corría siempre, se hubiera usado DDG o no — 7 s por imagen aunque la
+foto saliera de Wikimedia a la primera. Ahora mira `uso_ddg` para elegir cuál aplicar.
 
-Es la palanca de tiempo con mejor relación esfuerzo/riesgo que queda, y **la alternativa barata a
-[P-06](#p-06)**: gana un tercio de lo mismo tocando una constante en vez de reescribir el lote.
+Medido sobre los 7 temas de agosto (26.1 esperas de Wikimedia y 6 imágenes de media por tema):
+el paso pasa de **3.7 a 1.0 min dormido → −2.7 min por tema, −19 min por lote de 7**.
+Probado contra la API real con el `User-Agent` nuevo: 8 peticiones en 10.2 s, ningún 429.
 
 <a id="p-06"></a>
 **P-06 · Paralelizar los temas — evaluado el 15 ago: NO compensa todavía.**

@@ -254,9 +254,18 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
   (900) limita el prompt recortando **solo la escena**: el estilo base y el contexto van siempre completos.
   Limpia `images_IA/*.png` antes de generar.
 - **05** — Busca primero en Wikimedia Commons (libre), y si falla cae a DuckDuckGo Images
-  (⚠ posibles derechos de autor). `DELAY = 7.0s` entre requests para no ser bloqueado, así que este paso
-  es el más lento del pipeline. Cada imagen se recorta a 1080×1080 sobrescribiendo el original. Vacía
-  `source_images/` (jpg, jpeg, png, webp) antes de descargar.
+  (⚠ posibles derechos de autor). Cada imagen se recorta a 1080×1080 sobrescribiendo el original.
+  Vacía `source_images/` (jpg, jpeg, png, webp) antes de descargar.
+  ⚠️ **La espera está separada por fuente y no es lo mismo una que otra** (P-19, 15 ago):
+  `DELAY_WIKIMEDIA = 1.5` y `DELAY_DDG = 7.0`. Wikimedia es una API pública documentada —lo que
+  pide su política es identificarse (el `User-Agent` lleva contacto) y no paralelizar, no ir
+  lento— y además `search_commons()` / `get_image_url()` ya reintentan con backoff de 10/20/30 s
+  ante un 429, así que si se queja el paso se frena solo. DuckDuckGo es scraping tolerado y es el
+  que bloquea de verdad: ahí siguen los 7 s.
+  ⚠️ **La pausa del final del bucle es entre IMÁGENES, no de DuckDuckGo**, y corre se haya usado
+  DDG o no — era donde más tiempo se perdía. Por eso mira `uso_ddg` para elegir cuál aplicar.
+  Medido sobre los 7 temas de agosto (26 esperas de Wikimedia y 6 imágenes de media): el paso
+  pasa de **3.7 a 1.0 minutos dormido**, o sea **−2.7 min por tema y −19 min por lote de 7**.
   **`validar_con_vision()`** mira cada imagen descargada con `gpt-4.1` y la descarta si no corresponde
   a la query, probando con la siguiente candidata (`is_relevant()` solo miraba título y URL, y dejaba
   pasar fotos sin ninguna relación). Ante cualquier fallo acepta la foto: es filtro de calidad, no
