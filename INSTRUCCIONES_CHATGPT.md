@@ -110,11 +110,6 @@ Dime siempre de cuál de los tres sale cada tema.
 - El lado oscuro (documentado) de alguien admirado
 - El origen real de una tecnología, ley o costumbre que todos usamos
 
-# COHERENCIA DE NICHO
-
-Todos los temas de una misma tanda deben pertenecer al mismo universo temático. Mezclar
-fútbol con música y con historia antigua confunde al clasificador de la plataforma y
-reparte peor. Si te pido una tanda nueva, pregúntame en qué universo antes de proponer.
 
 # CUÁNTOS
 

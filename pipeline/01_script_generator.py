@@ -108,8 +108,20 @@ CONFIG = {
     "critico_max_tokens": 4096,
 
     # ── Bucle de calidad ──────────────────────────────────────
-    "intentos_max": 3,          # generación + crítica por intento
-    "nota_minima": 7,           # 0-10, por debajo se reescribe
+    # 2 y no 3: con la puerta vieja el bucle no salía nunca antes de tiempo, y
+    # el tercer intento pagaba una crítica de $0.029 para nada. Súbelo si ves
+    # que muchos temas se quedan a un intento de pasar.
+    "intentos_max": 2,          # generación + crítica por intento
+
+    # ⚠️ PROVISIONALES, calibrados con UNA medición (gpt-5.4 sobre el faro de
+    # Eddystone: 6/10 con 2 dudosas). El 7 anterior venía del crítico gpt-4.1,
+    # que puntúa entre 3 y 4 puntos más alto que Opus sobre el mismo texto, así
+    # que era inalcanzable. Reajústalos con la distribución del próximo lote:
+    # `python -c "import json,glob;print(sorted((json.load(open(p))['nota'],
+    #  len(json.load(open(p))['afirmaciones_dudosas'])) for p in
+    #  glob.glob('proyectos/*/calidad_guion.json')))"`
+    "nota_minima": 6,           # 0-10, por debajo se reescribe
+    "dudosas_max": 2,           # afirmaciones dudosas toleradas para aprobar
     # Si ningún intento pasa: False = usa el mejor con aviso ruidoso,
     # True = aborta el tema. Abortar aquí es barato (el paso 01 es el primero,
     # no hay nada pagado todavía) pero corta el lote de run_all.sh.
@@ -708,7 +720,17 @@ def escribir_guion_con_control(tema: str, cfg: dict = CONFIG) -> str:
         for p in leves:
             print(f"   · {p}")
 
-        pasa = (not graves) and (not dudosas) and nota >= cfg["nota_minima"]
+        # ⚠️ La puerta NO decide si se publica —eso es manual, ver P-02— sino
+        # cuándo dejar de pagar reintentos. Por eso tolera dudosas: exigir cero
+        # con el crítico de Anthropic es exigir lo imposible (las encuentra en
+        # los 8 guiones medidos, incluido el mejor), y el bucle acababa
+        # quemando todos los intentos siempre, escribiera quien escribiera.
+        # Las dudosas quedan igualmente en calidad_guion.json para revisarlas.
+        pasa = (
+            not graves
+            and len(dudosas) <= cfg["dudosas_max"]
+            and nota >= cfg["nota_minima"]
+        )
 
         if nota_final > mejor_nota:
             mejor, mejor_nota = script, nota_final
