@@ -55,11 +55,16 @@ CONFIG = {
 TOKEN = os.getenv("META_ACCESS_TOKEN", "").strip()
 
 
-def _graph(ruta: str, **params) -> dict:
+def _graph(ruta: str, tolerar_error: bool = False, **params) -> dict:
     """GET contra la Graph API con el token puesto y los errores legibles.
 
     ⚠️ Meta devuelve los errores con HTTP 400 y el detalle en el cuerpo, así que
     `raise_for_status()` a secas pierde justo lo que dice qué falta.
+
+    `tolerar_error=True` devuelve `{"_error": "..."}` en vez de abortar. Lo usa
+    el diagnóstico: **su trabajo es funcionar cuando faltan permisos**, que es
+    justo cuando más falta hace. Abortando en la primera llamada que falla se
+    perdía todo lo que sí se podía averiguar con los permisos que ya había.
     """
     params["access_token"] = TOKEN
     r = requests.get(f"{CONFIG['graph']}/{CONFIG['api']}/{ruta.lstrip('/')}",
@@ -67,12 +72,12 @@ def _graph(ruta: str, **params) -> dict:
     datos = r.json()
     if "error" in datos:
         e = datos["error"]
-        raise SystemExit(
-            f"❌ Meta respondió con un error en /{ruta}:\n"
-            f"   {e.get('message')}\n"
-            f"   tipo {e.get('type')} · código {e.get('code')}"
-            + (f" · subcódigo {e['error_subcode']}" if e.get("error_subcode") else "")
-        )
+        detalle = (f"{e.get('message')} (tipo {e.get('type')}, código {e.get('code')}"
+                   + (f", subcódigo {e['error_subcode']}" if e.get("error_subcode") else "")
+                   + ")")
+        if tolerar_error:
+            return {"_error": detalle}
+        raise SystemExit(f"❌ Meta respondió con un error en /{ruta}:\n   {detalle}")
     return datos
 
 
@@ -101,7 +106,12 @@ def diagnostico() -> dict:
     hallado = {}
 
     # 1 · Qué es este token y cuándo caduca
-    info = _graph("debug_token", input_token=TOKEN).get("data", {})
+    resp_token = _graph("debug_token", tolerar_error=True, input_token=TOKEN)
+    if "_error" in resp_token:
+        print(f"🔑 Token: no se pudo inspeccionar\n   {resp_token['_error']}")
+        info = {}
+    else:
+        info = resp_token.get("data", {})
     tipo = info.get("type", "?")
     expira = info.get("expires_at", 0)
     print(f"🔑 Token de tipo {tipo}, app {info.get('app_id', '?')}")
@@ -118,7 +128,8 @@ def diagnostico() -> dict:
                   "      la sección de páginas de abajo.")
 
     # 2 · Permisos: los que hay contra los que hacen falta
-    concedidos = {p["permission"] for p in _graph("me/permissions").get("data", [])
+    perms = _graph("me/permissions", tolerar_error=True)
+    concedidos = {p["permission"] for p in perms.get("data", [])
                   if p.get("status") == "granted"}
 
     # ⚠️ Meta partió la API de Instagram en dos caminos que NO son intercambiables:
@@ -149,28 +160,38 @@ def diagnostico() -> dict:
               f"   genera el token otra vez.")
 
     # 3 · Páginas de Facebook y su token (el que NO caduca)
-    paginas = _graph("me/accounts", fields="id,name,access_token").get("data", [])
-    print(f"\n📘 Páginas de Facebook: {len(paginas)}")
+    resp = _graph("me/accounts", tolerar_error=True, fields="id,name,access_token")
+    if "_error" in resp:
+        print(f"\n📘 Páginas de Facebook: no se pudieron leer")
+        print(f"   {resp['_error']}")
+        paginas = []
+    else:
+        paginas = resp.get("data", [])
+        print(f"\n📘 Páginas de Facebook: {len(paginas)}")
     for pg in paginas:
         print(f"   · {pg['name']}  →  FACEBOOK_PAGE_ID={pg['id']}")
     if len(paginas) == 1:
         hallado["FACEBOOK_PAGE_ID"] = paginas[0]["id"]
         hallado["_token_pagina"] = paginas[0].get("access_token", "")
-    elif not paginas:
-        print("   ❌ Ninguna. El token no tiene `pages_show_list`, o la cuenta no\n"
-              "      administra ninguna página.")
+    elif not paginas and "_error" not in resp:
+        print("   ❌ Ninguna. La cuenta no administra ninguna página, o el token no\n"
+              "      tiene `pages_show_list`.")
 
     # 4 · Cuenta de Instagram vinculada a cada página
     print(f"\n📸 Cuentas de Instagram:")
     encontradas = []
     for pg in paginas:
-        d = _graph(f"{pg['id']}", fields="instagram_business_account{id,username}")
+        d = _graph(f"{pg['id']}", tolerar_error=True,
+                   fields="instagram_business_account{id,username}")
+        if "_error" in d:
+            print(f"   · «{pg['name']}»: {d['_error'][:90]}")
+            continue
         ig = d.get("instagram_business_account")
         if ig:
             encontradas.append(ig)
             print(f"   · @{ig.get('username', '?')} en «{pg['name']}»  →  "
                   f"INSTAGRAM_ACCOUNT_ID={ig['id']}")
-    if not encontradas:
+    if not encontradas and paginas:
         print("   ❌ Ninguna vinculada.\n"
               "      La cuenta de Instagram tiene que ser **Empresa o Creador** y estar\n"
               "      vinculada a la página de Facebook. Con cuenta personal no hay API.")
@@ -189,7 +210,18 @@ def diagnostico() -> dict:
             print(f"   META_ACCESS_TOKEN={hallado['_token_pagina']}")
 
     listo = not faltan and "FACEBOOK_PAGE_ID" in hallado and "INSTAGRAM_ACCOUNT_ID" in hallado
-    print(f"\n{'✅ Todo listo.' if listo else '⚠️  Falta algo de lo de arriba.'}")
+    if listo:
+        print("\n✅ Todo listo: ya se pueden leer métricas y publicar.")
+    elif not faltan:
+        print("\n⚠️  Los permisos están, pero falta descubrir algún ID (mira arriba).")
+    else:
+        solo_lectura = [p for p in faltan if p not in CONFIG["permisos_solo_publicar"]]
+        if solo_lectura:
+            print(f"\n⚠️  Faltan {len(faltan)} permiso(s). Con los que hay todavía no se\n"
+                  f"   pueden leer las métricas.")
+        else:
+            print("\n✅ Suficiente para LEER MÉTRICAS. Lo que falta es solo para publicar,\n"
+                  "   así que se puede seguir con P-09b y dejar P-10 para después.")
     return hallado
 
 
