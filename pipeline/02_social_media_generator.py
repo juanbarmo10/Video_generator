@@ -304,6 +304,11 @@ ARCHIVO_CARRUSEL = "carrusel.txt"          # insumo del paso 06
 # garantiza el límite es Python: a un LLM no se le pide que cuente caracteres.
 LIMITE_DESCRIPCION_LARGA = 1999
 
+# Tope del título de YouTube. Pasado eso, la búsqueda lo corta con puntos
+# suspensivos: lo que sobra no se ve feo, no se ve. Mismo reparto de
+# responsabilidad que arriba — el prompt lo pide, `acortar_titulo()` lo cumple.
+LIMITE_TITULO = 70
+
 
 def separar_hashtags(texto: str) -> tuple[str, str]:
     """Parte la descripción general en (cuerpo, hashtags).
@@ -340,6 +345,106 @@ def _cortar_en_frase(texto: str, espacio: int) -> str:
         return texto
     corte = max(texto.rfind(s, 0, espacio + 1) for s in (". ", "! ", "? ", "… "))
     return texto[:corte + 1].strip() if corte > 0 else ""
+
+
+def _truncar_titulo(titulo: str, limite: int) -> str:
+    """Último recurso: corta el título sin partir una palabra por la mitad.
+
+    Prefiere cortar en un límite de cláusula (`:` `—` `,`) porque estos títulos
+    tienen forma "Entidad: gancho" y quedarse con la entidad sola es mejor que
+    dejar el gancho a medias. Si no hay ninguno, corta en la última palabra.
+    """
+    if len(titulo) <= limite:
+        return titulo
+
+    for marca in (": ", " — ", " - ", ", "):
+        corte = titulo.rfind(marca, 0, limite + 1)
+        if corte > limite // 2:            # que no deje un muñón de dos palabras
+            return titulo[:corte].strip()
+
+    corte = titulo.rfind(" ", 0, limite + 1)
+    recortado = titulo[:corte] if corte > 0 else titulo[:limite]
+
+    # Quita las palabras vacías del final: cortar por longitud deja títulos que
+    # acaban en "que Cambió la" o "ante los ojos del", y eso se lee como un
+    # error, no como un título corto.
+    COLGANTES = {"el", "la", "los", "las", "un", "una", "unos", "unas", "de",
+                 "del", "al", "a", "en", "con", "por", "para", "y", "e", "o",
+                 "u", "que", "su", "sus", "tras", "sobre", "entre", "desde"}
+    palabras = recortado.split()
+    while len(palabras) > 2 and palabras[-1].lower().strip(",;:") in COLGANTES:
+        palabras.pop()
+
+    return " ".join(palabras).rstrip(" ,;:—-").strip()
+
+
+def acortar_titulo(titulo: str, limite: int = LIMITE_TITULO) -> str:
+    """Deja el título de YouTube dentro del límite.
+
+    YouTube corta el título en los resultados de búsqueda pasados ~70
+    caracteres, así que lo que sobra no es que se vea feo: no se ve.
+
+    Dos capas, como en el resto del proyecto: **el modelo lo intenta y Python
+    lo garantiza.** A un LLM no se le pide que cuente caracteres —lo hace mal y
+    cobra por hacerlo mal—, pero sí sabe reescribir sin perder el gancho, que
+    es justo lo que un truncado no puede hacer.
+
+    1. Una llamada barata (solo el título, ~40 tokens) pidiendo acortar.
+    2. Si aun así se pasa, `_truncar_titulo()` corta en un límite de cláusula.
+
+    Solo cuesta cuando hace falta: si el título ya cabe, no llama a nada.
+    """
+    titulo = " ".join(titulo.split())
+    if len(titulo) <= limite:
+        return titulo
+
+    print(f"  ✂️  Título de {len(titulo)}/{limite} caracteres — pidiendo uno más corto")
+
+    propuesta = ""
+    for intento in range(1, 3):
+        # El segundo intento le dice en qué falló el primero, igual que hace la
+        # reescritura del paso 01. Hace falta cuando la propia entidad es larga
+        # ("Santísima Trinidad y Nuestra Señora del Buen Fin" son 47 caracteres):
+        # sin permiso explícito, el modelo no la toca y no hay forma de que quepa.
+        extra = ""
+        if intento > 1:
+            extra = (f"\n\nTu propuesta anterior seguía midiendo {len(propuesta)} "
+                     f"caracteres:\n{propuesta}\n"
+                     "Sé más agresivo. Si el nombre propio es muy largo, usa su "
+                     "forma corta o común.")
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4.1",
+                messages=[
+                    {"role": "system", "content": (
+                        "Acortas títulos de YouTube. Devuelves SOLO el título nuevo, "
+                        "sin comillas ni explicaciones."
+                    )},
+                    {"role": "user", "content": (
+                        f"Este título mide {len(titulo)} caracteres y el máximo son "
+                        f"{limite}:\n\n{titulo}\n\n"
+                        f"Reescríbelo en {limite - 5} caracteres o menos. "
+                        "Conserva la entidad principal al inicio (es la señal que lee "
+                        "el algoritmo) y la curiosidad. No reveles el desenlace. "
+                        "Quita adjetivos y subordinadas antes que datos." + extra
+                    )},
+                ],
+                max_tokens=60,
+            )
+            registrar_openai(response, "gpt-4.1", "acortar título")
+            propuesta = " ".join(response.choices[0].message.content.split()).strip('"')
+        except Exception as error:
+            print(f"  ⚠️  No se pudo acortar con el modelo ({error}); se trunca")
+            break
+
+        if len(propuesta) <= limite:
+            print(f"  ✓ Título acortado a {len(propuesta)} caracteres "
+                  f"(intento {intento})")
+            return propuesta
+
+    final = _truncar_titulo(propuesta or titulo, limite)
+    print(f"  ✂️  Truncado a {len(final)} caracteres: '{final}'")
+    return final
 
 
 def recortar_a_limite(descripcion: str, hashtags: str, limite: int) -> str:
@@ -398,10 +503,12 @@ def escribir_descripcion(ruta: str, general: str, detallada: dict) -> None:
     titulo = detallada.get("titulo", "")
     cuerpo_general, hashtags = separar_hashtags(general)
 
-    # YouTube corta el título en la búsqueda pasados ~70 caracteres. El modelo
-    # se pasa de vez en cuando, así que se avisa en vez de truncar a ciegas.
-    if len(titulo) > 70:
-        print(f"⚠️  El título tiene {len(titulo)}/70 caracteres — acórtalo a mano")
+    # El título ya viene acortado de `save_posts()`, que es quien lo hace una
+    # sola vez para que `descripcion.txt` y `metadata.json` no se contradigan.
+    # Esta guarda es por si alguien llama a esta función suelta.
+    if len(titulo) > LIMITE_TITULO:
+        print(f"⚠️  El título mide {len(titulo)}/{LIMITE_TITULO} caracteres "
+              f"— YouTube lo cortará en la búsqueda")
     if not hashtags:
         print("⚠️  La descripción general vino sin hashtags — revísala a mano")
 
@@ -421,7 +528,7 @@ def escribir_descripcion(ruta: str, general: str, detallada: dict) -> None:
         f.write(f"{cuerpo}\n\n\n")
 
     with open(ruta, "w", encoding="utf-8") as f:
-        seccion(f, f"TÍTULO ({len(titulo)}/70 caracteres)", titulo)
+        seccion(f, f"TÍTULO ({len(titulo)}/{LIMITE_TITULO} caracteres)", titulo)
         # El pie del reel va arriba: es lo que más se copia al programar.
         seccion(f, "DESCRIPCIÓN GENERAL (pie del reel — las 4 redes)",
                 f"{cuerpo_general}\n\n{hashtags}" if hashtags else cuerpo_general)
@@ -439,6 +546,13 @@ def guardar_descripciones(general: str, detallada: dict, carrusel: str,
                           research: str, output_dir="social_posts") -> None:
     """Escribe el archivo publicable único + los insumos internos."""
     os.makedirs(output_dir, exist_ok=True)
+
+    # ⚠️ El título se acorta AQUÍ, una sola vez, antes de escribir nada. Salen
+    # por dos caminos —`descripcion.txt`, que es lo que copias, y
+    # `metadata.json`, de donde lo lee el paso 09— y si se acortara solo al
+    # escribir el primero, el mismo video tendría dos títulos distintos según
+    # dónde lo mires. El paso 10 además empareja las métricas por ese texto.
+    detallada["titulo"] = acortar_titulo(detallada.get("titulo", ""), LIMITE_TITULO)
 
     escribir_descripcion(f"{output_dir}/{ARCHIVO_DESCRIPCION}", general, detallada)
     print(f"✅ Guardado: {output_dir}/{ARCHIVO_DESCRIPCION}")

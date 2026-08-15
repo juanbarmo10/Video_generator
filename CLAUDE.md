@@ -148,6 +148,18 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
   salvando del resto las frases que quepan. A nivel de párrafo entero se perdían 490 chars para
   ahorrar 53; por frases se pierden ~150.
 
+  **`LIMITE_TITULO = 70`** funciona igual, pero al revés de lo que uno esperaría: aquí **sí** se
+  vuelve a llamar al modelo. `acortar_titulo()` le pide que reescriba (hasta 2 intentos, el segundo
+  diciéndole cuánto se pasó) y solo si aun así no cabe trunca con `_truncar_titulo()`. Es que un
+  título recortado a machete pierde el gancho, que es justo lo que hace que lo cliqueen; reescribir
+  es lo único que lo conserva. **Python sigue siendo el que garantiza el límite.**
+  Solo cuesta cuando hace falta: si el título ya cabe, no llama a nada. Medido sobre los 8 primeros
+  temas, se pasaban 4 (entre 1 y 12 caracteres).
+  ⚠️ **Se acorta en `guardar_descripciones()`, no al escribir el archivo.** El título sale por dos
+  caminos —`descripcion.txt` y `metadata.json`— y acortarlo solo en uno dejaba el mismo video con
+  dos títulos distintos según dónde miraras. El paso 09 lee el de `metadata.json` y el paso 10
+  empareja métricas por ese texto.
+
   El resto de `social_posts/` son **insumos internos, no textos para copiar y pegar**:
   `carrusel.txt` (paso 06), `images_to_download.txt` (paso 05, formato `img_N.jpg → query`),
   `00_investigacion.txt` y `metadata.json` (de ahí saca el paso 09 el título sin parsear prosa).
@@ -203,6 +215,17 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
   - **`repartir_planos()` decide los cortes**, no un número fijo: cada imagen se parte en varios
     encuadres (`crear_planos_de_imagen()` + `ENCUADRES`) hasta acercarse a `duracion_plano_objetivo`
     (1.8s). Ojo: la cantidad de imágenes varía porque las fotos reales suman a la secuencia.
+  - **`dispersar_planos()` decide el ORDEN**, y es lo que hace que esos cortes se noten. Antes la
+    secuencia era `A1 A2 B1 B2`: dos encuadres seguidos de la misma imagen, que el ojo lee como
+    zoom y no como corte. Medido sobre un reparto real, **8 de 13 transiciones eran la misma
+    imagen; ahora son 0**. Cuesta cero: no genera más imágenes.
+    ⚠️ **No baraja, intercala dentro de una ventana** (`ventana_dispersion`, 2). Las imágenes
+    vienen en orden narrativo del paso 04 —la 1 ilustra la primera frase y la última el
+    desenlace—, así que un barajado global pondría el final en el segundo 3. Con 2, una imagen se
+    adelanta o atrasa un plano (~1.8s). Subirlo a 3 lleva el desfase a ~4s.
+    El primer plano del video es **siempre** la imagen 1: el voraz abriría por la segunda si
+    esa tiene más planos, y el frame 0 es el que lleva el título. Se apaga con
+    `dispersar_planos: False`, que restaura el orden clásico — útil para comparar (P-12).
   - **Mezcla fotos reales** de `source_images/` (`preparar_fotos_reales()` las convierte de 1080×1080
     a 9:16 con fondo desenfocado, cacheadas en `.cache_fotos_reales/`).
   - El título dura `title_duration` (2.5s) y se va con fade; el CTA va **encima** de la última frase.

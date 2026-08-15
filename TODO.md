@@ -21,10 +21,8 @@ programarlos**.
 | | # | Pendiente |
 |---|---|---|
 | 🔴 | [P-02](#p-02) | 7 de 8 guiones no pasaron el control de calidad (el problema entró por `temas.csv`) |
-| 🟠 | [P-03](#p-03) | Títulos de YouTube por encima de 70 caracteres |
 | 🟠 | [P-04](#p-04) | El crítico de Anthropic nunca se ha ejecutado |
 | 🟠 | [P-12](#p-12) | `se_quedaron_pct` bajó — la única métrica que empeoró en v2 |
-| 🟠 | [P-15](#p-15) | Los planos de una misma imagen salen consecutivos: se perciben la mitad de los cortes |
 | 🟡 | [P-05](#p-05) | Composite del paso 07 sin `bg_color` — hallazgo sin confirmar |
 | 🟡 | [P-06](#p-06) | Paralelizar los temas (bloqueado por el estado global de la raíz) |
 | 🔵 | [P-17](#p-17) | Afinar el recordatorio con unas semanas de uso (ya funciona y está en cron) |
@@ -67,13 +65,6 @@ temas del próximo lote con esas instrucciones, y no publicar los 5 sin leerlos.
 
 ## 🟠 Calidad del producto
 
-<a id="p-03"></a>
-**P-03 · Títulos de YouTube por encima de 70 caracteres.**
-4 de 8 (`Historia01` 77, `Historia03` 71, `Historia05` 74, `Historia07` 74). El paso 02 avisa
-pero no corrige, así que salen igual y YouTube los recorta en la búsqueda. Opciones: reintentar
-la llamada pidiendo acortar, o cortar en el último límite de palabra que quepa. Reintentar es
-mejor — truncar deja títulos que terminan a media idea.
-
 <a id="p-04"></a>
 **P-04 · El crítico de Anthropic nunca se ha ejecutado.**
 No hay `ANTHROPIC_API_KEY` en el `.env`, así que `critico_proveedor: "auto"` siempre cayó a
@@ -103,40 +94,11 @@ pero ya no dice el desenlace, que es lo que retenía a quien buscaba respuesta r
 YouTube Studio (dimensión `elapsedVideoTimeRatio`; es lo único que ningún export masivo trae).
 Si la caída está en 0–2 s es el gancho; si está en 3–6 s es el ritmo del primer corte.
 
-<a id="p-15"></a>
-**P-15 · Los planos de una misma imagen salen consecutivos: dispersarlos.**
-Hoy `create_video()` recorre las imágenes en orden y, por cada una, encadena todos sus sub-planos
-seguidos. Con 8 imágenes × ~2 planos la secuencia real es:
-
-```
-A1 A2  B1 B2  C1 C2  D1 D2 …          ← lo que se ve ahora
-```
-
-Los dos primeros cortes son **la misma ilustración con otro encuadre**. El ojo lo lee como "zoom
-sobre lo mismo", no como corte nuevo, así que la mitad de los cortes que cuenta
-`repartir_planos()` no se perciben como tales. Intercalándolos:
-
-```
-A1 B1  A2 B2  C1 D1  C2 D2 …          ← misma duración, el doble de cortes percibidos
-```
-
-Es gratis: no cambia el número de imágenes ni el costo de fal, solo el orden de los clips en el
-bucle de [07_video_generator.py](pipeline/07_video_generator.py) (`plano_global`, ~línea 545).
-
-⚠️ **No barajar al azar, y esto es lo importante.** Las 6 imágenes las genera el paso 04 **en orden
-narrativo**, a partir de las escenas del guion: la imagen 1 ilustra la primera frase y la 6 el
-desenlace. Un shuffle global pondría el desenlace en el segundo 3 y rompería la sincronía entre lo
-que se oye y lo que se ve — que es peor que el problema que resuelve. Lo que hay que hacer es
-**intercalar dentro de una ventana corta** (pares o tríos de imágenes vecinas), conservando el
-avance general.
-
-Ojo también con `intercalar_fotos_reales()`: las fotos reales se colocan en posiciones concretas
-(`fotos_reales_solo_extremos`) y el reordenado tiene que respetarlas o se pierde el contraste
-buscado entre ilustración y foto de archivo.
-
-**Cómo saber si funcionó:** es una hipótesis sobre ritmo percibido, así que se mide con
-`se_quedaron_pct` y con la curva de retención de los 3-6 s — la misma medición de [P-12](#p-12),
-con la que conviene coordinarlo para no cambiar dos cosas a la vez y no poder atribuir el efecto.
+⚠️ **Ojo con lo que se mide ahora.** El lote que venga ya llevará los planos dispersados (P-15,
+hecho el 15 ago), que cambia el ritmo percibido a propósito. Si `se_quedaron_pct` sube, no habrá
+forma de saber si fue eso o el gancho. Si quieres separarlo, genera un par de temas con
+`dispersar_planos: False` en el `CONFIG` del paso 07 y compáralos — es un interruptor, no hay que
+tocar código.
 
 ---
 

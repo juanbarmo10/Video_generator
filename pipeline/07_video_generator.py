@@ -163,6 +163,22 @@ CONFIG = {
     # Override manual: None = automático. Poner 1 restaura el comportamiento
     # anterior (un plano por imagen, sin sub-planos).
     "planos_por_imagen": None,
+
+    # Dispersar los planos para que dos encuadres de la MISMA imagen no salgan
+    # seguidos. Antes la secuencia era "A1 A2 B1 B2": los dos primeros cortes
+    # eran la misma ilustración movida, y el ojo lo lee como zoom, no como corte
+    # nuevo — o sea que la mitad de los cortes que cuenta repartir_planos() no
+    # se percibían. Intercalados quedan "A1 B1 A2 B2": misma duración, el doble
+    # de cortes percibidos, y cero costo extra (no genera más imágenes).
+    "dispersar_planos": True,
+    # ⚠️ Cuántas imágenes VECINAS se mezclan entre sí. NO se baraja todo: el
+    # paso 04 genera las imágenes en orden narrativo (la 1 ilustra la primera
+    # frase y la última el desenlace), así que un barajado global pondría el
+    # final en el segundo 3 y rompería la sincronía con la voz. Con 2, una
+    # imagen puede adelantarse o atrasarse un plano (~1.8s) y nada más. Subirlo
+    # a 3 da más variedad, pero el desfase llega a ~4s: no lo subas sin mirar
+    # un video entero.
+    "ventana_dispersion": 2,
     # Escala mínima de los recortes. Ojo: 0.75 significa ampliar la imagen un
     # 33% extra. Con fuentes de 720x1280 no bajes de 0.85 o se ve pixelado.
     "recorte_escala_min": 0.85,
@@ -453,6 +469,75 @@ def repartir_planos(n_images: int, total_duration: float, cfg: dict) -> list[int
     return reparto
 
 
+def dispersar_planos(planos_por_img: list[int], cfg: dict) -> list[tuple[int, int]]:
+    """Ordena los planos para que dos de la misma imagen no salgan seguidos.
+
+    Devuelve la secuencia como pares `(imagen, plano)`. Sin esto, el bucle de
+    `create_video()` emitía todos los planos de una imagen antes de pasar a la
+    siguiente:
+
+        A1 A2  B1 B2  C1 C2 …     ← el ojo lee "zoom sobre lo mismo"
+        A1 B1  A2 B2  C1 D1 …     ← lo lee como cortes de verdad
+
+    ⚠️ **No baraja: intercala dentro de una ventana corta.** Las imágenes vienen
+    en orden narrativo desde el paso 04, así que solo se mezclan vecinas
+    (`ventana_dispersion`). El avance general se conserva; una imagen puede
+    adelantarse o atrasarse un plano, no más.
+
+    Dentro de cada ventana usa un voraz clásico: en cada hueco elige la imagen
+    con más planos pendientes que NO sea la anterior. Eso evita el "A1 B1 A2 B2
+    B3" que deja un simple round-robin cuando una imagen tiene más planos que
+    sus vecinas.
+    """
+    n = len(planos_por_img)
+    if not cfg.get("dispersar_planos", True) or n < 2:
+        # Orden clásico: todos los planos de cada imagen, seguidos.
+        return [(i, k) for i in range(n) for k in range(planos_por_img[i])]
+
+    ventana = max(2, int(cfg.get("ventana_dispersion", 2)))
+
+    # Cortes de las ventanas. Si la última quedara con una sola imagen, se
+    # fusiona con la anterior: una ventana de 1 no puede intercalar nada y
+    # devolvería justo el "A1 A2" que venimos a quitar.
+    grupos = [list(range(i, min(i + ventana, n))) for i in range(0, n, ventana)]
+    if len(grupos) > 1 and len(grupos[-1]) == 1:
+        # ⚠️ En dos pasos, no `grupos[-2] += grupos.pop()`: en esa forma Python
+        # evalúa el pop ANTES de asignar, así que el -2 ya apunta a otro grupo y
+        # el resultado se escribía encima del anterior, duplicando unas imágenes
+        # y perdiendo otras. Con 5 imágenes se comía las dos primeras.
+        suelto = grupos.pop()
+        grupos[-1] += suelto
+
+    orden: list[tuple[int, int]] = []
+    for grupo in grupos:
+        pendientes = {i: planos_por_img[i] for i in grupo}
+        usados = {i: 0 for i in grupo}
+        anterior = None
+
+        while any(pendientes.values()):
+            elegibles = [i for i in grupo if pendientes[i] > 0 and i != anterior]
+            # Si el único que queda es el anterior, se repite: es inevitable
+            # (le quedan más planos que huecos libres tienen sus vecinas).
+            if not elegibles:
+                elegibles = [i for i in grupo if pendientes[i] > 0]
+
+            if not orden:
+                # El PRIMER plano del video es siempre la primera imagen. El
+                # voraz, si esa imagen tiene menos planos que su vecina, abriría
+                # por la segunda; y el frame 0 es el que va con el título y el
+                # que decide si te quedas.
+                elegido = grupo[0]
+            else:
+                # Más pendientes primero; a igualdad, el de orden narrativo menor.
+                elegido = max(elegibles, key=lambda i: (pendientes[i], -i))
+            orden.append((elegido, usados[elegido]))
+            usados[elegido] += 1
+            pendientes[elegido] -= 1
+            anterior = elegido
+
+    return orden
+
+
 def crear_planos_de_imagen(img_path: str, idx: int, n_planos: int,
                            dur_plano: float, cfg: dict) -> list:
     """Parte UNA imagen en varios planos con encuadre y movimiento distintos.
@@ -538,14 +623,25 @@ def create_video(image_paths: list[str], audio_path: str, cfg: dict):
         print(f"⚠️   {dur_plano:.1f}s por corte es lento para vertical "
               f"(el rango que retiene es 1.5-2.5s)")
 
-    clips = []
-    plano_global = 0
-    for i, img_path in enumerate(image_paths):
-        for k, clip in enumerate(
-            crear_planos_de_imagen(img_path, i, planos_por_img[i], dur_plano, cfg)
-        ):
-            clips.append(clip.set_start(plano_global * dur_plano))
-            plano_global += 1
+    # Los planos se generan por imagen (una sola lectura y recorte de cada
+    # archivo) pero se COLOCAN en el orden que decide dispersar_planos(), que
+    # evita dos encuadres seguidos de la misma imagen.
+    planos_de = {
+        i: crear_planos_de_imagen(img_path, i, planos_por_img[i], dur_plano, cfg)
+        for i, img_path in enumerate(image_paths)
+    }
+
+    secuencia = dispersar_planos(planos_por_img, cfg)
+    clips = [
+        planos_de[i][k].set_start(pos * dur_plano)
+        for pos, (i, k) in enumerate(secuencia)
+    ]
+
+    if cfg.get("dispersar_planos", True) and len(image_paths) > 1:
+        seguidos = sum(1 for a, b in zip(secuencia, secuencia[1:]) if a[0] == b[0])
+        print(f"🔀  Planos dispersados (ventana {cfg.get('ventana_dispersion', 2)}): "
+              f"{seguidos} repetición(es) consecutiva(s) de "
+              f"{len(secuencia) - 1} transiciones")
 
     # Aplicar crossfade entre clips consecutivos
     if crossfade > 0 and len(clips) > 1:

@@ -32,6 +32,8 @@
 | [El `.env` corrompido](#-el-env-corrompido-por-un-título-de-dos-líneas-15-ago-2026) | Un título con salto de línea dejaba prosa que bash ejecutaba, y `failed.csv` sin encabezado |
 | [El veredicto acusaba a otro guion](#-el-veredicto-de-calidad-acusaba-a-otro-guion-15-ago-2026) | `calidad_guion.json` guardaba la crítica del último intento, no la del guion elegido |
 | [El recordatorio de Telegram](#-el-recordatorio-semanal-por-telegram-15-ago-2026) | Por qué calla si no hay nada, y por qué hay una entrada de cron de recuperación |
+| [Los planos dejan de salir en pares](#-los-planos-dejan-de-salir-en-pares-15-ago-2026) | De 8 de 13 transiciones repitiendo imagen a 0, y por qué no se baraja al azar |
+| [Los títulos de YouTube caben](#-los-títulos-de-youtube-caben-15-ago-2026) | Por qué aquí sí se vuelve a llamar al modelo en vez de truncar |
 | [Anexo — evidencia medida](#anexo--evidencia-medida) | Los comandos y los números crudos |
 
 ---
@@ -1514,6 +1516,91 @@ el python del entorno conda.
 
 `herramientas/obtener_chat_id.sh` saca el `chat_id` leyendo el token del `.env`, para no tener que
 abrir en el navegador una URL que lleva el token dentro y leer el JSON a mano.
+
+---
+
+## ✅ Los planos dejan de salir en pares (15 ago 2026)
+
+`create_video()` recorría las imágenes en orden y encadenaba todos los sub-planos de cada una
+seguidos. Sobre un reparto real de 6 imágenes y 14 planos:
+
+```
+A1 A2 A3  B1 B2  C1 C2  D1 D2 D3  E1 E2  F1 F2     ← 8 de 13 transiciones repiten imagen
+A1 B1 A2 B2 A3  D1 C1 D2 C2 D3  E1 F1 E2 F2        ← 0 de 13
+```
+
+**El problema no era el número de cortes, era que no se percibían.** Dos encuadres seguidos de la
+misma ilustración se leen como un zoom, no como un corte nuevo, así que más de la mitad de los
+cortes que contaba `repartir_planos()` no contaban para el espectador. Cuesta cero: no genera más
+imágenes ni cambia la duración, solo el orden en que se colocan los clips.
+
+### Por qué no se baraja
+
+Las imágenes las genera el paso 04 **en orden narrativo** a partir de las escenas del guion: la 1
+ilustra la primera frase y la última el desenlace. Un barajado global pondría el final en el
+segundo 3 y rompería la sincronía entre lo que se oye y lo que se ve — peor que el problema que
+resuelve.
+
+`dispersar_planos()` intercala **solo entre imágenes vecinas** (`ventana_dispersion`, 2), así que
+una imagen se adelanta o atrasa un plano (~1.8 s) y nada más. Dentro de cada ventana usa el voraz
+clásico "el que más planos le quedan, distinto del anterior", que evita el `A1 B1 A2 B2 B3` que
+deja un round-robin simple cuando una imagen tiene más planos que su vecina.
+
+⚠️ **El primer plano del video es siempre la imagen 1.** El voraz, si esa imagen tiene menos planos
+que su vecina, abriría por la segunda — y el frame 0 es el que lleva el título quemado y el que
+decide si te quedas.
+
+Se apaga con `dispersar_planos: False`, que restaura el orden clásico exacto. No es decorativo:
+es lo que permite aislar el efecto al medir P-12.
+
+**Dos fallos que encontró la prueba antes que un render:**
+- `grupos[-2] += grupos.pop()` para fusionar una ventana suelta. Python evalúa el `pop()` **antes**
+  de asignar, así que el índice `-2` ya apunta a otro grupo y el resultado se escribía encima del
+  anterior: con 5 imágenes se comía las dos primeras y duplicaba las últimas. En dos sentencias.
+- El voraz abría el video por la imagen 2 cuando el reparto era desigual.
+
+---
+
+## ✅ Los títulos de YouTube caben (15 ago 2026)
+
+4 de los 8 primeros temas pasaban de 70 caracteres, entre 1 y 12 de más:
+
+| Tema | Chars | Título |
+|---|---:|---|
+| Historia07 | 82 | Santísima Trinidad y Nuestra Señora del Buen Fin: el gabinete oculto del naufragio |
+| Historia01 | 77 | Samsung y el Vuelo CZ3539: La Explosión en las Alturas que Cambió la Aviación |
+| Historia05 | 74 | San Lorenzo: el tesoro de Roma que desapareció ante los ojos del emperador |
+| Historia03 | 71 | Ulises y los Lestrigones: el naufragio olvidado tras la guerra de Troya |
+
+El paso 02 avisaba y escribía el título largo igual, así que YouTube lo cortaba en la búsqueda: lo
+que sobra no se ve feo, **no se ve**.
+
+**Aquí sí se vuelve a llamar al modelo**, al revés que en `recortar_a_limite()`. Un título truncado
+a machete pierde el gancho, que es exactamente lo que hace que lo cliqueen; reescribir es lo único
+que lo conserva. `acortar_titulo()` pide una reescritura (hasta 2 intentos; el segundo le dice
+cuánto se pasó el primero) y **Python sigue garantizando el límite** con `_truncar_titulo()` si aun
+así no cabe. Solo cuesta cuando hace falta: si el título ya cabe, no llama a nada.
+
+Resultado sobre los cuatro reales:
+
+```
+82 → 58  Santísima Trinidad y Buen Fin: el enigma tras su naufragio
+77 → 64  Samsung y el Vuelo CZ3539: El Misterioso Incidente en Pleno Aire
+74 → 66  San Lorenzo: el tesoro de Roma que se desvaneció ante el emperador
+71 → 62  Ulises y los Lestrigones: el naufragio tras la guerra de Troya
+```
+
+El de 82 necesitó el segundo intento: el nombre del galeón ocupa 47 caracteres él solo, y sin
+permiso explícito para acortar el nombre propio no hay forma de que quepa.
+
+⚠️ **Se acorta en `guardar_descripciones()`, no al escribir el archivo.** El título sale por dos
+caminos —`descripcion.txt`, que es lo que copias, y `metadata.json`, de donde lo lee el paso 09— y
+acortarlo solo al escribir el primero dejaba el mismo video con **dos títulos distintos** según
+dónde miraras. El paso 10 además empareja las métricas por ese texto.
+
+`_truncar_titulo()`, el último recurso, corta en un límite de cláusula (`:`, `—`, `,`) antes que por
+longitud, y quita las palabras vacías del final: un corte a pelo dejaba títulos que acaban en
+*"que Cambió la"* o *"ante los ojos del"*, y eso se lee como un error, no como un título corto.
 
 ---
 

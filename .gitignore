@@ -61,3 +61,6 @@ reportes/
 
 # Fecha del último recordatorio enviado (estado local de esta máquina)
 .ultimo_recordatorio
+
+# Muestras de comparacion de ritmo (P-15), regenerables
+muestras_p15/
