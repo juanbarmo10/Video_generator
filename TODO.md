@@ -8,12 +8,14 @@
 > Operar el pipeline (generar, empaquetar, programar, medir) es **[README.md](README.md)**.
 > Arquitectura y trampas del código, **[CLAUDE.md](CLAUDE.md)**.
 
-**Estado a 15 ago 2026.** Primer lote real con el pipeline auditado (`Historia01`–`Historia08`):
-**los 8 terminados** — `Historia07` y `Historia08` se recuperaron tras recargar fal.ai. El informe
-de métricas confirma el salto de `v2-mas-cortes` sobre `baseline` con las cifras que resisten un
-filtro de comparabilidad (YouTube +513 % a 24 h, CTR +785 %, retención +32 %) y una sola métrica en
-contra, `se_quedaron_pct`. **Nada del pipeline está roto.** Lo que queda es elección de temas,
-costo, tiempo y orden del repositorio.
+**Estado a 15 ago 2026.** Dos lotes completos. `Historia01`–`Historia08` (`v2-mas-cortes`) mide
+contra el baseline: YouTube +513 % a 24 h, CTR +785 %, retención +32 %, y una sola métrica en
+contra, `se_quedaron_pct`. `Historia09`–`Historia15` (`v3-guion-y-dispersion`) acaba de terminar
+—**7 de 7, 65 minutos, 9.3 min/tema, $0.285 de mediana**— con el guionista en `gpt-5.4`, el crítico
+en Opus 5, los planos dispersados y los títulos acortados. Todo verificado: **0 transiciones
+repetidas** de 15-18 en los 7 videos, y **0 de 7 títulos** fuera del límite de 70.
+**Nada del pipeline está roto.** Lo que queda es elección de temas, costo, tiempo y orden del
+repositorio.
 
 ⚠️ Los 8 guiones publicados ya están **leídos uno por uno** (15 ago, desde los `.srt`): dos afirman
 cosas falsas y no deben publicarse tal cual. Ver [P-02](#p-02).
@@ -21,7 +23,7 @@ cosas falsas y no deben publicarse tal cual. Ver [P-02](#p-02).
 | | # | Pendiente |
 |---|---|---|
 | 🔴 | [P-02](#p-02) | `Historia07` y `Historia06` afirman cosas falsas — el primero estaba programado |
-| 🟠 | [P-04](#p-04) | El crítico de Anthropic nunca se ha ejecutado |
+| ✅ | [P-04](#p-04) | ~~Calibrar la puerta~~ — hecho: `nota >= 6` y `dudosas <= 3`, 5 de 7 aprueban |
 | 🟠 | [P-12](#p-12) | `se_quedaron_pct` bajó — la única métrica que empeoró en v2 |
 | 🟡 | [P-19](#p-19) | `DELAY = 7.0` uniforme en el paso 05 — ~2-3 min/video dormidos |
 | ⚪ | [P-06](#p-06) | Paralelizar los temas — evaluado: no compensa todavía |
@@ -82,34 +84,37 @@ concreto con principio y final, no la biografía de alguien."*
 ## 🟠 Calidad del producto
 
 <a id="p-04"></a>
-**P-04 · Calibrar el umbral de aprobación para el crítico de Anthropic.**
-✅ La clave ya está puesta (15 ago) y el crítico corre en `claude-opus-5`. Encontró en la primera
-prueba un error que gpt-4.1 no habría visto: llamaba **cirujano** a John Smeaton, que era ingeniero
-civil. También se añadió el aprendizaje entre temas (ver
-[HISTORIAL.md](HISTORIAL.md#-el-generador-aprende-de-los-veredictos-15-ago-2026)).
+**P-04 · ✅ HECHO (15 ago) · La puerta está calibrada con la distribución real.**
+Quedó en **`nota >= 6` y `dudosas <= 3`**, medido sobre `Historia09`-`Historia15`:
 
-**Lo que queda es que el umbral no vale para este crítico.** Medido sobre los 8 guiones:
+| Tema | nota | dudosas | ¿pasa? |
+|---|---:|---:|:--:|
+| Historia14 La Odisea | **8** | **0** | ✅ |
+| Historia13 Arqueología Aérea | 7 | 2 | ✅ |
+| Historia11 Caminos Incas | 6 | 2 | ✅ |
+| Historia12 Gran Muralla | 6 | 3 | ✅ |
+| Historia15 Pompeya | 6 | 3 | ✅ |
+| Historia10 Bomberos Romanos | 6 | 4 | ❌ |
+| Historia09 Naufragio Romano | 5 | 4 | ❌ |
 
-| Tema | gpt-4.1 | Opus 5 | dudosas |
-|---|---:|---:|---:|
-| Historia02 | 3 | 2 | 7 |
-| Historia05 | 4 | 2 | 5 |
-| Historia08 | 6 | 2 | 6 |
-| Historia04 (el único aprobado) | 8 | **3** | 3 |
+**El umbral nunca fue el problema: era el guionista.** Con `gpt-4.1` escribiendo, Opus comprimía
+todo entre 2 y 3 y no aprobaba nunca; con `gpt-5.4` el rango subió a 5-8 **sin tocar el umbral**.
 
-Opus comprime todo entre 2 y 3 y encuentra dudosas en **todos**. Aprobar exige `nota >= 7` **y**
-cero dudosas, así que **no aprueba nunca**: cada tema quema los 3 intentos, ~$0.10 de control de
-calidad frente a los ~$0.019 de antes.
+Dos hallazgos de la distribución:
+- **`nota_minima` no filtra nada.** Cinco de siete empatan en 6, y con `dudosas <= 3` salen los
+  mismos aprobados se mire la nota o no. Quien decide es `dudosas_max`.
+- **`dudosas_max` va a 3, no a 2.** A 2 caían `Historia12` y `Historia15`, cuyas dudosas son datos
+  **documentados** (la panadería de Modestus y sus 81 panes carbonizados; las colonias militares
+  agrícolas Ming). El crítico las marca porque `SYSTEM_CRITICO` le ordena *"ante la duda, marca la
+  afirmación como dudosa"*: el sesgo al rechazo es de diseño y el umbral tiene que compensarlo. Los
+  que fallan de verdad traen 4 — `Historia09` decía *"lujo romano"* de una carga que era griega.
 
-⚠️ **No lo ajustes a ojo.** No hay ni un dato de qué puntúa Opus a un guion que él considere bueno
-—los 4 medidos son malos para su criterio—, así que bajar `nota_minima` a 4 o 5 es adivinar.
-**Corre el próximo lote, mira la distribución de notas y dudosas, y fija el umbral con eso.** Si
-sale que ni el mejor pasa de 3, la conclusión no es bajar el listón: es que el formato de 70
-palabras no puede ser "sin afirmaciones dudosas" y el crítico vale como **lista de verificación**
-(P-02), no como puerta.
-
-Mientras tanto: `intentos_max: 2` ahorraría un tercio del costo, porque el tercer intento paga una
-crítica de $0.029 para una puerta que no se abre.
+> ⚠️ **Hipótesis descartada.** Se predijo que `La Odisea`, `Gran Muralla`, `Pompeya` y
+> `Caminos Incas` puntuarían peor por ser categorías y no incidentes, y que eso sesgaría la
+> calibración. Medido: los "concretos" dan mediana 6 con 4 dudosas y los "categoría" mediana 6 con
+> 3 — **La Odisea sacó la mejor nota del lote (8/10, 0 dudosas)**. No hay tal efecto en estos datos.
+> Lo que sí sigue en pie es [P-02](#p-02): los temas vagos producen guiones inventados, pero eso lo
+> caza el crítico, no la nota media.
 
 <a id="p-12"></a>
 **P-12 · `se_quedaron_pct` bajó: la única métrica que empeoró en v2.**

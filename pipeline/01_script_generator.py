@@ -120,8 +120,24 @@ CONFIG = {
     # `python -c "import json,glob;print(sorted((json.load(open(p))['nota'],
     #  len(json.load(open(p))['afirmaciones_dudosas'])) for p in
     #  glob.glob('proyectos/*/calidad_guion.json')))"`
+    # ── CALIBRADO con los 7 temas de Historia09-15 (15 ago) ──────────
+    # nota    : 5, 6, 6, 6, 6, 7, 8   (mediana 6)
+    # dudosas : 0, 2, 2, 3, 3, 4, 4   (mediana 3)
+    #
+    # ⚠️ `nota_minima` NO filtra nada: cinco de siete empatan en 6, y con
+    # `dudosas <= 3` salen los mismos aprobados se mire la nota o no. Se deja
+    # como suelo barato por si un guionista futuro puntúa peor, pero quien
+    # decide es `dudosas_max`. No pierdas tiempo afinando la nota.
     "nota_minima": 6,           # 0-10, por debajo se reescribe
-    "dudosas_max": 2,           # afirmaciones dudosas toleradas para aprobar
+    # ⚠️ 3 y no 2, y está medido. A 2 se rechazaban Historia12 y Historia15,
+    # cuyas "dudosas" son datos DOCUMENTADOS: la panadería de Modestus con sus
+    # 81 panes carbonizados, y las colonias militares agrícolas Ming. El crítico
+    # las marca porque SYSTEM_CRITICO le ordena "ante la duda, marca la
+    # afirmación como dudosa" — su sesgo al rechazo es de diseño, así que el
+    # umbral tiene que compensarlo. Los que sí fallan de verdad (Historia09:
+    # "lujo romano" cuando la carga era griega; Historia10) traen 4.
+    # Con 3: aprueban 5 de 7 en vez de 3, y ninguno de los dos falsos pasa.
+    "dudosas_max": 3,           # afirmaciones dudosas toleradas para aprobar
     # Si ningún intento pasa: False = usa el mejor con aviso ruidoso,
     # True = aborta el tema. Abortar aquí es barato (el paso 01 es el primero,
     # no hay nada pagado todavía) pero corta el lote de run_all.sh.

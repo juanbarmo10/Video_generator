@@ -141,14 +141,28 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
   datos y cuestan **cero**: cazan en Python lo que el crítico cobraría por señalar. Van como
   **leves**, no graves — "nunca robó a los ricos" estaba en el único guion aprobado.
 
-  ⚠️ **El umbral está descalibrado para el crítico de Anthropic y hay que medirlo.** Sobre los
-  mismos 8 guiones, Opus 5 comprime todas las notas entre **2 y 3** (el que gpt-4.1 puntuó con 8
-  saca un 3) y encuentra afirmaciones dudosas en **todos**. Como aprobar exige `nota >= 7` **y**
-  cero dudosas, con este crítico **no aprueba nunca** y cada tema quema los 3 intentos. Por eso la
-  nota sola dejó de servir para elegir el mejor intento y `nota_final` resta `0.1 × dudosas` como
-  desempate: en esos datos las dudosas sí discriminan (3 en el mejor, 7 en el peor).
-  Costo real medido: **~$0.029 por crítica a `effort: "low"`** (vs $0.040 a `medium`, misma nota),
-  o sea ~$0.10 por tema con 3 intentos frente a los ~$0.019 del crítico gpt-4.1.
+  ⚠️ **La puerta está calibrada con datos reales (Historia09-15, 15 ago): `nota >= 6` y
+  `dudosas <= 3`.** No la muevas a ojo — la distribución medida sobre esos 7 temas fue
+  `nota 5,6,6,6,6,7,8` y `dudosas 0,2,2,3,3,4,4`, y de ahí salen dos cosas que no son obvias:
+
+  **1. `nota_minima` no filtra nada.** Cinco de siete empatan en 6; con `dudosas <= 3` salen los
+  mismos aprobados se mire la nota o no. Se deja como suelo barato, pero **quien decide es
+  `dudosas_max`**. Afinar la nota es perder el tiempo.
+
+  **2. `dudosas_max` vale 3 y no 2 porque el crítico tiene sesgo al rechazo por diseño** —
+  `SYSTEM_CRITICO` le ordena literalmente *"ante la duda, marca la afirmación como dudosa"*. A 2 se
+  caían `Historia12` y `Historia15`, cuyas dudosas son **datos documentados** (la panadería de
+  Modestus con sus 81 panes carbonizados; las colonias militares agrícolas Ming). Los que fallan de
+  verdad traen 4: `Historia09` decía *"lujo romano"* de una carga que era griega. Con 3 aprueban
+  5 de 7 y ninguno de los dos falsos pasa.
+
+  ⚠️ **Historial, para que nadie repita el diagnóstico:** con `gpt-4.1` escribiendo, Opus comprimía
+  todas las notas entre **2 y 3** y encontraba dudosas en todos, así que la puerta original
+  (`nota >= 7` + cero dudosas) **no aprobaba nunca**. Parecía un umbral mal puesto y era el
+  guionista: al cambiar a `gpt-5.4` el rango subió a 5-8 sin tocar el umbral. Por eso `nota_final`
+  resta `0.1 × dudosas` como desempate — cuando las notas empatan, las dudosas son lo único que
+  discrimina.
+  Costo real medido: **~$0.029 por crítica a `effort: "low"`** (vs $0.040 a `medium`, misma nota).
 
   **El guionista es `gpt-5.4`, y la elección está medida.** Sobre el mismo tema, juzgados por el
   crítico de Opus 5: `gpt-4.1` 2/10 con 6 dudosas ($0.0026); `claude-opus-5` escribiendo 5/10 con 4
