@@ -11,7 +11,7 @@ Lo que no cambia es la estrategia: **exporta en bloque, no vayas video por video
 ## La regla que ahorra todo el tiempo
 
 Las cuatro plataformas dejan **descargar un CSV con todos los videos de una vez**. Nadie te obliga
-a abrir video por video. Ir de a uno con 22 videos × 4 redes son 88 clics; los exports son 4.
+a abrir video por video: son 5 descargas para las 4 redes, no un clic por video.
 
 Lo que **no** sale en el export masivo, y solo se ve entrando al video:
 
@@ -128,11 +128,12 @@ por la plataforma**.
 
 ```bash
 metricas_export/
-    youtube_historico.zip      # trae 3 csv; usa "Datos de la tabla"
-    tiktok_historico.zip       # trae Content.csv
-    facebook_historico.csv     # export de Facebook
-    facebook_historico2.csv    # export de Meta Business  ← los dos se fusionan
-    instagram_historico.csv    # export de Meta Business
+    youtube_tanda1.zip     # trae 3 csv; usa "Datos de la tabla"
+    youtube_tanda2.zip     # varias tandas si hay muchos videos (ver abajo)
+    tiktok.zip             # trae Content.csv
+    facebook1.csv          # export de Facebook          ← los dos
+    facebook2.csv          # export de Meta Business     ← se fusionan
+    instagram.csv          # export de Meta Business
 
 python 10_metricas.py --dry-run     # enseña qué haría
 python 10_metricas.py
@@ -282,57 +283,36 @@ descarga.
 
 ---
 
-## Procedimiento ágil para lo que falta
+## Lo que hay que teclear, y por qué
 
-Solo faltan dos cosas, y solo en dos redes: **el tiempo de visualización de Instagram** y **casi
-todo de TikTok**. Lo demás ya viene en los exports.
+El **procedimiento** está en [README.md](README.md) (bloque 5.3). Aquí, el porqué.
 
-### Paso 1 — Antes de exportar, pide más columnas (0 minutos extra)
+Solo faltan dos cosas y solo en dos redes: el **tiempo de visualización de Instagram** y **casi
+todo de TikTok**. El script deja la plantilla ya identificada en `metricas_export/manual.csv`
+—plataforma, id, fecha y título puestos— y solo quedan abiertas las celdas que esa red no exporta;
+las que llevan `—` es que sí la trae.
 
-- **YouTube**: en *Modo avanzado*, selecciona todos los videos en la gráfica antes de exportar
-  → te llevas las ventanas de 24 h y 7 d de todos, no de 5.
-- **Meta Business Suite**: el diálogo de exportación deja **elegir métricas**. Mira si puedes
-  añadir tiempo de reproducción para Instagram; si está, Instagram deja de necesitar captura manual
-  y este apartado se acaba aquí.
-
-### Paso 2 — `manual.csv`, solo lo que de verdad no existe
-
-El script deja la plantilla **ya identificada** en `metricas_export/manual.csv`: plataforma, id,
-fecha y título puestos. Solo hay que teclear números, y **solo las celdas vacías** — las que llevan
-`—` son las que esa red sí exporta.
-
-```csv
-plataforma,id_plataforma,fecha_publicacion,titulo,alcance,duracion_media_s,se_quedaron_pct
-instagram,17865702348648738,2026-08-14,"La noche del 25 de enero…",—,,—
-tiktok,https://…/video/7673192015940685074,2026-08-12,"Robin Hood…",,,
-```
-
-| Red | Qué teclear | De dónde sacarlo |
+| Red | Qué falta | Dónde está en pantalla |
 |---|---|---|
-| **Instagram** | `duracion_media_s` | App → el reel → *Ver estadísticas* → **Tiempo de reproducción medio** |
-| **TikTok** | `alcance`, `duracion_media_s`, `se_quedaron_pct` | TikTok Studio → *Analytics* → clic en el video → **Tiempo medio de reproducción** y **Vieron el video completo** |
+| **Instagram** | segundos medios vistos | App → el reel → *Ver estadísticas* → **Tiempo de reproducción medio** |
+| **TikTok** | alcance, segundos medios, % que vio completo | TikTok Studio → *Analytics* → clic en el video |
 
-**No hace falta teclear la retención**: pones los segundos medios y el script calcula
-`retencion_pct` dividiendo por la duración del video, que ya la tiene.
+**No se teclea la retención**: se calcula sola dividiendo los segundos medios entre la duración del
+video. Y como TikTok tampoco exporta la duración, **se toma prestada de Instagram o Facebook** —es
+el mismo mp4 en las cuatro redes—, así que teclear los segundos basta para tener retención en
+TikTok también.
 
-### Paso 3 — Vuelve a correr
+⚠️ Los porcentajes van **como porcentaje** (`21`, no `0.21`). Si se cuelan como fracción el script
+los convierte y avisa de cada uno, porque mezclar las dos formas en la misma columna la deja
+inservible.
 
-```bash
-python 10_metricas.py
-```
+⚠️ `manual.csv` es el **almacén** de esos números, no una lista de tareas: las filas ya rellenadas
+se conservan aunque estén completas. Borrarlas perdería el dato para siempre — nadie puede volver a
+descargarlo.
 
-Lo tecleado se fusiona y **se queda ahí para siempre**: `manual.csv` es el almacén, no una lista de
-tareas. Las filas rellenadas se conservan entre corridas; las nuevas se añaden ordenadas por fecha,
-con un tope de 25 (`manual_max_filas`) para que no se convierta en una tarde.
-
-### Cuánto cuesta en la práctica
-
-Son **1 número por reel de Instagram y 3 por video de TikTok**, y solo de los videos nuevos: unos
-**5 minutos por semana** con la cadencia de 1 video al día. Lo viejo se teclea una vez o no se
-teclea nunca — para comparar lotes basta con lo que ya viene en los exports.
-
-💡 **Si te da pereza, sáltate TikTok.** Es donde más hay que teclear y donde menos se decide: tu
-volumen está en YouTube y Facebook, y esos dos llegan completos solos.
+**Antes de exportar, pide más columnas (0 minutos extra):** en Meta Business Suite el diálogo de
+exportación deja **elegir métricas**. Si puedes añadir tiempo de reproducción para Instagram, esa
+red deja de necesitar captura manual.
 
 ---
 
@@ -404,24 +384,11 @@ reconoce y se queda vacío cuando no, sin que eso rompa nada.
 
 Para añadir un proyecto suelto al lote nuevo se toca `lote_nuevo_extra` en el `CONFIG` y nada más.
 
-## El plan que yo seguiría
+## El paso a paso semanal
 
-**Esta semana (una vez, ~20 min).** Export de YouTube en modo avanzado con el rango que cubre los
-16 Mundial → `metricas_export/` → `python 10_metricas.py`. Ese es tu baseline. Con eso solo ya
-puedes responder si los videos nuevos mejoran.
+Está en **[README.md](README.md)**, en el bloque *5 · Recoger las métricas de la semana anterior*.
+Este documento es la referencia de dónde sale cada dato y por qué el consolidador hace lo que hace.
 
-**Además, a mano (~10 min).** Abre la curva de retención de los **3 Mundial con más vistas y los 3
-con menos**. Anota en la columna `notas` en qué segundo cae cada uno. Eso no sale de ningún CSV y
-es lo que de verdad te dice si el problema es el gancho o el ritmo.
-
-**Cada lunes (~5 min).** Los cuatro exports (o el de Metricool si tu plan lo trae) →
-`python 10_metricas.py`. Los deltas salen solos de comparar snapshots.
-
-**Cuándo montar las APIs.** Cuando llenar esto pase de 10 minutos por semana, o cuando pases de
-~50 videos. Empieza por la de YouTube y **solo por la curva de retención**, que es lo único que no
-puedes descargar de otra forma. Meta va después, aprovechando las credenciales de `publisher.py`.
-TikTok, la última: es la que más trámite pide y la que menos aporta.
-
-⚠️ **No compares contra el promedio de los 16 viejos.** Se renderizaron y publicaron en bloque, así
-que compitieron entre ellos. Compara contra la **mediana**, y publica lo nuevo 1 por día a la misma
-hora para que la comparación signifique algo.
+⚠️ **No compares contra el promedio del baseline.** Los 16 Mundial se renderizaron y publicaron en
+bloque, así que compitieron entre ellos. Compara contra la **mediana**, y publica lo nuevo 1 por día
+a la misma hora para que la comparación signifique algo.

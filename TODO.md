@@ -1120,83 +1120,118 @@ Detalles que importan al tocarlo:
 
 ---
 
-## De dónde salen las métricas
+## ✅ Métricas — resuelto (15 ago 2026)
 
-Todo el código está hecho. **Lo único que falta para saber si sirvió son los números**, y esos no
-los genera el pipeline: hay que sacarlos de cada plataforma.
+Toda la guía de dónde exportar y cómo consolidar vive en **[METRICAS.md](METRICAS.md)**; el
+paso a paso semanal, en **[README.md](README.md)**. Lo que se montó:
 
-### YouTube Shorts — la fuente que más importa
+- **[10_metricas.py](10_metricas.py)** lee los exports **tal cual se descargan** (zips incluidos),
+  normaliza los 5 formatos, empareja cada video con su `PROYECTO` por texto y consolida en
+  `metricas.csv`. Al terminar archiva los crudos en `_procesados/<fecha>/`.
+- **147 filas de 4 plataformas**, 42 videos de YouTube, 45 de Meta, 15 de TikTok.
+- `lote` separa `baseline` de `v2-mas-cortes`. **Entran todos los videos publicados**, con
+  `PROYECTO` reconocido o sin él: los anteriores al pipeline son justo la referencia, y
+  descartarlos dejaba el baseline en 7 videos en vez de 36.
+- `vistas_24h` / `vistas_7d` salen de la serie diaria del zip de YouTube, sin esperar a comparar
+  dos snapshots.
+- Lo que ninguna red exporta (retención de TikTok e Instagram) se teclea en `manual.csv`, que el
+  script deja ya identificado. ~5 min por semana.
 
-**A mano (empieza por aquí):** YouTube Studio → Contenido → Shorts → clic en un video → pestaña
-**Interacción**. Los tres números que importan:
+### Primera lectura (15 ago 2026)
 
-| Métrica | Dónde | Qué te dice |
-|---|---|---|
-| **Espectadores que se quedaron** | gráfico de retención, primeros segundos | Si cae >60 % antes del segundo 3, el problema es el gancho |
-| **Duración media de la reproducción** | pestaña Interacción | Divídela entre la duración total = % de retención |
-| **Vistas en las primeras 24 h** | pestaña Alcance | Si el gancho retiene pero esto no sube, el problema es la metadata |
+| | lote | n | vistas | 24 h | retención | se quedaron | CTR |
+|---|---|--:|--:|--:|--:|--:|--:|
+| **YouTube** | baseline | 36 | 282 | 84 | 69.0 % | 48.5 % | 0.3 % |
+| | **v2** | 6 | **1436** | **512** | **91.2 %** | 40.7 % | **2.3 %** |
+| **Instagram** | baseline | 38 | 144 | | 31.6 % | | |
+| | **v2** | 7 | **486** | | **38.7 %** | | |
+| **Facebook** | baseline | 38 | 650 | | 19.9 % | | |
+| | **v2** | 7 | **970** | | 21.9 % | | |
+| **TikTok** | baseline | 12 | 669 | | 23.1 % | 13 % | |
+| | v2 | 3 | 644 | | 28.0 % | 9 % | |
 
-La **curva de retención** es la herramienta de diagnóstico real: te dice el **segundo exacto** donde
-se van. Caída en 0-2 s → gancho. Caída en 5-10 s → ritmo visual. Caída al final → el CTA sobra.
+**Con las ventanas de 24 h la comparación ya no depende de cuántos días lleve publicado cada
+video: 512 vistas contra 84 es 6×.** El CTR sube casi 8× (0.3 % → 2.3 %), y eso no es el video
+sino los títulos que genera el paso 02.
 
-**Automatizado (YouTube Data API v3 + Analytics API):** gratis, cuota de 10 000 unidades/día, de
-sobra. Requiere OAuth (no basta una API key, porque son datos privados del canal).
-
-```
-pip install google-api-python-client google-auth-oauthlib
-```
-
-- Alcance de OAuth: `https://www.googleapis.com/auth/yt-analytics.readonly`
-- Endpoint: `youtubeAnalytics.reports().query()` con
-  `metrics="views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage"`
-  y `dimensions="video"`
-- Para la curva de retención: `dimensions="elapsedVideoTimeRatio"` con
-  `metrics="audienceWatchRatio,relativeRetentionPerformance"` — **esta es la buena**
-
-### Instagram y Facebook
-
-**A mano:** app → Perfil → gráfico de estadísticas → Contenido. Para Reels miras *Reproducciones*,
-*Retención* y *Interacciones*.
-
-**Automatizado:** Instagram Graph API, `GET /{ig-media-id}/insights` con
-`metric=plays,reach,saved,shares,total_interactions`. Requiere cuenta **Business o Creator**
-vinculada a una página de Facebook, más un token de acceso de larga duración.
-
-⚠️ Aquí ya tienes medio camino hecho y roto: [publisher.py](publisher.py) espera
-`META_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`, `INSTAGRAM_ACCOUNT_ID` y `THREADS_USER_ID`, que **no están
-en el `.env`**. Los mismos credenciales sirven para publicar y para leer métricas: si vas a montar
-uno, monta los dos.
-
-### Lo mínimo viable, y es una hoja de cálculo
-
-No montes nada automatizado todavía. Con 16 videos publicados, la API es sobreingeniería: tardas
-más en resolver el OAuth que en copiar los números a mano.
-
-Crea `metricas.csv` en el repo con una fila por video:
-
-```
-PROYECTO,fecha_publicacion,plataforma,vistas_24h,vistas_7d,retencion_pct,pct_llega_3s,comentarios
-```
-
-Rellénalo **una vez** con los 16 videos viejos → ese es tu baseline. Después una fila por video
-nuevo. Con 5 videos nuevos ya vas a ver si la retención a 3 s se movió, que es la única pregunta
-que importa ahora mismo.
-
-**Cuándo automatizar:** cuando llenar la hoja te lleve más de 10 minutos por semana, o cuando pases
-de ~50 videos. Antes de eso no compensa.
-
-### La trampa de medir mal
-
-Los 16 videos actuales se renderizaron el mismo día (16:27 → 21:27 del 14 de junio). Si también se
-publicaron en bloque, su rendimiento está contaminado por la canibalización entre ellos: no son un
-baseline limpio.
-
-Para que la comparación signifique algo, los videos nuevos van **1 por día, a la misma hora**, y se
-comparan contra la mediana de los viejos, no contra el mejor ni el peor.
+⚠️ **`se_quedaron_pct` es la única métrica que va en contra** (48.5 % → 40.7 % en YouTube, 13 % →
+9 % en TikTok) y ya no se explica por tiempo de exposición. Con n=6 puede ser ruido, pero apunta a
+que los primeros 2 segundos empeoraron aunque quien se queda vea mucho más. **Es lo primero que
+hay que mirar en el próximo lote**, contrastándolo con la curva de retención de un par de v2.
 
 ---
 
-## Pendientes (8 ago 2026)
+## ✅ Fusión de los textos publicables (8 ago 2026)
+
+`descripcion_general.txt` + `descripcion_detallada.txt` → **`descripcion.txt`**, un solo archivo.
+Programar una semana en Metricool tiene que ser abrir un archivo por video, no dos.
+
+Cinco secciones, con el pie del reel arriba porque es lo que más se copia:
+
+```
+TÍTULO (58/70 caracteres)
+DESCRIPCIÓN GENERAL (pie del reel — las 4 redes)   ← + hashtags debajo
+DESCRIPCIÓN LARGA (YouTube y Facebook) — n/1999    ← + hashtags debajo
+TAGS DE YOUTUBE (separados por coma)
+COMENTARIO A FIJAR
+```
+
+**Los hashtags van repetidos bajo cada descripción y sin encabezado propio.** Así se selecciona
+descripción + hashtags de una pasada y se pegan juntos, con la que se vaya a usar ese día.
+
+**Tope de 1999 caracteres** en el bloque *descripción larga + hashtags*. El prompt pide ≤1700 para
+que casi nunca haga falta recortar, pero el que garantiza el límite es `recortar_a_limite()`, en
+Python. Conserva **siempre el último párrafo** — ahí está la pregunta que invita a comentar — y del
+resto salva las frases que quepan. Recortando párrafos enteros se perdían 490 caracteres para
+ahorrar 53; por frases se pierden ~150. De los 8 temas del lote, 4 cabían tal cual y 4 se
+recortaron entre 147 y 236 caracteres.
+
+Siguen siendo **dos llamadas distintas** a GPT: la fusión ocurre al escribir, en
+`escribir_descripcion()`. Los hashtags se separan del pie con `separar_hashtags()` — Python puro,
+recorre las líneas desde el final y toma las que solo tienen tokens que empiezan por `#`. Probado
+contra los 4 textos reales del lote y contra los casos límite (sin hashtags, repartidos en dos
+líneas, texto vacío).
+
+El paso 09 acepta los dos archivos viejos como alternativa (`textos_legado`) para no marcar
+incompletos los respaldos anteriores, y **borra ambos formatos del destino antes de copiar**, para
+que rehacer un paquete no deje el archivo viejo al lado del nuevo.
+
+Los 9 respaldos ya producidos se migraron sin gastar una sola llamada, reconstruyendo el archivo
+desde `metadata.json` + `descripcion_general.txt` con la misma función del paso 02.
+
+---
+
+## ✅ ffmpeg se comía los nombres de los temas (8 ago 2026)
+
+Del primer lote real salieron `proyectos/a02/`, `proyectos/04/`, `proyectos/oria07/`. De 8 temas,
+6 perdieron las primeras letras del `PROYECTO`, y con ellas los nombres de video, respaldo y log.
+
+**Causa:** `run_all.sh` leía `temas.csv` por **stdin**, y ese stdin lo heredan todos los procesos
+hijos. **ffmpeg lee stdin por defecto**, byte a byte, buscando teclas interactivas (la `q` para
+abortar). Cada video terminado se comía unos bytes de la lista, y el siguiente `read` arrancaba a
+media palabra. Reproducido en aislado:
+
+```
+── sin redirigir stdin        ── con stdin redirigido
+  P='Historia01'                P='Historia01'
+  P='ria02'                     P='Historia02'
+  P='ria03'                     P='Historia03'
+```
+
+Engaña mucho: el síntoma parece que alguien editó el CSV a mitad de corrida.
+
+**Tres defensas, todas puestas:**
+1. El CSV se lee por el descriptor `9` (`done 9< <(tail ...)` con `read <&9`) — inalcanzable para
+   los hijos.
+2. `run_pipeline.sh` se invoca con `</dev/null`.
+3. **`-nostdin` en las dos llamadas a ffmpeg** (pasos 03 y 08). Si se añade otra, ponerle `-nostdin`.
+
+Los 6 proyectos afectados se renombraron (carpeta, mp3, srt, video sin música, video final, log) y
+se corrigió `logs/failed.csv`, que tenía `oria07,Galeón` y así no servía para reintentar.
+
+---
+
+## Pendientes (15 ago 2026)
 
 Estado tras el primer lote real con el pipeline auditado (`Historia01`–`Historia08`).
 Ordenado por lo que bloquea publicar, no por dificultad.
@@ -1212,6 +1247,7 @@ Ordenado por lo que bloquea publicar, no por dificultad.
 El corte fue limpio: no se gastó de más y no quedó un video a medias. `logs/failed.csv` ya
 tiene las dos filas con los nombres corregidos, así que sirve tal cual como `temas.csv` para
 reintentar. **Recargar antes de correr cualquier lote nuevo.**
+`cp logs/failed.csv temas.csv && bash run_all.sh`
 
 **P-02 · 5 de 6 guiones NO pasaron el control de calidad.**
 Y eso es ya el mejor de 3 intentos, con reescritura guiada por los fallos concretos.
@@ -1291,98 +1327,16 @@ pero nadie las ha borrado. Los 16 respaldos `Mundial*` conservan además slides 
 reestructuración del paso 02, así que el paso 09 los marca incompletos, y con razón. No vale la
 pena regenerarlos: si se republican, se reescribe el texto a mano.
 
-**P-09 · `metricas.csv` está vacío.** Tiene las 16 filas de baseline con `notas` puesto, pero
-ni una sola vista, retención ni `pct_llega_3s`. **Sin esa línea base no se puede saber si algo de
-todo esto funcionó.**
-Ya no hay que copiar a mano: **[METRICAS.md](METRICAS.md)** dice de dónde se exporta en bloque en
-cada red y **[10_metricas.py](10_metricas.py)** une los CSV en `metricas.csv` emparejando cada fila
-con su `PROYECTO`. Son ~20 min la primera vez y ~5 por semana. Lo único que sigue siendo manual es
-la **curva de retención de YouTube** (el `pct_llega_3s`), que no está en ningún export — y con
-mirarla en los 3 mejores y los 3 peores basta para diagnosticar.
+**P-09 · ¿Se sigue usando el carrusel de Instagram?** Si no, el paso 06 y `carrusel.txt` salen del
+pipeline: ahorra $0.004 y 8 s por tema, y quita el contrato frágil de formato con el paso 02.
 
-**P-10 · Preguntas abiertas que cambian el alcance.**
-- ¿Se sigue usando el carrusel de Instagram? Si no, el paso 06 y `carrusel.txt` salen del pipeline
-  (ahorra $0.004 y 8s por tema, y quita el contrato frágil de formato con el paso 02).
-- ¿El plan de Metricool incluye API de publicación o importación masiva por CSV? Si sí, se puede
-  automatizar la programación desde `publicar/calendario.csv`.
-
-**P-11 · `publisher.py` sigue incompleto.** Le faltan `META_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`,
+**P-10 · `publisher.py` sigue incompleto.** Le faltan `META_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`,
 `INSTAGRAM_ACCOUNT_ID` y `THREADS_USER_ID`, y apunta a `post_images/`, que no existe. La
 publicación es manual.
 
-**P-12 · No hay tests.** Todo se valida a mano corriendo un tema. Lo más rentable serían pruebas
+**P-11 · No hay tests.** Todo se valida a mano corriendo un tema. Lo más rentable serían pruebas
 puras, sin red: `separar_hashtags()`, `repartir_planos()`, `verificar_reglas_mecanicas()` y el
 parseo de `carrusel.txt` del paso 06.
-
----
-
-## ✅ Fusión de los textos publicables (8 ago 2026)
-
-`descripcion_general.txt` + `descripcion_detallada.txt` → **`descripcion.txt`**, un solo archivo.
-Programar una semana en Metricool tiene que ser abrir un archivo por video, no dos.
-
-Cinco secciones, con el pie del reel arriba porque es lo que más se copia:
-
-```
-TÍTULO (58/70 caracteres)
-DESCRIPCIÓN GENERAL (pie del reel — las 4 redes)   ← + hashtags debajo
-DESCRIPCIÓN LARGA (YouTube y Facebook) — n/1999    ← + hashtags debajo
-TAGS DE YOUTUBE (separados por coma)
-COMENTARIO A FIJAR
-```
-
-**Los hashtags van repetidos bajo cada descripción y sin encabezado propio.** Así se selecciona
-descripción + hashtags de una pasada y se pegan juntos, con la que se vaya a usar ese día.
-
-**Tope de 1999 caracteres** en el bloque *descripción larga + hashtags*. El prompt pide ≤1700 para
-que casi nunca haga falta recortar, pero el que garantiza el límite es `recortar_a_limite()`, en
-Python. Conserva **siempre el último párrafo** — ahí está la pregunta que invita a comentar — y del
-resto salva las frases que quepan. Recortando párrafos enteros se perdían 490 caracteres para
-ahorrar 53; por frases se pierden ~150. De los 8 temas del lote, 4 cabían tal cual y 4 se
-recortaron entre 147 y 236 caracteres.
-
-Siguen siendo **dos llamadas distintas** a GPT: la fusión ocurre al escribir, en
-`escribir_descripcion()`. Los hashtags se separan del pie con `separar_hashtags()` — Python puro,
-recorre las líneas desde el final y toma las que solo tienen tokens que empiezan por `#`. Probado
-contra los 4 textos reales del lote y contra los casos límite (sin hashtags, repartidos en dos
-líneas, texto vacío).
-
-El paso 09 acepta los dos archivos viejos como alternativa (`textos_legado`) para no marcar
-incompletos los respaldos anteriores, y **borra ambos formatos del destino antes de copiar**, para
-que rehacer un paquete no deje el archivo viejo al lado del nuevo.
-
-Los 9 respaldos ya producidos se migraron sin gastar una sola llamada, reconstruyendo el archivo
-desde `metadata.json` + `descripcion_general.txt` con la misma función del paso 02.
-
----
-
-## ✅ ffmpeg se comía los nombres de los temas (8 ago 2026)
-
-Del primer lote real salieron `proyectos/a02/`, `proyectos/04/`, `proyectos/oria07/`. De 8 temas,
-6 perdieron las primeras letras del `PROYECTO`, y con ellas los nombres de video, respaldo y log.
-
-**Causa:** `run_all.sh` leía `temas.csv` por **stdin**, y ese stdin lo heredan todos los procesos
-hijos. **ffmpeg lee stdin por defecto**, byte a byte, buscando teclas interactivas (la `q` para
-abortar). Cada video terminado se comía unos bytes de la lista, y el siguiente `read` arrancaba a
-media palabra. Reproducido en aislado:
-
-```
-── sin redirigir stdin        ── con stdin redirigido
-  P='Historia01'                P='Historia01'
-  P='ria02'                     P='Historia02'
-  P='ria03'                     P='Historia03'
-```
-
-Engaña mucho: el síntoma parece que alguien editó el CSV a mitad de corrida.
-
-**Tres defensas, todas puestas:**
-1. El CSV se lee por el descriptor `9` (`done 9< <(tail ...)` con `read <&9`) — inalcanzable para
-   los hijos.
-2. `run_pipeline.sh` se invoca con `</dev/null`.
-3. **`-nostdin` en las dos llamadas a ffmpeg** (pasos 03 y 08). Si se añade otra, ponerle `-nostdin`.
-
-Los 6 proyectos afectados se renombraron (carpeta, mp3, srt, video sin música, video final, log) y
-se corrigió `logs/failed.csv`, que tenía `oria07,Galeón` y así no servía para reintentar.
 
 ---
 

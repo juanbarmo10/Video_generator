@@ -7,12 +7,12 @@ Guía del proyecto para Claude Code. Escrita en español porque el proyecto, los
 Fábrica automatizada de contenido histórico viral para redes sociales. A partir de una lista de temas
 (`temas.csv`) genera, por cada tema y de punta a punta:
 
-- un guion de ~90-100 palabras (GPT-4.1),
-- narración en voz (ElevenLabs),
-- 8 imágenes ilustradas por IA (fal.ai / Flux dev),
-- un video vertical 9:16 con subtítulos animados palabra por palabra + música de fondo,
-- posts para Twitter/X, Threads, Instagram y Facebook,
-- un carrusel de Instagram (imágenes reales descargadas de Wikimedia/DuckDuckGo + texto quemado).
+- un guion de **65-75 palabras** (GPT-4.1) auditado por un segundo modelo,
+- narración en voz (ElevenLabs), acelerada ×1.10,
+- **6 imágenes** ilustradas por IA (fal.ai / Flux dev),
+- un video vertical 9:16 con subtítulos animados palabra por palabra + música a −14 LUFS,
+- `descripcion.txt`: título de YouTube, pie del reel, hashtags, descripción larga, tags y comentario,
+- un carrusel de Instagram (imágenes reales de Wikimedia/DuckDuckGo + texto quemado).
 
 La cuenta destino es `@chistoricas3` (la marca de agua está hardcodeada en el generador de carrusel).
 
@@ -21,8 +21,10 @@ el pipeline antes de la auditoría). `.gitignore` excluye el `.env`, las salidas
 `videos_no_music/`, `proyectos/`, `music/`) y el estado del tema en curso. Hay `requirements.txt`
 (con `moviepy==1.0.3` fijado) pero **no hay tests**. Todo se corre a mano desde bash.
 
-📋 **[TODO.md](TODO.md) es el documento de trabajo**: auditoría de 18 bugs, diagnóstico de contenido
-y plan de crecimiento en 4 fases. Las fases 1-3 están aplicadas; léelo antes de tocar el pipeline.
+📋 **[README.md](README.md)** es el manual de operación: el paso a paso de la semana (generar,
+empaquetar, programar en Metricool, recoger métricas). **[TODO.md](TODO.md)** es el documento de
+trabajo: auditoría de bugs, diagnóstico de contenido y lo que queda pendiente. Léelo antes de tocar
+el pipeline.
 
 ## Cómo se ejecuta
 
@@ -64,9 +66,9 @@ en la raíz del proyecto**.
 | 01 | [01_script_generator.py](01_script_generator.py) | `$TEMA` | `script.txt`, `.estado_actual` | OpenAI `gpt-4.1` |
 | 02 | [02_social_media_generator.py](02_social_media_generator.py) | `script.txt` | `social_posts/descripcion.txt` + insumos internos, `TITULO_VIDEO` en `.env` | OpenAI `gpt-4.1` |
 | 03 | [03_voice_generator.py](03_voice_generator.py) | `script.txt` | `voice.mp3` (acelerado ×1.10) | ElevenLabs `eleven_multilingual_v2` + ffmpeg |
-| 04 | [04_image_generator.py](04_image_generator.py) | `script.txt` | `images_IA/scene_0..7.png` | OpenAI + fal.ai `fal-ai/flux/dev` |
+| 04 | [04_image_generator.py](04_image_generator.py) | `script.txt` | `images_IA/scene_0..5.png` | OpenAI + fal.ai `fal-ai/flux/dev` |
 | 05 | [05_download_images.py](05_download_images.py) | `social_posts/images_to_download.txt` | `source_images/img_N.jpg` | Wikimedia Commons → DuckDuckGo |
-| 06 | [06_carrusel_generator.py](06_carrusel_generator.py) | `social_posts/03_instagram.txt` + `source_images/` | `carousel_slides/slide_NN_*.jpg` | Pillow (local) |
+| 06 | [06_carrusel_generator.py](06_carrusel_generator.py) | `social_posts/carrusel.txt` + `source_images/` | `carousel_slides/slide_NN_*.jpg` | Pillow (local) |
 | 07 | [07_video_generator.py](07_video_generator.py) | `images_IA/` + `source_images/` + `voice.mp3` | `videos_no_music/video_$PROYECTO.mp4` + `.srt` | faster-whisper + moviepy (local) |
 | 08 | [08_music_mixer.py](08_music_mixer.py) | video sin música + `music/` | `videos/video_$PROYECTO.mp4` | **ffmpeg** (local) |
 
@@ -199,6 +201,7 @@ esas variables ensucia el árbol de proyectos con rutas tipo `proyectos//` y `vi
 ## Estructura de archivos
 
 ```
+README.md              # manual de operación: el paso a paso de cada semana
 TODO.md                # auditoría de bugs + plan de crecimiento (documento de trabajo)
 INSTRUCCIONES_CHATGPT.md  # prompt para que ChatGPT proponga temas que el pipeline aguante
 METRICAS.md            # de dónde sacar las métricas de las 4 redes y cómo agilizarlo
@@ -212,7 +215,7 @@ temas.csv              # entrada del lote: PROYECTO,TEMA (con encabezado, 2 camp
 script.txt             # ← guion del tema EN CURSO (se sobrescribe cada run)
 voice.mp3              # ← narración del tema EN CURSO (ya acelerada ×1.10)
 social_posts/          # ← descripcion.txt del tema EN CURSO + insumos internos
-images_IA/             # ← 8 imágenes IA del tema EN CURSO (scene_N.png, 832×1472)
+images_IA/             # ← 6 imágenes IA del tema EN CURSO (scene_N.png, 832×1472)
 source_images/         # ← fotos reales descargadas del tema EN CURSO (img_N.jpg)
 carousel_slides/       # ← slides del tema EN CURSO
 .estado_actual         # ← sello: qué PROYECTO/TEMA son los archivos de la raíz
@@ -332,6 +335,8 @@ vieja del generador con Leonardo).
    `generate_image()` — la activa es la de fal.ai; la de Leonardo (líneas ~212-280) es código muerto. Igual
    con `BASE_PROMPT` (gana el segundo) y con `parse_instagram_file()` en `06_carrusel_generator.py`.
    Editar la primera copia no tiene ningún efecto.
+   ⚠️ La cabecera del paso 06 dice que lee `03_instagram.txt`, pero su `CONFIG` apunta a
+   `carrusel.txt`. **Manda el CONFIG**; el comentario es de antes de la reestructuración del paso 02.
 3. **A pesar del nombre del proyecto, las imágenes ya NO salen de Leonardo**, sino de fal.ai (Flux dev).
 4. El contexto del paso 04 depende de que GPT devuelva json con `personaje`, `epoca` y `estilo_visual`.
    Si falla, verás `⚠️ Contexto incompleto` en el log y las imágenes de ese tema saldrán sin anclaje
@@ -351,12 +356,12 @@ vieja del generador con Leonardo).
    coma extra como `Mundial11,Maradona,` ensuciaba `$TEMA`, porque `read` mete los campos sobrantes en
    la última variable) y **salta los encabezados repetidos** (`tail -n +2` solo quita el primero, así
    que un `PROYECTO,TEMA` pegado dos veces se procesaba como un tema real).
-11. **Los `.sh` se re-ejecutan solos con bash.** En Ubuntu `/bin/sh` es `dash`, que no tiene `source`
-    ni `[[ ]]`: con `sh run_all.sh` el shebang se ignora, el `source` de conda falla en silencio y
-    `conda activate` responde `CondaError: Run 'conda init' before 'conda activate'`. La guarda
-    `if [ -z "$BASH_VERSION" ]; then exec bash "$0" "$@"; fi` va **antes de cualquier sintaxis de
-    bash** y tiene que ser POSIX puro. `run_all.sh` y `run_pipeline.sh` la llevan.
-12. **El lote lee `temas.csv` por el descriptor 9, nunca por stdin.** Si el `while read` toma la
+9. **Los `.sh` se re-ejecutan solos con bash.** En Ubuntu `/bin/sh` es `dash`, que no tiene `source`
+   ni `[[ ]]`: con `sh run_all.sh` el shebang se ignora, el `source` de conda falla en silencio y
+   `conda activate` responde `CondaError: Run 'conda init' before 'conda activate'`. La guarda
+   `if [ -z "$BASH_VERSION" ]; then exec bash "$0" "$@"; fi` va **antes de cualquier sintaxis de
+   bash** y tiene que ser POSIX puro. `run_all.sh` y `run_pipeline.sh` la llevan.
+10. **El lote lee `temas.csv` por el descriptor 9, nunca por stdin.** Si el `while read` toma la
     lista por stdin, cualquier proceso hijo que lea de ahí se **come bytes de la lista de temas**.
     `ffmpeg` lo hace: sondea stdin buscando teclas interactivas (`q` para abortar). En un lote real
     esto mutiló casi todos los `PROYECTO` — `Historia02`→`a02`, `Historia04`→`04`,
@@ -364,11 +369,11 @@ vieja del generador con Leonardo).
     parece que alguien editó el CSV a mitad de corrida. Tres defensas, todas puestas:
     `done 9< <(tail ...)` con `read <&9`, `run_pipeline.sh </dev/null`, y **`-nostdin` en las dos
     llamadas a ffmpeg** (pasos 03 y 08). Si agregas otra llamada a ffmpeg, ponle `-nostdin`.
-9. `publisher.py` está incompleto respecto al resto: necesita `META_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`,
-   `INSTAGRAM_ACCOUNT_ID` y `THREADS_USER_ID` (no están en `.env`) y apunta a una carpeta `post_images/`
-   que no existe. La publicación hoy es manual.
-10. Cada tema cuesta dinero real: ~10 llamadas a GPT-4.1, 1 síntesis de ElevenLabs y 8 imágenes de
-    fal.ai a 832×1472 (fal cobra por megapíxel: subir la resolución sube el costo proporcionalmente).
+11. `publisher.py` está incompleto respecto al resto: necesita `META_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`,
+    `INSTAGRAM_ACCOUNT_ID` y `THREADS_USER_ID` (no están en `.env`) y apunta a una carpeta `post_images/`
+    que no existe. La publicación hoy es manual.
+12. Cada tema cuesta **~$0.25 real**: ~15 llamadas a GPT-4.1, 1 síntesis de ElevenLabs y 6 imágenes de
+    fal.ai a 832×1472 (el 74 % del coste son las imágenes) (fal cobra por megapíxel: subir la resolución sube el costo proporcionalmente).
     `estado.py` lleva la cuenta en `.costo_actual.json` y los pasos 02 y 04 la imprimen al terminar.
     **No corras `run_all.sh` para probar un cambio** — usa un solo tema.
 
