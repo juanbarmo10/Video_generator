@@ -15,12 +15,12 @@ filtro de comparabilidad (YouTube +513 % a 24 h, CTR +785 %, retención +32 %) y
 contra, `se_quedaron_pct`. **Nada del pipeline está roto.** Lo que queda es elección de temas,
 costo, tiempo y orden del repositorio.
 
-⚠️ Lo urgente ya no es generar: es **leer los 7 guiones que no pasaron el control antes de
-programarlos**.
+⚠️ Los 8 guiones publicados ya están **leídos uno por uno** (15 ago, desde los `.srt`): dos afirman
+cosas falsas y no deben publicarse tal cual. Ver [P-02](#p-02).
 
 | | # | Pendiente |
 |---|---|---|
-| 🔴 | [P-02](#p-02) | 7 de 8 guiones no pasaron el control de calidad (el problema entró por `temas.csv`) |
+| 🔴 | [P-02](#p-02) | `Historia07` y `Historia06` afirman cosas falsas — el primero estaba programado |
 | 🟠 | [P-04](#p-04) | El crítico de Anthropic nunca se ha ejecutado |
 | 🟠 | [P-12](#p-12) | `se_quedaron_pct` bajó — la única métrica que empeoró en v2 |
 | 🟡 | [P-19](#p-19) | `DELAY = 7.0` uniforme en el paso 05 — ~2-3 min/video dormidos |
@@ -40,26 +40,42 @@ programarlos**.
 ## 🔴 Bloquean el lote actual
 
 <a id="p-02"></a>
-**P-02 · 7 de 8 guiones NO pasaron el control de calidad.**
-Y eso es ya el mejor de 3 intentos, con reescritura guiada por los fallos concretos.
+**P-02 · Dos de los 8 guiones publicados afirman cosas falsas. Uno estaba programado.**
 
-| Tema | Nota | Qué le objetó el crítico |
-|---|---:|---|
-| Historia02 Eclipse | **3/10** | narra *"dos ejércitos **lidian** bajo el mismo sol"* — se comió que eran **lidios**, y sale así en la voz |
-| Historia05 San Lorenzo | 4/10 | *"el festival de parrilladas más popular de Roma"* |
-| Historia06 Surrealismo | 4/10 | *"juró que podía hipnotizar a una ciudad entera"* |
-| Historia07 Galeón | 4/10 | *"tres clavos cambiaron la ruta del oro"*, *"millones en plata y porcelanas"* |
-| Historia01, Historia03 | 5/10 | afirmaciones sin fuente verificable |
-| Historia08 Einstein | 6/10 | ⚠️ su `calidad_guion.json` es de **antes** del arreglo del veredicto (abajo): acusa a un guion sobre el cerebro de Einstein que no se usó. El que se publica es el del examen de ingreso — léelo directamente |
-| Historia04 Robin Hood | ✅ | el único aprobado |
+⚠️ **Los `proyectos/Historia0*/calidad_guion.json` NO juzgan los guiones que se publicaron.**
+Están todos escritos el 15 ago a las 11:46 — los generó la medición de Opus contra gpt-4.1, no el
+pipeline, y el campo `guion` de cada uno trae el texto que se le dio al crítico en esa prueba, que
+no es el del video. Se ve de un vistazo comparando con `social_posts/metadata.json` (del 7 ago):
+el JSON de `Historia02` habla de Psamético III en Egipto y el video se llama *Batalla de Halys*;
+el de `Historia03` cuenta el ahorcamiento de las sirvientas y el video va de los Lestrigones.
+**El texto real de cada video está en su `.srt`** (`proyectos/$PROYECTO/*.srt`), que es la
+transcripción de la voz. Es la única fuente fiable de qué se publicó.
 
-**El problema no está en el paso 01: entró por `temas.csv`.** `2016`, `Eclipse`, `Odisea` y
-`Surrealismo` son categorías, no historias. El único que pasó es el único que era un personaje
-con un relato concreto. Es exactamente lo que advierte
+Revisados los 8 `.srt` uno por uno (15 ago):
+
+| | Riesgo | Qué le pasa al guion publicado |
+|---|:--:|---|
+| Historia07 Galeón | 🔴 | **El barco existe y la historia es falsa.** La *Santísima Trinidad y Nuestra Señora del Buen Fin* (1751) fue el mayor galeón de Manila; en 1762 la **capturaron los ingleses** y la vendieron en Portsmouth. No explotó ni se hundió. El «gabinete secreto que nadie explica» está inventado |
+| Historia06 Surrealismo | 🔴 | *Prohibió relojes, cortó la electricidad, solo él tenía fósforos, Breton impedía salir.* Nada de eso aparece en el registro documentado |
+| Historia01 Power bank | 🟠 | Mezcla dos sucesos: el incendio a bordo y un retiro de «más de 2 millones de baterías» — el retiro de Samsung fue de teléfonos Note 7 |
+| Historia03 Lestrigones | 🟠 | Se contradice: *«gigantes caníbales»* y tres frases después *«sin dioses ni monstruos, solo humanos hambrientos»* |
+| Historia02 Halys | 🟡 | *«dos ejércitos **lidian** bajo el mismo sol»* — se comió a los **lidios**. No es falso, se lee como el verbo *lidiar*, pero el espectador nunca sabe quiénes eran |
+| Historia04, Historia05, Historia08 | ✅ | Limpios. Robin Hood, el tesoro de San Lorenzo y el examen de ingreso al ETH están bien contados (único matiz: Einstein conoció a Grossmann ya en el ETH, no en el año de Aarau) |
+
+**Acción: `Historia07` fuera de `publicar/calendario.csv` — estaba programado para el 16 ago — y
+`Historia06` no se publica tal cual.**
+
+Lo que esto dice del pipeline: **el crítico viejo (gpt-4.1) dejó pasar los dos rojos.** El de Opus
+sí los habría visto — su crítica a `Historia09` nombra a Valerios Stais, el Museo Nacional de
+Atenas, el año 1902 y corrige «lujo romano» → objetos griegos. La puerta no aprueba nunca
+([P-04](#p-04)), pero **el diagnóstico ya vale**: léelo como lista de verificación antes de
+programar, que es justo para lo que sirve hoy.
+
+Y el problema de fondo sigue entrando por `temas.csv`: `2016`, `Eclipse`, `Odisea` y
+`Surrealismo` son categorías, no incidentes. Cuando el tema no trae una historia concreta, el
+modelo se la inventa. Es lo que advierte
 [INSTRUCCIONES_CHATGPT.md](INSTRUCCIONES_CHATGPT.md): *"UNA SOLA LÍNEA NARRATIVA. Un incidente
 concreto con principio y final, no la biografía de alguien."*
-El crítico está funcionando — está avisando de un problema aguas arriba. **Acción: elegir los
-temas del próximo lote con esas instrucciones, y no publicar los 5 sin leerlos.**
 
 ---
 
