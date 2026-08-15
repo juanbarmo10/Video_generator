@@ -66,13 +66,22 @@ CONFIG = {
     # todo lo demás es lo de antes y sirve de referencia.
     "lote_nuevo":     "v2-mas-cortes",
     "lote_baseline":  "baseline",
+
+    # Proyectos del pipeline nuevo que NO están en temas.csv. Test01 (Zidane) fue
+    # la prueba end-to-end del cambio: se renderizó con el código nuevo, así que
+    # dejarlo en baseline contaminaría justo el grupo contra el que se compara.
+    "lote_nuevo_extra": ["Test01"],
 }
 
 # Columnas de metricas.csv. `fecha_snapshot` es la clave del asunto: un export
 # trae vistas ACUMULADAS, no "vistas a 24 h". Guardando una foto por fecha, los
 # deltas salen de restar dos filas.
+# `id_plataforma` (el id nativo del video en cada red) es la CLAVE de fusión, no
+# el PROYECTO: entran todos los videos publicados, también los anteriores al
+# pipeline, que no tienen PROYECTO pero sí son parte del baseline.
 COLUMNAS = [
-    "PROYECTO", "lote", "tema", "plataforma", "fecha_snapshot", "fecha_publicacion",
+    "lote", "PROYECTO", "tema", "titulo", "plataforma", "id_plataforma",
+    "fecha_snapshot", "fecha_publicacion",
     "duracion_s", "vistas", "alcance", "impresiones",
     "retencion_pct", "duracion_media_s", "se_quedaron_pct",
     "me_gusta", "comentarios", "compartidos", "guardados", "seguidores_ganados",
@@ -603,15 +612,16 @@ def temas_por_proyecto(cfg: dict) -> dict:
 
 
 def proyectos_del_lote_nuevo(cfg: dict) -> set[str]:
-    """Los PROYECTO de temas.csv: el primer lote con el pipeline cambiado."""
+    """Los PROYECTO hechos con el pipeline cambiado: los de temas.csv más los
+    sueltos de `lote_nuevo_extra`. Todo lo demás es baseline, tenga PROYECTO
+    reconocido o no."""
+    nuevos = set(cfg.get("lote_nuevo_extra", []))
     ruta = Path(cfg["temas"])
-    if not ruta.exists():
-        return set()
-    nuevos = set()
-    for fila in ruta.read_text(encoding="utf-8").splitlines()[1:]:
-        campos = [c.strip() for c in fila.split(",")]
-        if campos and campos[0] and campos[0].upper() != "PROYECTO":
-            nuevos.add(campos[0])
+    if ruta.exists():
+        for fila in ruta.read_text(encoding="utf-8").splitlines()[1:]:
+            campos = [c.strip() for c in fila.split(",")]
+            if campos and campos[0] and campos[0].upper() != "PROYECTO":
+                nuevos.add(campos[0])
     return nuevos
 
 
@@ -620,9 +630,14 @@ def proyectos_del_lote_nuevo(cfg: dict) -> set[str]:
 # ══════════════════════════════════════════════════════════════
 
 def fusionar(previas: list[dict], nuevas: list[dict]) -> tuple[list[dict], int, int]:
-    """Une por (PROYECTO, plataforma, fecha_snapshot): reescribe la foto de hoy y
-    conserva las de otros días, así el histórico no se pisa."""
-    clave = lambda f: (f.get("PROYECTO", ""), f.get("plataforma", ""),
+    """Une por (plataforma, id_plataforma, fecha_snapshot): reescribe la foto de
+    hoy y conserva las de otros días, así el histórico no se pisa.
+
+    ⚠️ La clave es el id NATIVO del video, no el PROYECTO: la mayoría de los
+    videos del baseline son anteriores al pipeline y no tienen PROYECTO, así que
+    con PROYECTO como clave todos habrían colisionado en la fila vacía.
+    """
+    clave = lambda f: (f.get("plataforma", ""), f.get("id_plataforma", ""),
                        f.get("fecha_snapshot", ""))
     indice = {clave(f): f for f in previas}
     nuevas_filas = actualizadas = 0
@@ -706,12 +721,18 @@ def main() -> None:
         asignado, sin_asignar = asignar_uno_a_uno(
             filas, indice, cfg["umbral_match"], fijados)
 
-        for i, proyecto in asignado.items():
-            limpia = {c: v for c, v in filas[i].items() if not c.startswith("_")}
+        # ENTRAN TODOS los videos. Los que no se reconocen son los anteriores al
+        # pipeline: no tienen PROYECTO, pero son exactamente el baseline contra
+        # el que hay que comparar, así que descartarlos sería tirar la referencia.
+        for i, fila in enumerate(filas):
+            proyecto = asignado.get(i, "")
+            limpia = {c: v for c, v in fila.items() if not c.startswith("_")}
             limpia.update({
                 "PROYECTO": proyecto,
                 "lote": cfg["lote_nuevo"] if proyecto in nuevos else cfg["lote_baseline"],
                 "tema": temas.get(proyecto, ""),
+                "titulo": " ".join(fila["_texto"].split())[:90],
+                "id_plataforma": fila["_id"],
                 "fecha_snapshot": hoy,
             })
             todas.append(limpia)
@@ -723,17 +744,18 @@ def main() -> None:
                 "texto": " ".join(filas[i]["_texto"].split())[:110],
             })
 
-        print(f"      └─ {len(asignado)} emparejados con un PROYECTO")
+        nuevos_aqui = sum(1 for i in asignado if asignado[i] in nuevos)
+        print(f"      └─ {len(filas)} filas · {nuevos_aqui} del lote nuevo · "
+              f"{len(filas) - nuevos_aqui} baseline "
+              f"({len(asignado)} con PROYECTO reconocido)")
 
     if pendientes:
-        print(f"\n⚠️  {len(pendientes)} video(s) sin emparejar. Son de antes del pipeline "
-              f"o el texto cambió al publicar.")
-        for p_ in pendientes[:8]:
-            print(f"   · [{p_['score']}] {p_['plataforma']:<10} {p_['texto'][:60]}")
-        if len(pendientes) > 8:
-            print(f"   … y {len(pendientes) - 8} más")
-        print(f"   → Se apuntan en {cfg['mapa_manual']}: rellena la columna PROYECTO\n"
-              f"     de los que te interesen y vuelve a correr. Lo demás se ignora.")
+        print(f"\nℹ️  {len(pendientes)} video(s) sin PROYECTO reconocido — son los "
+              f"anteriores al pipeline.")
+        print(f"   Entran igual como '{cfg['lote_baseline']}': para comparar lotes basta "
+              f"el id del video.\n"
+              f"   Si quieres ponerles nombre, rellena la columna PROYECTO en "
+              f"{cfg['mapa_manual']}.")
 
     if not todas:
         raise SystemExit("\n❌ Nada emparejado — nada que escribir.")

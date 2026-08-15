@@ -261,10 +261,16 @@ cada red.
   impresiones y seguimientos netos. Hay que descargar los dos.
 - Lo que no empareja se acumula en `metricas_export/mapa_manual.csv` con `PROYECTO` vacío: se
   rellena una vez y el script lo respeta siempre.
-- **`lote`** separa `baseline` (todo lo anterior) de `v2-mas-cortes` (los `PROYECTO` de
-  `temas.csv`), que es el primer lote con el pipeline cambiado. Es la columna con la que se compara.
+- **`lote`** separa `baseline` de `v2-mas-cortes` (los `PROYECTO` de `temas.csv` más
+  `lote_nuevo_extra`, que hoy contiene `Test01`/Zidane, la prueba end-to-end del cambio). Es la
+  única columna con la que se compara.
+- ⚠️ **Entran TODOS los videos publicados, con `PROYECTO` reconocido o sin él.** Los anteriores al
+  pipeline no tienen carpeta en `proyectos/`, pero son el baseline: descartarlos dejaba la
+  referencia en 7 videos en vez de 34. Por eso la clave de fusión es **`id_plataforma`** (el id
+  nativo de cada red), no el `PROYECTO` — con `PROYECTO` como clave todos los desconocidos habrían
+  colisionado en la misma fila vacía.
 - `fecha_snapshot`: un export trae vistas ACUMULADAS, así que los deltas de 24 h y 7 d salen de
-  restar dos fotos. Fusiona por `(PROYECTO, plataforma, fecha_snapshot)` y nunca pisa un valor
+  restar dos fotos. Fusiona por `(plataforma, id_plataforma, fecha_snapshot)` y nunca pisa un valor
   lleno con uno vacío.
 
 Scripts fuera del pipeline: `publisher.py` (publicación a Meta/Threads), `ink_filter.py` (convierte fotos
