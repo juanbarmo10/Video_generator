@@ -648,7 +648,20 @@ def create_video(image_paths: list[str], audio_path: str, cfg: dict):
         faded_clips = [clips[0]]
         for i in range(1, len(clips)):
             faded_clips.append(clips[i].crossfadein(crossfade))
-        video = CompositeVideoClip(faded_clips, size=(target_w, target_h))
+        # ⚠️ `bg_color` explícito, y no es cosmético: acelera el render ×1.59.
+        # Con el default (None), moviepy 1.0.3 marca el composite como
+        # transparente y construye un SEGUNDO composite entero solo para la
+        # máscara alfa. Y esa máscara sí se evalúa: cuando el composite final
+        # (el de las capas, más abajo) pega esta capa de video, `blit_on()` hace
+        #     mask = self.mask.get_frame(ct) if self.mask else None
+        # o sea que en CADA frame se compone dos veces — una la imagen y otra
+        # una máscara que, medida, vale 1.0 en todos los píxeles y que el mp4
+        # final tira igual (libx264 no lleva canal alfa).
+        # Con fondo negro, `self.mask` queda en None y ese trabajo desaparece.
+        # Verificado: la salida es idéntica píxel a píxel (los planos cubren
+        # siempre el cuadro completo, así que el fondo no se ve nunca).
+        video = CompositeVideoClip(faded_clips, size=(target_w, target_h),
+                                   bg_color=(0, 0, 0))
         video = video.set_duration(total_duration)
     else:
         video = concatenate_videoclips(clips, method="compose")

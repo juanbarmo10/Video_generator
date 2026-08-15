@@ -34,6 +34,8 @@
 | [El recordatorio de Telegram](#-el-recordatorio-semanal-por-telegram-15-ago-2026) | Por qué calla si no hay nada, y por qué hay una entrada de cron de recuperación |
 | [Los planos dejan de salir en pares](#-los-planos-dejan-de-salir-en-pares-15-ago-2026) | De 8 de 13 transiciones repitiendo imagen a 0, y por qué no se baraja al azar |
 | [Los títulos de YouTube caben](#-los-títulos-de-youtube-caben-15-ago-2026) | Por qué aquí sí se vuelve a llamar al modelo en vez de truncar |
+| [El composite fantasma](#-el-composite-fantasma-del-paso-07--159-15-ago-2026) | Render ×1.59 con un argumento, y por qué solo hay que tocar uno de los dos |
+| [Paralelizar: evaluado](#-paralelizar-los-temas-evaluado-y-descartado-por-ahora-15-ago-2026) | 203 % de CPU, la RAM justa, y el `.env` como bloqueo real |
 | [Anexo — evidencia medida](#anexo--evidencia-medida) | Los comandos y los números crudos |
 
 ---
@@ -1601,6 +1603,99 @@ dónde miraras. El paso 10 además empareja las métricas por ese texto.
 `_truncar_titulo()`, el último recurso, corta en un límite de cláusula (`:`, `—`, `,`) antes que por
 longitud, y quita las palabras vacías del final: un corte a pelo dejaba títulos que acaban en
 *"que Cambió la"* o *"ante los ojos del"*, y eso se lee como un error, no como un título corto.
+
+---
+
+## ✅ El composite fantasma del paso 07 — ×1.59 (15 ago 2026)
+
+Estaba anotado como **hallazgo sin confirmar**: "medí hasta 2× de mejora, y solo aparece si se
+corrigen los dos composites a la vez, pero no me fío del número". Re-medido con la máquina quieta,
+**las dos afirmaciones eran falsas** — el efecto es 1.59×, no 2×, y **solo hay que corregir uno**.
+
+### El mecanismo, leído en la fuente de moviepy
+
+```python
+transparent = (bg_color is None)          # ← el default
+...
+if transparent:
+    maskclips = [...]
+    self.mask = CompositeVideoClip(maskclips, self.size, ismask=True, bg_color=0.0)
+```
+
+Con `bg_color=None`, moviepy 1.0.3 monta **un segundo composite entero solo para la máscara alfa**.
+
+Lo que decide si eso cuesta o no es `blit_on()`:
+
+```python
+mask = self.mask.get_frame(ct) if self.mask else None
+```
+
+O sea: la máscara de una capa se evalúa **cuando alguien pega esa capa encima de otra cosa**. Por
+eso solo importa el composite **interior** (el de los planos, línea ~651): el composite final lo
+pega como capa, y en cada frame se compone dos veces — una la imagen y otra una máscara que el mp4
+tira igual, porque libx264 no lleva canal alfa.
+
+El composite **exterior** (línea ~1124) también construye su máscara, pero **nadie la consume**:
+`final` no se pega sobre nada, se exporta. Construirla es gratis; evaluarla es lo que cuesta, y no
+se evalúa nunca. **Tocarlo no habría hecho nada.**
+
+### Lo medido
+
+Máquina quieta, 5 rondas intercaladas para cancelar deriva:
+
+```
+ronda 1:  actual 3.29 fps   con bg_color 5.37 fps
+ronda 2:  actual 3.29 fps   con bg_color 5.25 fps
+ronda 3:  actual 3.23 fps   con bg_color 5.07 fps
+ronda 4:  actual 3.19 fps   con bg_color 5.11 fps
+ronda 5:  actual 3.20 fps   con bg_color 5.12 fps
+MEDIANA   3.23 → 5.12 fps   ×1.59
+```
+
+La varianza es mínima (±0.05 y ±0.15), al contrario que la medición vieja, que corrió peleando por
+los mismos 4 hilos que un render de producción y por eso se contradecía consigo misma.
+
+**Corrección verificada píxel a píxel**: la máscara vale exactamente 1.0 en todos los píxeles
+—los planos cubren siempre el cuadro completo, así que el fondo no se ve nunca— y la salida es
+idéntica. En tiempo de pared, el paso 07 pasa de ~7m 34s a ~5m 50s: **~14 minutos por lote de 8.**
+
+⚠️ **La primera comparación de píxeles dio "difieren hasta 255/255"**, y era falsa alarma del
+método, no del cambio: [07_video_generator.py:590](pipeline/07_video_generator.py#L590) sortea el
+zoom de cada plano con `random.uniform()` **sin semilla**, así que dos llamadas a `create_video()`
+dan encuadres distintos. Con `random.seed()` fijado, la diferencia es cero. Si algún día hace falta
+comparar dos renders, hay que sembrar la semilla o no se compara nada.
+
+---
+
+## ✅ Paralelizar los temas: evaluado y descartado por ahora (15 ago 2026)
+
+La nota decía que el lote pasaría de ~1h50m a ~50 min. Medido, no sale:
+
+| Medición | Resultado |
+|---|---|
+| CPU del paso 07 | **203 % de 400 %** — dos renders saturan la máquina |
+| RAM pico del render | **1.35 GB**, más ~1.5 GB del modelo whisper `medium` |
+| RAM libre con el escritorio abierto | ~5 GB de 11 GB |
+| Recursos de la raíz en colisión | 5 |
+
+Con 203 % por render, dos temas en paralelo no dan 2×; y en RAM van justos.
+
+**Y el bloqueo real no era el que decía la nota.** No son las carpetas —eso se arregla con un
+directorio de trabajo por tema, y sale barato porque *todas* las rutas del pipeline son relativas
+al directorio de trabajo—, sino que **`.env` es el transporte entre pasos**: el 02 escribe
+`TITULO_VIDEO` y el 07 lo lee. Dos temas a la vez y el 02 del segundo pisa el título antes de que
+el 07 del primero lo lea; ese texto va quemado en el frame 0.
+
+⚠️ Y un directorio por tema **no lo arregla**, porque `load_dotenv()` busca el `.env` subiendo
+desde la carpeta del script, no desde el directorio de trabajo.
+
+El requisito previo es barato y vale por sí solo: que el título viaje por
+`social_posts/metadata.json`, donde el paso 02 **ya lo escribe**, en vez de por un archivo que lee
+`bash` — el mismo que ya dio el susto de la prosa ejecutable.
+
+**Veredicto:** techo real ~25-35 %, a cambio de reescribir `run_all.sh`, que es la pieza con más
+historial de bugs sutiles. P-19 (partir el `DELAY` del paso 05 por fuente) da un tercio de esa
+ganancia tocando una constante.
 
 ---
 

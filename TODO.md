@@ -23,8 +23,8 @@ programarlos**.
 | 🔴 | [P-02](#p-02) | 7 de 8 guiones no pasaron el control de calidad (el problema entró por `temas.csv`) |
 | 🟠 | [P-04](#p-04) | El crítico de Anthropic nunca se ha ejecutado |
 | 🟠 | [P-12](#p-12) | `se_quedaron_pct` bajó — la única métrica que empeoró en v2 |
-| 🟡 | [P-05](#p-05) | Composite del paso 07 sin `bg_color` — hallazgo sin confirmar |
-| 🟡 | [P-06](#p-06) | Paralelizar los temas (bloqueado por el estado global de la raíz) |
+| 🟡 | [P-19](#p-19) | `DELAY = 7.0` uniforme en el paso 05 — ~2-3 min/video dormidos |
+| ⚪ | [P-06](#p-06) | Paralelizar los temas — evaluado: no compensa todavía |
 | 🔵 | [P-17](#p-17) | Afinar el recordatorio con unas semanas de uso (ya funciona y está en cron) |
 | ⚪ | [P-14](#p-14) | `proyectos/T1/` anidado: 78 de 147 filas de métricas sin `PROYECTO` |
 | ⚪ | [P-07](#p-07) | Basura de corridas viejas (~750 MB recuperables) |
@@ -111,38 +111,58 @@ Medido sobre `Historia01` (13m 41s de punta a punta) y `.costo_actual.json` ($0.
 de visión rechaza. El 07 (7m 34s) sí trabaja, pero el techo es el hardware: **i5-7200U, 2 núcleos
 de 2016**, corriendo whisper `medium` y 766 frames compuestos en Python con PIL.
 
+✅ **El 07 ya bajó a ~5m 50s** con el arreglo de P-05 (15 ago): la composición pasó de 3.23 a
+5.12 fps. Eso cambia el reparto — ahora el 05 y el 07 pesan parecido, y el 05 es el que sigue
+dormido.
+
 **El 74% del costo es fal.ai**: 6 imágenes × $0.0306 (832×1472 = 1.225 MP × $0.025/MP).
 OpenAI son $0.052 (21%), de los cuales $0.023 es el control de calidad del guion — bien gastados.
 ElevenLabs, $0.012 (5%).
 
 | Palanca | Gana | Riesgo |
 |---|---|---|
-| `DELAY` distinto por fuente en el paso 05 (1.5s Wikimedia / 7s DuckDuckGo) | ~3 min/video, **~25 min por lote** | bajo — Wikimedia tiene API pública; el que bloquea es DDG |
+| **[P-19](#p-19) · `DELAY` por fuente en el paso 05** | ~2-3 min/video | bajo — es el siguiente que haría |
 | whisper `medium` → `small` | 1-2 min/video | hay que revisar el `.srt`, que sí se publica |
 | `gpt-4.1-mini` en las llamadas mecánicas (queries, contexto, gancho, validación visual) | $0.0066/video | bajo — son tareas de extracción, no de criterio |
 | 6 → 5 imágenes | $0.031/video (12%) | 5 imágenes para 14 cortes empieza a repetirse |
 
-<a id="p-05"></a>
-**P-05 · Hallazgo SIN CONFIRMAR sobre el composite del paso 07.**
-Los dos `CompositeVideoClip` (líneas ~555 y ~1028) se construyen sin `bg_color`, lo que hace que
-moviepy monte **un composite paralelo entero solo para la máscara alfa** — que el mp4 final no usa.
-Medí hasta 2× de mejora, y solo aparece si se corrigen **los dos a la vez**. Pero **no me fío del
-número**: las mediciones corrieron peleando por los mismos 4 hilos que el render del lote, y dos
-benchmarks se contradijeron. **Re-medir con la máquina quieta antes de tocar nada.**
+<a id="p-19"></a>
+**P-19 · `DELAY = 7.0` uniforme en el paso 05.**
+Se aplica igual a Wikimedia Commons (líneas 308, 320, 328) que a DuckDuckGo (354). **Wikimedia es
+una API pública documentada y el que bloquea es DDG**, así que ~1.5 s en el primero y 7 s en el
+segundo es razonable y educado.
+
+No es un ahorro teórico: el filtro de visión rechaza mucho y cada rechazo cuesta otra espera de
+7 s. Medido en el log de `Historia08`, **28 rechazos o fallos** en un solo tema.
+
+Es la palanca de tiempo con mejor relación esfuerzo/riesgo que queda, y **la alternativa barata a
+[P-06](#p-06)**: gana un tercio de lo mismo tocando una constante en vez de reescribir el lote.
 
 <a id="p-06"></a>
-**P-06 · Paralelizar los temas — la palanca grande, y está bloqueada por diseño.**
-El paso 05 es red (dormido) y el 07 es CPU: se solaparían perfecto. Pero `run_all.sh` es serial
-porque `script.txt`, `voice.mp3` e `images_IA/` son **estado global en la raíz**; dos temas a la
-vez se pisan. Habilitarlo exige un directorio de trabajo por tema. Es el cambio más grande del
-proyecto y el que más tiempo ahorra: el lote pasaría de ~1h50m a ~50 min.
+**P-06 · Paralelizar los temas — evaluado el 15 ago: NO compensa todavía.**
+La nota anterior decía "el lote pasaría de ~1h50m a ~50 min". Medido, no sale esa cuenta:
 
-> Ojo: el estado global de la raíz es lo **único** que queda por ordenar ahí. El código ya se
-> movió a `pipeline/`, `herramientas/` y `desuso/`
-> ([reorganización](HISTORIAL.md#-reorganización-del-código-15-ago-2026)), y esa parte se hizo
-> precisamente porque era barata; esta no lo es. Un directorio de trabajo por tema resolvería la
-> paralelización *y* vaciaría la raíz de estado mutable: si algún día se hace, hágase una sola vez
-> y por ese motivo, no por estética.
+| Qué se midió | Resultado | Qué implica |
+|---|---|---|
+| CPU que usa el paso 07 | **203 % de 400 %** | dos renders a la vez ya saturan la máquina; no hay 2× que ganar |
+| RAM pico del render | **1.35 GB** (+ ~1.5 GB de whisper `medium`) | dos temas ≈ 5-6 GB con 5 GB libres → riesgo de swap |
+| Recursos de la raíz en colisión | **5** (`script.txt`, `voice.mp3`, `images_IA/`, `source_images/`, `social_posts/`) | resolubles con un directorio de trabajo por tema |
+
+Y el bloqueo de verdad **no es el que decía la nota**: es que **`.env` es el transporte entre
+pasos**. El paso 02 escribe ahí `TITULO_VIDEO` y el 07 lo lee. Con dos temas a la vez, el 02 del
+tema B pisa el título antes de que el 07 del tema A lo lea, y ese texto va **quemado en el frame 0**.
+⚠️ Un directorio de trabajo por tema **no lo arregla**: `load_dotenv()` busca el `.env` desde la
+carpeta del script, no desde el directorio de trabajo, así que los dos temas leerían el mismo.
+
+**Requisito previo, y es barato:** que el título viaje por `social_posts/metadata.json` —donde el
+paso 02 **ya lo escribe**— en vez de por el `.env`. Eso quita el único dato mutable compartido que
+no se arregla aislando carpetas, y de paso elimina un round-trip por un archivo que lee `bash`
+(el mismo que ya dio el susto de la prosa ejecutable).
+
+**Veredicto:** el techo real de la paralelización en esta máquina es ~25-35 %, no el 55 % que
+suponía la nota, y exige reescribir `run_all.sh` — la pieza con más historial de bugs sutiles
+(stdin, encabezado, nombres mutilados). [P-19](#p-19) da un tercio de esa ganancia tocando una
+constante. **Hacer P-19 primero; volver a P-06 solo si el lote crece bastante o cambia la máquina.**
 
 ---
 
