@@ -238,21 +238,34 @@ destino antes de copiar**, para que rehacer un paquete no deje el archivo viejo 
 Sin `--solo` empaqueta **todo** lo que haya en `videos/`, incluidos los lotes viejos.
 
 **[10_metricas.py](10_metricas.py)** tampoco es un paso del pipeline: consolida en `metricas.csv`
-los CSV que se descargan de YouTube, TikTok, Instagram y Facebook y se dejan en `metricas_export/`
-(el nombre del archivo tiene que empezar por la plataforma). Ver **[METRICAS.md](METRICAS.md)** para
-de dónde sale cada export.
-- **Empareja por texto, no por id**: las plataformas no conocen el `PROYECTO`, así que compara el
-  título/caption contra el `titulo` de `metadata.json` y el pie del reel de `descripcion.txt`. Lo
-  que no llega a `umbral_match` (0.60) **se reporta, no se adivina**.
-- **Los nombres de columna cambian con el idioma de la cuenta.** El mapeo va por el diccionario
-  `ALIAS` y ⚠️ **el orden dentro de cada lista es la prioridad**: sin eso, el export de YouTube
-  emparejaba `Contenido` (que es el id del video) como título y no encajaba ni una fila. Al terminar
-  imprime las columnas que no reconoció, para poder añadirlas al alias.
-- **`fecha_snapshot` es la clave del diseño**: un export trae vistas ACUMULADAS, no "vistas a 24 h".
-  Guardando una foto por fecha, los deltas salen de restar dos filas. Fusiona por
-  `(PROYECTO, plataforma, fecha_snapshot)` y nunca pisa un valor lleno con uno vacío.
-- `pct_llega_3s` **no sale de ningún export**: se lee a mano de la curva de retención de YouTube
-  Studio. Es la métrica que dice si el gancho funciona.
+los exports de YouTube, TikTok, Instagram y Facebook **tal cual se descargan** (zips sin
+descomprimir incluidos) y que se dejan en `metricas_export/` con el nombre empezando por la
+plataforma. Ver **[METRICAS.md](METRICAS.md)** para de dónde sale cada uno y qué métrica falta en
+cada red.
+- **Normaliza primero, empareja después**: descomprime, elige el csv bueno de cada zip y escribe un
+  csv por plataforma con columnas uniformes en `metricas_export/_normalizado/`.
+- **El mapeo de columnas es explícito** (`FUENTES`), con los nombres reales en español de esta
+  cuenta. No hay adivinanza: si cambia el idioma o Meta/Google renombran algo, se toca ahí.
+- **Empareja por texto** contra `metadata.json`, `descripcion.txt` y **los legados
+  `04_facebook.txt` / `03_instagram.txt`** — sin estos, los 16 Mundial no emparejarían ninguno,
+  porque son anteriores a `metadata.json`. Combina solapamiento de palabras (salva los títulos
+  cortos: "Memo Ochoa al PSG" → Mundial16) con similitud de secuencia (captions largos).
+- ⚠️ **La asignación es uno-a-uno** (`asignar_uno_a_uno()`). Sin exclusividad, "Árbitro polémico",
+  "Árbitro de mundial" y "La mano de Dios" caían los tres en `Mundial01` y el último pisaba a los
+  otros dos en silencio, porque `metricas.csv` se indexa por `(PROYECTO, plataforma, fecha)`.
+- ⚠️ **`CAMPOS_DECIMALES` no es un detalle**: Facebook exporta los segundos medios vistos como
+  `9.378`, y la regla genérica de "3 dígitos detrás = separador de miles" lo leía como 9378,
+  dando retenciones del 17.000 %. El tipo se decide por campo, no por heurística.
+- **Facebook son DOS archivos** que se fusionan por `Identificador de la publicación`: el de Meta
+  Business trae el título generado (empareja perfecto) y el alcance; el de Facebook trae guardados,
+  impresiones y seguimientos netos. Hay que descargar los dos.
+- Lo que no empareja se acumula en `metricas_export/mapa_manual.csv` con `PROYECTO` vacío: se
+  rellena una vez y el script lo respeta siempre.
+- **`lote`** separa `baseline` (todo lo anterior) de `v2-mas-cortes` (los `PROYECTO` de
+  `temas.csv`), que es el primer lote con el pipeline cambiado. Es la columna con la que se compara.
+- `fecha_snapshot`: un export trae vistas ACUMULADAS, así que los deltas de 24 h y 7 d salen de
+  restar dos fotos. Fusiona por `(PROYECTO, plataforma, fecha_snapshot)` y nunca pisa un valor
+  lleno con uno vacío.
 
 Scripts fuera del pipeline: `publisher.py` (publicación a Meta/Threads), `ink_filter.py` (convierte fotos
 reales a estilo tinta/pergamino, alternativa local al paso 04), `imagen_generator_source.py` (versión

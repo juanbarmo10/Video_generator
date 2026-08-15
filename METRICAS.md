@@ -18,11 +18,13 @@ Lo que **no** sale en el export masivo, y solo se ve entrando al video:
 | Dato | Por qué no está |
 |---|---|
 | **Curva de retención** (el segundo exacto en que se van) | Es una serie temporal por video, no una fila de tabla |
-| **% que llega a los 3 s** | Se lee de esa curva |
 | **Vistas a 24 h / 7 d** | El export trae vistas **acumuladas** a hoy, no por ventana |
+| **Retención de TikTok e Instagram** | Esas dos no la exportan de ninguna forma (ver la tabla del final) |
 
-Las dos primeras solo importan para diagnosticar, y para eso no necesitas los 22 videos: con
-mirar los 3 mejores y los 3 peores ya sabes qué falla.
+La curva solo importa para diagnosticar, y para eso no necesitas los 22 videos: con mirar los 3
+mejores y los 3 peores ya sabes qué falla. Y para el uso rutinario ni siquiera hace falta: el
+export de YouTube trae **`Se quedaron para mirar (%)`**, que es el porcentaje que no deslizó en los
+primeros segundos — la métrica del gancho, en la tabla.
 
 Las vistas a 24 h se resuelven de otra forma: **exportando cada semana**. Comparando dos
 descargas sale el delta. Por eso `metricas.csv` ahora tiene `fecha_snapshot`.
@@ -68,9 +70,13 @@ pestaña *Contenido* → rango de fechas → **Descargar datos**.
 en modo **Creador o Empresa** (Configuración → Cuenta → Cambiar a cuenta de creador). Con cuenta
 personal las analíticas están recortadas.
 
-TikTok da algo que las demás no: **"Espectadores que vieron el video completo"** y el desglose de
-dónde vino el tráfico (Para ti / búsqueda / perfil). Si el % de video completo es alto pero las
-vistas son bajas, el problema es la distribución, no el contenido.
+⚠️ **El export de TikTok es el más pobre de los cuatro**: solo vistas, me gusta, comentarios y
+compartidos. Ni retención, ni alcance, ni tiempo visto, ni la duración del video.
+
+Lo bueno de TikTok —*Tiempo medio de reproducción*, *Vieron el video completo* y el desglose de
+tráfico (Para ti / búsqueda / perfil)— **solo se ve en pantalla, video por video**, y no sale en
+ninguna descarga. Si el % de video completo es alto pero las vistas son bajas, el problema es la
+distribución, no el contenido.
 
 **API:** existe, pero para leer analíticas de tu propia cuenta necesitas registrar una app en
 TikTok for Developers y pasar una revisión. **No lo montes ahora** — para tu volumen es semanas de
@@ -116,51 +122,127 @@ diagnosticar el gancho sigues necesitando YouTube Studio.
 
 ## La herramienta: `10_metricas.py`
 
-Une los CSV que descargues en `metricas.csv`, emparejando cada fila con su `PROYECTO`.
+**No tienes que tocar los archivos.** Descargas y sueltas en `metricas_export/`: los zip sin
+descomprimir y los CSV con el nombre que traigan. Lo único que importa es que el nombre **empiece
+por la plataforma**.
 
 ```bash
-# 1. deja los exports aquí, con el nombre empezando por la plataforma
-metricas_export/youtube_agosto.csv
-metricas_export/tiktok_agosto.csv
-metricas_export/instagram_agosto.csv
-metricas_export/facebook_agosto.csv
+metricas_export/
+    youtube_historico.zip      # trae 3 csv; usa "Datos de la tabla"
+    tiktok_historico.zip       # trae Content.csv
+    facebook_historico.csv     # export de Facebook
+    facebook_historico2.csv    # export de Meta Business  ← los dos se fusionan
+    instagram_historico.csv    # export de Meta Business
 
-# 2.
-python 10_metricas.py --dry-run     # enseña qué haría, sin escribir
+python 10_metricas.py --dry-run     # enseña qué haría
 python 10_metricas.py
 ```
 
-**Cómo sabe qué fila es qué video.** Las plataformas no conocen tu `PROYECTO`. El script compara el
-título (o el pie del reel, en TikTok/IG/FB donde no hay título) contra el `titulo` de
-`proyectos/<P>/social_posts/metadata.json` y contra la descripción general. Lo que no llega al
-umbral de parecido **se reporta, no se adivina**:
+Descomprime, localiza el csv bueno de cada zip, **normaliza los 5 formatos a un csv por plataforma**
+en `metricas_export/_normalizado/` (mismos nombres de columna para todos) y a partir de ahí empareja
+y fusiona. Ese paso intermedio es el que quita la fricción: si algún día quieres mirar los datos a
+mano, ya están uniformes.
 
+### Cómo sabe qué fila es qué video
+
+Las plataformas no conocen tu `PROYECTO`. El script compara el título o el caption contra los textos
+de `proyectos/<P>/social_posts/` — `metadata.json`, `descripcion.txt` y también los legados
+`04_facebook.txt` / `03_instagram.txt`, **sin los cuales los 16 Mundial no emparejarían ninguno**,
+porque son anteriores a `metadata.json`.
+
+Compara de dos formas y se queda con la mejor: por **solapamiento de palabras** (lo que salva los
+títulos cortos escritos a mano — "Memo Ochoa al PSG" comparte *memo*, *ochoa* y *psg* con el caption
+de Mundial16; por secuencia daba 0.33 y no emparejaba) y por **secuencia** (para captions largos).
+
+⚠️ **Un proyecto solo puede ser un video.** Sin esa exclusividad, "Árbitro polémico", "Árbitro de
+mundial" y "La mano de Dios" caían los tres en `Mundial01` y, como `metricas.csv` se indexa por
+`(PROYECTO, plataforma, fecha)`, el último **pisaba a los otros dos en silencio**. Se asigna por
+avaricia: el par con más parecido primero, y ni el video ni el proyecto se reutilizan.
+
+### Lo que no empareja
+
+Se acumula en `metricas_export/mapa_manual.csv` con la columna `PROYECTO` vacía:
+
+```csv
+plataforma,id,PROYECTO,candidato,score,texto
+youtube,abc123,,Mundial09,0.41,Árbitro dormido
 ```
-⚠️  1 fila(s) sin emparejar — revísalas:
-   · [0.42] Video de otro canal que no es mío
-   Si son videos tuyos, baja el umbral: --umbral 0.45
-```
 
-**Los nombres de columna cambian con el idioma y con cada rediseño.** El mapeo va por alias
-(diccionario `ALIAS` al inicio del script, con variantes en español e inglés) y al terminar
-imprime las columnas que no supo reconocer:
+Rellenas el `PROYECTO` de los que te interesen **una vez** y el script lo respeta para siempre. Los
+que dejes vacíos se ignoran en cada corrida — son los videos anteriores al pipeline (Michael Jackson,
+Mother Love, Submarino nuclear…), y está bien que se queden fuera.
 
-```
-ℹ️  columnas no reconocidas: Contenido
-```
+### Números y fechas
 
-Si ves ahí una columna que te interesa, añade su nombre al alias correspondiente y vuelve a correr.
-No hay que tocar nada más.
+Entiende `1.284`, `1,284`, `62,5 %`, `0:00:44` y `9.378`. ⚠️ La distinción entre contador y decimal
+es **por campo, no por heurística**: Facebook exporta los segundos medios vistos como `9.378`, y una
+regla genérica de "3 dígitos detrás = separador de miles" lo leía como 9378 segundos y daba
+retenciones del 17.000 %.
 
-**Números:** entiende `1.284`, `1,284`, `62,5 %`, `0:16` y `1:02:03`. La regla para el separador
-ambiguo es que **exactamente 3 dígitos detrás = separador de miles** (`1.284` son 1284 vistas),
-cualquier otra cantidad = decimal (`62,5` es 62.5 %).
-
-**Se puede correr las veces que quieras.** Fusiona por `(PROYECTO, plataforma, fecha_snapshot)`:
-reescribe la foto de hoy y conserva las de otros días, así el histórico no se pisa. Nunca sobrescribe
-un valor que ya tenía con uno vacío.
+Fechas: `May 8, 2026` (YouTube), `08/14/2026 10:00` (Meta) y `9 de junio` (TikTok). ⚠️ **TikTok
+exporta sin año**: se asume el actual, y si el mes cae en el futuro, el anterior. Si publicas algo
+con más de un año, esa fecha saldrá mal.
 
 ---
+
+## Qué métrica falta en cada plataforma
+
+Medido sobre tus exports reales, no sobre la documentación:
+
+| Métrica | YouTube | TikTok | Facebook | Instagram |
+|---|:--:|:--:|:--:|:--:|
+| Vistas | ✅ | ✅ | ✅ | ✅ |
+| Alcance | ✅ | ❌ | ✅ | ✅ |
+| Impresiones | ✅ | ❌ | ✅ | ❌ |
+| **Retención %** | ✅ | ❌ | ⚠️ calculada | ❌ |
+| **Duración media vista** | ✅ | ❌ | ✅ | ❌ |
+| **Se quedaron a mirar %** | ✅ | ❌ | ❌ | ❌ |
+| Me gusta / comentarios / compartidos | ✅ | ✅ | ✅ | ✅ |
+| Guardados | ❌ | ❌ | ✅ | ✅ |
+| Seguidores ganados | ✅ | ❌ | ✅ | ✅ |
+| Duración del video | ✅ | ❌ | ✅ | ✅ |
+
+**YouTube es la única plataforma con la que puedes diagnosticar.** Y trae un regalo que no esperaba:
+**`Se quedaron para mirar (%)`** — el porcentaje que no deslizó en los primeros segundos. Es
+exactamente la métrica del gancho, y es de export masivo. **Ya no hace falta abrir la curva de
+retención a mano** para el diagnóstico rutinario; la curva solo sirve si quieres el segundo exacto.
+
+**TikTok es el export más pobre que existe**: solo vistas, me gusta, comentarios y compartidos. Ni
+retención, ni alcance, ni tiempo visto, ni siquiera la duración del video. Esos datos SÍ están en
+TikTok Studio, pero solo en pantalla, video por video (Analytics → clic en el video → *Tiempo medio
+de reproducción*, *Vieron el video completo*, *Fuentes de tráfico*). No hay export.
+
+**Instagram no da nada de tiempo de visualización.** Ni segundos medios ni retención. Solo alcance,
+interacciones y guardados. Para retención en IG hay que entrar reel por reel.
+
+**Facebook sí trae segundos medios**, así que la retención se calcula dividiendo entre la duración
+del video. El script ya lo hace y deja el resultado en `retencion_pct`, comparable con el de YouTube.
+⚠️ No es idéntico conceptualmente: el de YouTube puede pasar del 100 % porque los Shorts se repiten
+en bucle, el calculado de Facebook no.
+
+---
+
+## Los dos archivos de Facebook: usa los dos
+
+No hay que elegir. **Son las mismas 45 publicaciones con el mismo `Identificador de la publicación`**,
+así que el script los fusiona por ese id y se queda con lo mejor de cada uno.
+
+| | `facebook_historico.csv` (de Facebook) | `facebook_historico2.csv` (Meta Business) |
+|---|---|---|
+| Columna de texto | `Título` = **el caption** | `Título` = **el título que generamos** + `Descripción` = caption |
+| Alcance | `Espectadores` | `Alcance` |
+| **Guardados** | ✅ | ❌ |
+| **Impresiones** | ✅ | ❌ |
+| **Seguimientos netos** | ✅ | ❌ |
+| **Distribución** (`+0.2x`) | ✅ | ❌ |
+| Ingresos / CPM | ❌ | ✅ (irrelevante, todo a 0) |
+
+**Si tuvieras que quedarte con uno, el de Facebook** (`facebook_historico.csv`): tiene guardados,
+impresiones y seguimientos netos, que el otro no. Pero el de Meta Business aporta algo que vale
+mucho para esta herramienta: su columna `Título` es **el título exacto que generó el paso 02**, así
+que empareja perfecto, mientras que el otro solo trae el caption.
+
+Descarga los dos y suéltalos. El script hace el resto.
 
 ## El plan que yo seguiría
 
