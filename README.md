@@ -4,7 +4,7 @@ Genera, de punta a punta y sin intervención, videos verticales de curiosidades 
 Reels, TikTok y Shorts. Le das una lista de temas y te devuelve los videos listos para programar,
 cada uno con su texto, sus subtítulos y su carrusel.
 
-**Coste real: ~$0.25 y ~14 minutos por video.** Un lote de 8 son unos $2 y menos de dos horas.
+**Coste real: ~$0.29 y ~9 minutos por video.** Un lote de 7 son unos $2 y poco más de una hora.
 
 ```
 temas.csv  →  bash run_all.sh  →  publicar/<PROYECTO>/  →  Metricool
@@ -17,7 +17,7 @@ De cada tema salen:
 
 | Qué | Cómo |
 |---|---|
-| Guion de 65-75 palabras | GPT-4.1, con un segundo modelo que lo audita y lo manda a reescribir si no pasa |
+| Guion de 65-75 palabras | GPT-5.4, con Claude Opus 5 auditándolo; si no pasa lo manda a reescribir, y tras 3 intentos **aborta el tema** |
 | Narración | ElevenLabs, acelerada ×1.10 hasta ~165 palabras/minuto |
 | 6 ilustraciones | fal.ai (Flux dev), estilo grabado sobre pergamino |
 | Video 9:16 | Subtítulos animados palabra por palabra, fotos reales intercaladas, música a −14 LUFS |
@@ -79,7 +79,7 @@ Cinco bloques. En total, poco más de dos horas de máquina y unos 30 minutos tu
 Pega en ChatGPT las instrucciones de **[INSTRUCCIONES_CHATGPT.md](INSTRUCCIONES_CHATGPT.md)** (con
 búsqueda web activada) y pídele la tanda:
 
-> Dame 8 temas para la próxima tanda, universo: Mundiales de fútbol
+> Dame 10 temas para la próxima tanda, universo: Mundiales de fútbol
 
 Revisa la columna **Riesgo** de la tabla que te devuelve y pega el CSV en `temas.csv`:
 
@@ -92,9 +92,11 @@ Historia02,La mano de Dios
 ⚠️ **Exactamente 2 columnas, sin coma al final.** `PROYECTO` sin espacios ni acentos: da nombre a
 archivos y carpetas.
 
-⚠️ **El tema tiene que ser una historia, no una categoría.** `Eclipse`, `Odisea` o `Surrealismo`
-son categorías, y de los 8 del primer lote real solo pasó el control de calidad el único que era un
-relato concreto. Si el tema es vago, el guion sale flojo y no hay pipeline que lo salve.
+💡 **Un incidente concreto va mejor que una categoría**, pero no es determinante: medido sobre el
+lote de agosto, los temas tipo categoría (`La Odisea`, `Pompeya`, `Gran Muralla`) puntuaron igual o
+mejor que los concretos — `La Odisea` sacó la mejor nota de los 7. Lo que sí importa es que el
+tema tenga **algo documentado que contar**; si no lo tiene, el modelo se lo inventa y el control de
+calidad tumba el tema.
 
 ## 2 · Generar (~2 h de máquina, 0 tuyas)
 
@@ -102,8 +104,8 @@ relato concreto. Si el tema es vago, el guion sale flojo y no hay pipeline que l
 bash run_all.sh
 ```
 
-Procesa cada fila de `temas.csv` de punta a punta. Puedes irte: cada tema tarda ~14 min y va
-imprimiendo el progreso.
+Procesa cada fila de `temas.csv` de punta a punta. Puedes irte: cada tema tarda ~9 min y va
+imprimiendo el progreso (65 min los 7 del lote de agosto).
 
 - Los logs quedan en `logs/{PROYECTO}_{TEMA}.log`.
 - Lo que falle se acumula en **`logs/failed.csv`**, que tiene el mismo formato que `temas.csv`:
@@ -111,6 +113,13 @@ imprimiendo el progreso.
   ```bash
   cp logs/failed.csv temas.csv && bash run_all.sh
   ```
+
+> ⚠️ **Pide 9-10 temas para obtener 7 videos.** El paso 01 **aborta el tema** si el guion no pasa
+> el control de calidad tras 3 intentos — es lo que evita publicar datos falsos sin que nadie los
+> lea. Sobre el lote de agosto se habrían caído **2 de 7**, así que cuenta con perder ~2 de cada 10
+> y pídele a ChatGPT unos cuantos de más. Los caídos quedan en `logs/failed.csv`: reintentarlos
+> vuelve a tirar los dados (el guion se genera de nuevo), así que a veces pasan a la segunda.
+> Cada aborto cuesta solo ~$0.09, no los ~$0.29 del tema completo.
 
 **Si quieres probar un cambio, no lances el lote** — cuesta dinero real. Usa un tema suelto:
 
@@ -144,17 +153,13 @@ python herramientas/09_paquete_publicacion.py --solo Historia01 --semanas      #
 ⚠️ **Sin `--solo` empaqueta todo lo que haya en `videos/`**, incluidos los lotes viejos. Por eso
 `run_all.sh` le pasa siempre los `PROYECTO` de la tanda.
 
-**Lo que tienes que mirar antes de programar** — el script te lo dice al terminar del lote:
+**Ya no hay que leer los guiones antes de programar.** Los que no pasan el control de calidad no
+llegan hasta aquí: el paso 01 aborta el tema y lo deja en `logs/failed.csv`, así que todo lo que
+haya en `publicar/` está aprobado. La columna `revisar_a_mano` de `calendario.csv` debería salir
+siempre en `no`; si ves un `SÍ`, es un paquete de antes de agosto de 2026.
 
-```
-⚠️  5 guion(es) NO pasaron el control de calidad.
-     · Historia02 (nota 3/10)
-         "Un eclipse hizo desaparecer a un faraón para siempre."
-```
-
-Eso es el crítico avisando de afirmaciones que no pudo verificar. **Léelos al programar**: un dato
-inventado que se publica es peor que un video menos. La nota de cada guion está también en
-`publicar/calendario.csv`, columna `revisar_a_mano`.
+Lo que sí conviene mirar es **cuántos temas se cayeron** (lo dice el resumen del lote) para
+reponerlos en la tanda siguiente.
 
 ## 4 · Programar en Metricool (~15 min)
 

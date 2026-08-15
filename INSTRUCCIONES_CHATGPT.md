@@ -154,7 +154,8 @@ Reglas del CSV, sin excepciones:
 ## Cómo usarlo
 
 1. Pegá la versión que elijas y activá la búsqueda web.
-2. Pedile: *"Dame 8 temas para la próxima tanda, universo: Mundiales de fútbol"*.
+2. Pedile: *"Dame 10 temas para la próxima tanda, universo: Mundiales de fútbol"* — pide de más:
+   el paso 01 aborta los temas cuyo guion no pasa el control (~2 de cada 10).
 3. Revisá la columna **Riesgo** de la tabla antes de aceptar.
 4. Copiá el bloque CSV a `temas.csv`.
 5. `bash run_all.sh` — al terminar arma solo el paquete de publicación en `publicar/`.
