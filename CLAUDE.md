@@ -19,7 +19,8 @@ La cuenta destino es `@chistoricas3` (la marca de agua está hardcodeada en el g
 **Es un repositorio git** (inicializado en agosto 2026, historial completo desde el estado que tenía
 el pipeline antes de la auditoría). `.gitignore` excluye el `.env`, las salidas pesadas (`videos/`,
 `videos_no_music/`, `proyectos/`, `music/`) y el estado del tema en curso. Hay `requirements.txt`
-(con `moviepy==1.0.3` fijado) pero **no hay tests**. Todo se corre a mano desde bash.
+(con `moviepy==1.0.3` fijado). El pipeline se corre a mano desde bash; lo que **sí** tiene tests es
+`herramientas/` (`python -m unittest discover tests`, ver [§ Tests](#tests)).
 
 ### Las cuatro notas, y para qué sirve cada una
 
@@ -560,6 +561,29 @@ que forma parte del pipeline, no lo forma.
 | Una herramienta que se corre aparte | `herramientas/nombre.py` | se documenta como herramienta, **no** se mete en `run_pipeline.sh`. El número ya no hace falta: la carpeta dice lo que es |
 | Lógica que necesitan varios pasos | dentro de [pipeline/estado.py](pipeline/estado.py) | es el único módulo importable de `pipeline/`: los pasos empiezan por dígito y no se pueden `import` |
 | Un experimento | fuera del repositorio | si se queda y deja de usarse, a `desuso/` y a la tabla de código en desuso |
+| Un test | `tests/test_<modulo>.py` | solo `unittest` de la stdlib; ver [§ Tests](#tests) |
+
+<a id="tests"></a>
+### Tests
+
+```bash
+python -m unittest discover tests      # desde la raíz, 36 tests, ~0.01 s
+```
+
+Solo `unittest` de la stdlib, sin dependencias nuevas y **sin red**. Cubren
+[herramientas/10_metricas.py](herramientas/10_metricas.py) y
+[herramientas/11_reporte.py](herramientas/11_reporte.py), no el pipeline.
+
+⚠️ **La elección de qué probar no es por cobertura, es por tipo de fallo.** En el pipeline un error
+se nota: el tema aborta, o el video sale mal y se ve. En estos dos archivos **no se nota nada** —
+el informe se genera igual, se ve bien y afirma lo contrario de lo que pasó. Los dos casos reales
+del 15 ago están congelados como test: `vistas_por_dia` clasificada como tasa («+5591 %») y el lote
+degradándose solo al cambiar `temas.csv` (`se_quedaron_pct` de −16 % a +33 %).
+
+`cargar()` en [tests/test_reporte.py](tests/test_reporte.py) importa los módulos con `importlib`
+porque su nombre empieza por dígito — el mismo truco que usa el paso 12. Funciona porque los dos
+son importables sin efectos: **los pasos de `pipeline/` no lo son** (trabajan al importarse), que
+es el obstáculo real de [P-11](TODO.md#p-11), no los prefijos numéricos.
 
 ⚠️ **Un paso nuevo que use ffmpeg necesita `-nostdin`** (trampa 10), y si trabaja sobre los
 archivos de la raíz debe llamar a `verificar_estado()` (trampa 1).

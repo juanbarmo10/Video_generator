@@ -348,11 +348,18 @@ reestructuró; su `CONFIG` apunta bien a `carrusel.txt`. Manda el `CONFIG`, pero
 archivo por primera vez va a buscar un contrato que ya no existe. Son dos líneas de comentario, y
 de paso conviene renombrar `parse_instagram_file()` — que además está duplicada, y gana la segunda.
 
-**P-11 · No hay tests.** Todo se valida a mano corriendo un tema. Lo más rentable serían pruebas
-puras, sin red: `separar_hashtags()`, `repartir_planos()`, `verificar_reglas_mecanicas()`,
-`sanear_valor_env()` y el parseo de `carrusel.txt` del paso 06. También `comparar_lotes()` y
-`TIPO_METRICA` de [11_reporte.py](herramientas/11_reporte.py): ahí un signo invertido no rompe
-nada, solo hace que el informe afirme lo contrario de lo que pasó, que es peor.
+**P-11 · Tests: hecha la mitad de `herramientas/`, falta `pipeline/`.**
+
+✅ **Hecho el 15 ago:** `tests/` con **36 tests** de `unittest` (stdlib, sin red, ~0.01 s) sobre
+[10_metricas.py](herramientas/10_metricas.py) y [11_reporte.py](herramientas/11_reporte.py) —
+`comparar_lotes()`, `TIPO_METRICA`, el signo de la comparación, mediana vs promedio, la
+pegajosidad del lote, el índice a dos niveles, los decimales de Facebook y la fila de TikTok sin
+escapar. Se eligieron **por tipo de fallo, no por cobertura**: ahí un error no rompe nada, solo
+hace que el informe afirme lo contrario de lo que pasó. Verificados por mutación — desactivando
+cada mecanismo, los tests correspondientes fallan.
+
+**Queda `pipeline/`:** `separar_hashtags()`, `repartir_planos()`, `dispersar_planos()`,
+`verificar_reglas_mecanicas()`, `sanear_valor_env()` y el parseo de `carrusel.txt` del paso 06.
 
 Lo que hay que saber antes de intentarlo: **el obstáculo no son los prefijos numéricos**
 (`importlib.import_module("02_…")` funciona), sino que **los pasos trabajan al importarse**. Basta
