@@ -271,8 +271,15 @@ cada red.
   colisionado en la misma fila vacía.
 - **`ventanas_youtube()`** saca `vistas_24h` y `vistas_7d` del tercer csv del zip ("Datos del
   gráfico", una fila por video y día) sumando desde la publicación — sin esperar al snapshot de la
-  semana siguiente. ⚠️ Solo cubre los videos dibujados en la gráfica al exportar (5 por defecto):
-  hay que seleccionarlos todos antes de darle a Exportar.
+  semana siguiente. ⚠️ Solo cubre los videos dibujados en la gráfica al exportar, y YouTube limita
+  cuántos se marcan a la vez: el histórico se baja **en varias tandas** (`youtube_tanda1.zip`…).
+  Por eso **cada zip se descomprime en su propia subcarpeta** — los tres csv se llaman igual en
+  todas las tandas y con una carpeta por plataforma la última pisaba a las anteriores.
+- **La duración del video se presta entre plataformas** cuando comparten `PROYECTO`: el export de
+  TikTok no la trae, así que sin esto su retención no se podía calcular. Es el mismo mp4 en las
+  cuatro redes.
+- `normalizar_porcentaje()` convierte los porcentajes tecleados como fracción (`0.21` → `21`) y
+  **avisa de cada conversión**: mezclar las dos formas en la misma columna la deja inservible.
 - **`metricas_export/manual.csv`** recoge lo que ningún export trae, y `CAMPOS_MANUALES` dice qué
   pedir **por plataforma** (TikTok: alcance, segundos medios, % que vio completo · Instagram:
   segundos medios · YouTube y Facebook: nada). ⚠️ Es el **almacén** de esos números, no una lista

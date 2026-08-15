@@ -268,10 +268,17 @@ Disco perdido de Michael_Jackson    24h=1216   7d=1638   total=1644
 Ulises y los Lestrigones            24h= 501   7d= 541   total= 541
 ```
 
-⚠️ Solo cubre los videos que estuvieran **dibujados en la gráfica** al exportar — por defecto 5.
-**Selecciona todos los videos en la gráfica antes de darle a Exportar** y tendrás la ventana de
-24 h de todo el canal en una sola descarga. Es la diferencia entre saberlo hoy y esperar una semana
-a comparar dos snapshots.
+⚠️ Solo cubre los videos que estuvieran **dibujados en la gráfica** al exportar, y YouTube limita
+cuántos se pueden marcar a la vez. Con el histórico hay que bajarlo **en varias tandas**: marcas un
+grupo, exportas, marcas el siguiente, exportas. Suelta los zips como sean — `youtube_tanda1.zip`,
+`youtube_tanda2.zip`… — y el script los une.
+
+**Cada zip se descomprime en su propia subcarpeta**, porque los tres csv se llaman igual en todas
+las tandas y si no la última pisaría a las anteriores. La tabla se fusiona por id de video (viene
+repetida en cada tanda, da igual) y las series se acumulan.
+
+Semana a semana no hará falta: con los videos nuevos de siete días caben de sobra en una sola
+descarga.
 
 ---
 

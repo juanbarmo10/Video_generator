@@ -42,7 +42,7 @@ import shutil
 import unicodedata
 import zipfile
 from datetime import date, datetime
-from difflib import SequenceMatcher
+from difflib import SequenceMatcher, get_close_matches
 from pathlib import Path
 
 # ══════════════════════════════════════════════════════════════
@@ -220,13 +220,20 @@ def nombre_zip(info: zipfile.ZipInfo) -> str:
 
 
 def extraer_zips(cfg: dict) -> None:
-    """Descomprime cada zip en _normalizado/_crudo/<plataforma>/."""
+    """Descomprime cada zip en _normalizado/_crudo/<plataforma>/<nombre_del_zip>/.
+
+    ⚠️ Una subcarpeta POR ZIP, no por plataforma: YouTube limita cuántos videos
+    se pueden dibujar en la gráfica a la vez, así que las series salen en varias
+    tandas y **las tres del zip se llaman igual en todas**. Con una sola carpeta
+    la última tanda pisaba a las anteriores y se perdían las series.
+    """
     destino_base = Path(cfg["dir_normalizado"]) / "_crudo"
     for z in sorted(Path(cfg["dir_export"]).glob("*.zip")):
         plataforma = detectar_plataforma(z)
         if not plataforma:
+            print(f"   ⏭️  {z.name}: no sé de qué plataforma es")
             continue
-        destino = destino_base / plataforma
+        destino = destino_base / plataforma / z.stem
         destino.mkdir(parents=True, exist_ok=True)
         with zipfile.ZipFile(z) as zf:
             for info in zf.infolist():
@@ -239,10 +246,20 @@ def extraer_zips(cfg: dict) -> None:
 
 
 def detectar_plataforma(ruta: Path) -> str | None:
+    """La plataforma sale del nombre del archivo, tolerando erratas.
+
+    Los nombres los pone quien descarga, y una errata como '4_tanda_yotutube.zip'
+    dejaba el archivo fuera sin decir por qué.
+    """
     nombre = normalizar(ruta.stem)
+    partes = nombre.split()
     for p in FUENTES:
-        if nombre.startswith(p) or p in nombre.split():
+        if nombre.startswith(p) or p in partes or p in nombre.replace(" ", ""):
             return p
+    for parte in partes:
+        cercano = get_close_matches(parte, list(FUENTES), n=1, cutoff=0.75)
+        if cercano:
+            return cercano[0]
     return None
 
 
@@ -255,7 +272,8 @@ def archivos_de(plataforma: str, cfg: dict) -> list[Path]:
     carpeta = Path(cfg["dir_normalizado"]) / "_crudo" / plataforma
     patron = FUENTES[plataforma].get("patron_zip")
     if carpeta.is_dir():
-        for p in sorted(carpeta.glob("*.csv")):
+        # rglob: los zip se descomprimen en una subcarpeta cada uno (ver extraer_zips)
+        for p in sorted(carpeta.rglob("*.csv")):
             if not patron or patron in normalizar(p.stem):
                 del_zip.append(p)
 
@@ -501,17 +519,21 @@ def ventanas_youtube(cfg: dict) -> dict:
     antes de darle a Exportar.
     """
     carpeta = Path(cfg["dir_normalizado"]) / "_crudo" / "youtube"
-    grafico = next((p for p in carpeta.glob("*.csv")
-                    if "grafico" in normalizar(p.stem)), None) if carpeta.is_dir() else None
-    if not grafico:
+    if not carpeta.is_dir():
+        return {}
+    graficos = [p for p in sorted(carpeta.rglob("*.csv"))
+                if "grafico" in normalizar(p.stem)]
+    if not graficos:
         return {}
 
+    # Cada tanda cubre videos distintos, así que se acumulan todas.
     por_video: dict[str, list] = {}
-    for fila in leer_csv(grafico):
-        vid = (fila.get("Contenido") or "").strip()
-        if not vid or vid == "Total":
-            continue
-        por_video.setdefault(vid, []).append(fila)
+    for grafico in graficos:
+        for fila in leer_csv(grafico):
+            vid = (fila.get("Contenido") or "").strip()
+            if not vid or vid == "Total":
+                continue
+            por_video.setdefault(vid, []).append(fila)
 
     ventanas = {}
     for vid, filas in por_video.items():
@@ -541,17 +563,49 @@ def ventanas_youtube(cfg: dict) -> dict:
 # ✍️  CAPTURA MANUAL DE LO QUE NINGÚN EXPORT TRAE
 # ══════════════════════════════════════════════════════════════
 
+# Campos manuales que son porcentajes. Si se teclean como fracción (0.21 en vez
+# de 21) se convierten, avisando: mezclar las dos formas deja la columna inservible.
+PORCENTAJES_MANUALES = {"se_quedaron_pct", "retencion_pct"}
+
+
+def normalizar_porcentaje(valor: str) -> tuple[str, bool]:
+    """(valor, se_convirtió). Un porcentaje entre 0 y 1 se lee como fracción."""
+    try:
+        n = float(valor)
+    except (TypeError, ValueError):
+        return valor, False
+    if 0 < n <= 1:
+        return f"{n * 100:g}", True
+    return valor, False
+
+
 def cargar_manual(cfg: dict) -> dict:
     """{(plataforma, id): {campo: valor}} de lo tecleado a mano."""
     ruta = Path(cfg["manual"])
     if not ruta.exists():
         return {}
-    datos = {}
+    datos, convertidos = {}, []
     for fila in leer_csv(ruta):
         valores = {c: fila[c].strip() for c in TODOS_LOS_MANUALES
                    if (fila.get(c) or "").strip() not in ("", "—", "-")}
+
+        for campo in list(valores):
+            if campo in PORCENTAJES_MANUALES:
+                nuevo, convertido = normalizar_porcentaje(valores[campo])
+                valores[campo] = nuevo
+                if convertido:
+                    convertidos.append(f"{fila.get('plataforma','')} · {campo} "
+                                       f"{fila[campo]} → {nuevo}")
+
         if valores:
             datos[(fila.get("plataforma", ""), fila.get("id_plataforma", ""))] = valores
+
+    if convertidos:
+        print(f"⚠️  {len(convertidos)} porcentaje(s) tecleados como fracción, "
+              f"convertidos a %:")
+        for c in convertidos[:6]:
+            print(f"     {c}")
+        print("     Si no era eso, corrígelos en manual.csv y vuelve a correr.")
     return datos
 
 
@@ -913,7 +967,11 @@ def main() -> None:
         filas = fusionar_por_id(bloques) if len(bloques) > 1 else bloques[0]
 
         ruta = escribir_normalizado(cfg, plataforma, filas) if not args.dry_run else None
-        origen = ", ".join(r.name for r in archivos)
+        # Con varias tandas los archivos se llaman todos igual ("Datos de la
+        # tabla.csv"), así que de los que salen de un zip se muestra la carpeta.
+        origen = ", ".join(dict.fromkeys(
+            r.parent.name if r.parent.parent.name == plataforma else r.name
+            for r in archivos))
         print(f"   ✅ {plataforma:<10} {len(filas):>3} videos  ({origen})"
               + (f" → {ruta}" if ruta else ""))
 
@@ -966,6 +1024,22 @@ def main() -> None:
 
     if not todas:
         raise SystemExit("\n❌ Nada emparejado — nada que escribir.")
+
+    # El export de TikTok no trae la duración del video, así que su retención no
+    # se podía calcular. Pero es el MISMO video en las cuatro redes: se toma la
+    # duración de cualquier otra plataforma que sí la traiga.
+    duraciones = {f["PROYECTO"]: f["duracion_s"] for f in todas
+                  if f.get("PROYECTO") and f.get("duracion_s")}
+    prestadas = 0
+    for fila in todas:
+        if not fila.get("duracion_s") and duraciones.get(fila.get("PROYECTO")):
+            fila["duracion_s"] = duraciones[fila["PROYECTO"]]
+            fila["notas"] = (fila.get("notas") or "") + "duración tomada de otra red; "
+            calcular_retencion(fila)
+            prestadas += 1
+    if prestadas:
+        print(f"\n🔁 {prestadas} fila(s) sin duración propia la tomaron de otra "
+              f"plataforma (mismo video) → retención calculable")
 
     previas = leer_csv(Path(cfg["salida"])) if os.path.exists(cfg["salida"]) else []
     fusionadas, nuevas_filas, actualizadas = fusionar(previas, todas)
