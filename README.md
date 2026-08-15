@@ -154,6 +154,24 @@ De cada tema salen:
    ⚠️ **No hace falta App Review.** Con la app en modo *Desarrollo*, tú como administradora tienes
    todos esos permisos sobre tus propios activos. La revisión solo es para que otros usen tu app.
 
+   En el Explorador, tres controles que confunden:
+
+   | Control | Qué poner | Por qué |
+   |---|---|---|
+   | **Host** (`facebook.com` / `instagram.com` / `threads.net`) | **`facebook.com`** | Es la bifurcación de arriba. Con `instagram.com` salen los `instagram_business_*` y Facebook queda fuera |
+   | **Tipo de token** (usuario / página) | **usuario** | Solo el de usuario puede **listar tus páginas**, y de ahí sale el de página. Al revés no funciona |
+   | **GET / POST / DELETE** | da igual | Es el método de la caja de consultas manuales, no afecta al token |
+
+   ⚠️ **El token del Explorador dura 1-2 horas, y el de página HEREDA esa caducidad.** Hay que
+   alargarlo antes, o las métricas dejan de bajar esa misma tarde. Dos formas:
+
+   - Pon `META_APP_ID` y `META_APP_SECRET` en el `.env` (panel de la app → Configuración → Básica)
+     y el diagnóstico lo alarga solo a 60 días.
+   - O a mano: en el Explorador, icono **ⓘ** junto al token → *Abrir en herramienta de depuración*
+     → **Extender token de acceso**, al final de la página.
+
+   Los tokens de página que salgan de un token de usuario largo **ya no caducan**.
+
    Pega el token en el `.env` como `META_ACCESS_TOKEN` y corre:
 
    ```bash

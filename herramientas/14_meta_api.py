@@ -53,6 +53,35 @@ CONFIG = {
 }
 
 TOKEN = os.getenv("META_ACCESS_TOKEN", "").strip()
+APP_ID = os.getenv("META_APP_ID", "").strip()
+APP_SECRET = os.getenv("META_APP_SECRET", "").strip()
+
+
+def alargar_token(token_corto: str) -> str | None:
+    """Cambia un token de usuario de ~2 h por uno de 60 días.
+
+    ⚠️ **Es el paso que hace permanente al token de página**, y el que más se
+    salta la gente. El de página hereda la caducidad del de usuario del que sale:
+    derivado de uno corto dura horas, derivado de uno largo **no caduca**. Sin
+    esto, las métricas dejan de bajar a media tarde del mismo día.
+
+    Necesita `META_APP_ID` y `META_APP_SECRET` (panel de la app →
+    Configuración → Básica). Si no están, se puede hacer a mano desde el
+    Explorador: el icono ⓘ junto al token → *Abrir en herramienta de depuración*
+    → **Extender token de acceso**, abajo del todo.
+    """
+    if not (APP_ID and APP_SECRET):
+        return None
+    r = requests.get(
+        f"{CONFIG['graph']}/{CONFIG['api']}/oauth/access_token",
+        params={"grant_type": "fb_exchange_token", "client_id": APP_ID,
+                "client_secret": APP_SECRET, "fb_exchange_token": token_corto},
+        timeout=CONFIG["timeout"])
+    datos = r.json()
+    if "error" in datos:
+        print(f"   ⚠️  No se pudo alargar el token: {datos['error'].get('message')}")
+        return None
+    return datos.get("access_token")
 
 
 def _graph(ruta: str, tolerar_error: bool = False, **params) -> dict:
@@ -120,12 +149,27 @@ def diagnostico() -> dict:
     else:
         from datetime import datetime, timezone
         cuando = datetime.fromtimestamp(expira, timezone.utc)
-        dias = (cuando - datetime.now(timezone.utc)).days
-        marca = "✅" if dias > 30 else ("⚠️ " if dias > 0 else "❌")
-        print(f"   {marca} Caduca el {cuando:%Y-%m-%d} (en {dias} días)")
-        if dias < 30:
-            print("      Cámbialo por un token de PÁGINA, que no caduca: sale en\n"
-                  "      la sección de páginas de abajo.")
+        horas = (cuando - datetime.now(timezone.utc)).total_seconds() / 3600
+        marca = "✅" if horas > 24 * 30 else ("⚠️ " if horas > 0 else "❌")
+        print(f"   {marca} Caduca el {cuando:%Y-%m-%d %H:%M} "
+              f"({horas / 24:.0f} días)" if horas > 48 else
+              f"   {marca} Caduca el {cuando:%Y-%m-%d %H:%M} (en {horas:.1f} horas)")
+
+        # ⚠️ El de página HEREDA la caducidad del de usuario del que sale. Con un
+        # token corto, el de página también dura horas: hay que alargar ANTES.
+        if horas < 24 * 7:
+            largo = alargar_token(TOKEN)
+            if largo:
+                print("   🔄 Alargado a 60 días con META_APP_ID/META_APP_SECRET.")
+                print("      Los tokens de página que salgan de este YA no caducan.")
+                hallado["_token_largo"] = largo
+                globals()["TOKEN"] = largo
+            else:
+                print("      ⚠️  Este token dura horas, y el de PÁGINA que salga de él\n"
+                      "      heredará esa caducidad. Alárgalo antes, de una de las dos formas:\n"
+                      "        · pon META_APP_ID y META_APP_SECRET en el .env y repite, o\n"
+                      "        · en el Explorador, icono ⓘ junto al token → Abrir en\n"
+                      "          herramienta de depuración → «Extender token de acceso».")
 
     # 2 · Permisos: los que hay contra los que hacen falta
     perms = _graph("me/permissions", tolerar_error=True)
