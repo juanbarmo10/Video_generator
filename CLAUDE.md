@@ -21,10 +21,21 @@ el pipeline antes de la auditoría). `.gitignore` excluye el `.env`, las salidas
 `videos_no_music/`, `proyectos/`, `music/`) y el estado del tema en curso. Hay `requirements.txt`
 (con `moviepy==1.0.3` fijado) pero **no hay tests**. Todo se corre a mano desde bash.
 
-📋 **[README.md](README.md)** es el manual de operación: el paso a paso de la semana (generar,
-empaquetar, programar en Metricool, recoger métricas). **[TODO.md](TODO.md)** es el documento de
-trabajo: auditoría de bugs, diagnóstico de contenido y lo que queda pendiente. Léelo antes de tocar
-el pipeline.
+### Las cuatro notas, y para qué sirve cada una
+
+| Nota | Responde a | Cuándo se lee |
+|---|---|---|
+| **[README.md](README.md)** | ¿Cómo se opera? El paso a paso de la semana: elegir temas, generar, empaquetar, programar en Metricool, recoger métricas | Cada semana, al usar el pipeline |
+| **CLAUDE.md** (este) | ¿Cómo está hecho? Arquitectura, contratos entre pasos, mapa del repositorio y trampas | Antes de tocar código |
+| **[TODO.md](TODO.md)** | ¿Qué queda por hacer? Solo pendientes vivos, con prioridad | Al decidir en qué trabajar |
+| **[HISTORIAL.md](HISTORIAL.md)** | ¿Por qué está esto así? La auditoría de 18 bugs, las 5 fases y todo lo medido | Antes de "arreglar" algo que parece arbitrario |
+
+⚠️ **Si un valor del código parece caprichoso, está explicado en HISTORIAL.md** — el `−14 LUFS`, el
+`to_mask(canal=3)`, los 65-75 palabras, el `atempo=1.10`, el recorte del 8 % del borde. Ninguno es
+una preferencia: todos salen de un fallo medido.
+
+(**[INSTRUCCIONES_CHATGPT.md](INSTRUCCIONES_CHATGPT.md)** no es documentación del proyecto: es el
+prompt que se le pega a ChatGPT para que proponga temas.)
 
 ## Cómo se ejecuta
 
@@ -41,10 +52,24 @@ Para correr un script suelto:
 
 ```bash
 source /home/juanb/miniforge3/etc/profile.d/conda.sh && conda activate ai_video_bot
-PROYECTO=Prueba01 TEMA="Pelé" python 01_script_generator.py
+PROYECTO=Prueba01 TEMA="Pelé" python pipeline/01_script_generator.py
 ```
 
+⚠️ **Siempre desde la raíz del proyecto, nunca desde `pipeline/`.** Los scripts viven en
+`pipeline/` pero todas sus rutas de datos (`script.txt`, `images_IA/`, `videos/`…) son relativas
+al directorio de trabajo, y ese tiene que ser la raíz. `cd pipeline && python 07_…` escribiría el
+video dentro de `pipeline/videos/`.
+
 Los scripts tienen celdas `#%%` — están pensados también para ejecución interactiva en VS Code.
+⚠️ En ese modo, los 6 pasos que importan `estado` necesitan que `pipeline/` esté en el path;
+ejecuta esto una vez en la sesión interactiva antes de la primera celda:
+
+```python
+import sys; sys.path.insert(0, "pipeline")
+```
+
+(Ejecutando el archivo entero con `python pipeline/0N_….py` no hace falta: Python pone en
+`sys.path` el directorio **del script**.)
 
 ## Arquitectura del pipeline
 
@@ -53,7 +78,7 @@ Los scripts tienen celdas `#%%` — están pensados también para ejecución int
 Cada paso es un proceso Python independiente que se comunica con los demás **solo a través de archivos
 en la raíz del proyecto**.
 
-**Único módulo compartido: [estado.py](estado.py).** No es un paso del pipeline, es una biblioteca:
+**Único módulo compartido: [estado.py](pipeline/estado.py).** No es un paso del pipeline, es una biblioteca:
 - `sellar_estado()` / `verificar_estado()` — el paso 01 escribe `.estado_actual` con el `PROYECTO` en
   curso y los pasos 02, 03, 04 y 07 abortan si los archivos de la raíz son de otro tema. Sin esto, un
   fallo a mitad del pipeline dejaba que los pasos siguientes trabajaran con los datos del tema anterior.
@@ -63,14 +88,14 @@ en la raíz del proyecto**.
 
 | Paso | Script | Entrada | Salida | Servicio |
 |---|---|---|---|---|
-| 01 | [01_script_generator.py](01_script_generator.py) | `$TEMA` | `script.txt`, `.estado_actual` | OpenAI `gpt-4.1` |
-| 02 | [02_social_media_generator.py](02_social_media_generator.py) | `script.txt` | `social_posts/descripcion.txt` + insumos internos, `TITULO_VIDEO` en `.env` | OpenAI `gpt-4.1` |
-| 03 | [03_voice_generator.py](03_voice_generator.py) | `script.txt` | `voice.mp3` (acelerado ×1.10) | ElevenLabs `eleven_multilingual_v2` + ffmpeg |
-| 04 | [04_image_generator.py](04_image_generator.py) | `script.txt` | `images_IA/scene_0..5.png` | OpenAI + fal.ai `fal-ai/flux/dev` |
-| 05 | [05_download_images.py](05_download_images.py) | `social_posts/images_to_download.txt` | `source_images/img_N.jpg` | Wikimedia Commons → DuckDuckGo |
-| 06 | [06_carrusel_generator.py](06_carrusel_generator.py) | `social_posts/carrusel.txt` + `source_images/` | `carousel_slides/slide_NN_*.jpg` | Pillow (local) |
-| 07 | [07_video_generator.py](07_video_generator.py) | `images_IA/` + `source_images/` + `voice.mp3` | `videos_no_music/video_$PROYECTO.mp4` + `.srt` | faster-whisper + moviepy (local) |
-| 08 | [08_music_mixer.py](08_music_mixer.py) | video sin música + `music/` | `videos/video_$PROYECTO.mp4` | **ffmpeg** (local) |
+| 01 | [01_script_generator.py](pipeline/01_script_generator.py) | `$TEMA` | `script.txt`, `.estado_actual` | OpenAI `gpt-4.1` |
+| 02 | [02_social_media_generator.py](pipeline/02_social_media_generator.py) | `script.txt` | `social_posts/descripcion.txt` + insumos internos, `TITULO_VIDEO` en `.env` | OpenAI `gpt-4.1` |
+| 03 | [03_voice_generator.py](pipeline/03_voice_generator.py) | `script.txt` | `voice.mp3` (acelerado ×1.10) | ElevenLabs `eleven_multilingual_v2` + ffmpeg |
+| 04 | [04_image_generator.py](pipeline/04_image_generator.py) | `script.txt` | `images_IA/scene_0..5.png` | OpenAI + fal.ai `fal-ai/flux/dev` |
+| 05 | [05_download_images.py](pipeline/05_download_images.py) | `social_posts/images_to_download.txt` | `source_images/img_N.jpg` | Wikimedia Commons → DuckDuckGo |
+| 06 | [06_carrusel_generator.py](pipeline/06_carrusel_generator.py) | `social_posts/carrusel.txt` + `source_images/` | `carousel_slides/slide_NN_*.jpg` | Pillow (local) |
+| 07 | [07_video_generator.py](pipeline/07_video_generator.py) | `images_IA/` + `source_images/` + `voice.mp3` | `videos_no_music/video_$PROYECTO.mp4` + `.srt` | faster-whisper + moviepy (local) |
+| 08 | [08_music_mixer.py](pipeline/08_music_mixer.py) | video sin música + `music/` | `videos/video_$PROYECTO.mp4` | **ffmpeg** (local) |
 
 Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` como respaldo permanente.
 
@@ -129,11 +154,19 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
   ⚠️ El formato de `carrusel.txt` (párrafos separados por línea en blanco, sin etiquetas "Slide N")
   es un contrato con el paso 06: si cambia el prompt, se rompe el parseo del carrusel. **`generate_title()` NO resume el guion**: genera un gancho que abre la pregunta
   sin responderla (un resumen equivale al spoiler, y ese texto va quemado en el frame 0 del video).
+  ⚠️ **`save_to_env()` pasa el título por `sanear_valor_env()` antes de escribirlo, y no es
+  opcional.** `run_pipeline.sh` hace `source .env`: ese archivo lo lee **bash**, y el título lo
+  escribe un LLM. Un salto de línea partía la entrada en varias líneas del `.env`; como el bucle de
+  `save_to_env()` solo reemplaza la **primera** que empieza por `TITULO_VIDEO=`, las demás quedaban
+  sueltas y bash intentaba ejecutarlas como comandos (con `set -e`, abortando el pipeline). Pasó de
+  verdad con `Historia07`. Por eso se quitan también `"`, `$`, `` ` `` y `\`: dentro de comillas
+  dobles, un título con `$(...)` se **ejecutaría**. Ninguno de esos caracteres tiene sentido en un
+  texto que va quemado en el frame 0, así que se eliminan en vez de escaparse.
 - **03** — `voice_id = "l1zE9xgNpUTaQCZzpNJa"` hardcodeado. **Aborta con código != 0 si ElevenLabs
   falla**: si no, los pasos siguientes usarían el `voice.mp3` del tema anterior. Después acelera el
   audio con `atempo=VELOCIDAD` (1.10) porque ElevenLabs entrega ~143 palabras/minuto y la narración
   que retiene va a 170-190. El resto del archivo (Google TTS) está comentado.
-  `03_voice_generator_free.py` es una alternativa con OpenAI TTS (`tts-1-hd`, voz `onyx`) y un modo
+  `desuso/03_voice_generator_free.py` es una alternativa con OpenAI TTS (`tts-1-hd`, voz `onyx`) y un modo
   `--test-voices`; **no está en el pipeline**.
 - **04** — ⚠️ **Pedirle a Flux "no paper border, no frame" NO funciona**: los modelos de difusión
   ignoran las instrucciones negativas y el marco de pergamino sale igual. Se recorta en el paso 07
@@ -198,40 +231,107 @@ Los pasos 02, 06, 07 y 08 abortan de entrada si `PROYECTO` viene vacío (y el 07
 `TITULO_VIDEO`), y `run_pipeline.sh` falla si no tiene `PROYECTO` y `TEMA`. Es intencional: correr sin
 esas variables ensucia el árbol de proyectos con rutas tipo `proyectos//` y `video_None.mp4`.
 
-## Estructura de archivos
+## Mapa del repositorio
 
-```
-README.md              # manual de operación: el paso a paso de cada semana
-TODO.md                # auditoría de bugs + plan de crecimiento (documento de trabajo)
-INSTRUCCIONES_CHATGPT.md  # prompt para que ChatGPT proponga temas que el pipeline aguante
-metricas.csv           # una fila por (PROYECTO, plataforma, fecha_snapshot)
-metricas_export/       # ← CSV crudos descargados de cada plataforma (ignorado por git)
-estado.py              # módulo compartido: sello de tema, costo, reintentos
-requirements.txt       # moviepy==1.0.3 fijado; ffmpeg va aparte (apt)
-.env.example           # plantilla del .env (el .env real NO se commitea)
+Todo vive en un solo nivel, pero **hay cuatro ciclos de vida distintos mezclados** en la raíz.
+Distinguirlos es lo que hace entendible el proyecto; el orden en que están escritos en disco, no:
 
-temas.csv              # entrada del lote: PROYECTO,TEMA (con encabezado, 2 campos exactos)
-script.txt             # ← guion del tema EN CURSO (se sobrescribe cada run)
-voice.mp3              # ← narración del tema EN CURSO (ya acelerada ×1.10)
-social_posts/          # ← descripcion.txt del tema EN CURSO + insumos internos
-images_IA/             # ← 6 imágenes IA del tema EN CURSO (scene_N.png, 832×1472)
-source_images/         # ← fotos reales descargadas del tema EN CURSO (img_N.jpg)
-carousel_slides/       # ← slides del tema EN CURSO
-.estado_actual         # ← sello: qué PROYECTO/TEMA son los archivos de la raíz
-.costo_actual.json     # ← costo acumulado del tema EN CURSO
-.cache_fotos_reales/   # ← fotos reales convertidas a 9:16 para el video
-videos_no_music/       # video_$PROYECTO.mp4 sin música
-videos/                # video_$PROYECTO.mp4 FINAL (entregable)
-proyectos/$PROYECTO/   # respaldo por tema: mp3, srt, images_IA, source_images, social_posts, carousel_slides
-logs/                  # {PROYECTO}_{TEMA}.log por tema + failed.csv
-music/                 # mp3 royalty-free de fondo
-fonts/                 # BungeeSpice (subtítulos y carrusel), Cossette_Texte
-perfil/                # imagen de perfil y banner para el slide CTA
-```
+1. **Código** — se edita, está en git.
+2. **Entradas** — las pones tú (claves, temas, música, fuentes).
+3. **Estado del tema EN CURSO** — se sobrescribe en cada tema; **solo existe el último**.
+4. **Salidas y archivo** — se acumulan para siempre; nada está en git (pesan 1.6 GB).
 
-**[09_paquete_publicacion.py](09_paquete_publicacion.py)** no es un paso por tema: **`run_all.sh` lo
+### 1 · Código
+
+| | Qué es |
+|---|---|
+El código está repartido en tres carpetas según **quién lo ejecuta**, que es lo único que hace
+falta saber para orientarse:
+
+| | Qué es |
+|---|---|
+| `run_all.sh` | El lote, en la raíz. Lee `temas.csv`, escribe `PROYECTO`/`TEMA` en `.env`, llama a `run_pipeline.sh` por tema y al terminar empaqueta con el paso 09 |
+| `run_pipeline.sh` | Un tema, en la raíz: los 8 pasos en orden con `set -e` |
+| **`pipeline/01…08_*.py`** | Los 8 pasos, **lo único que corre `run_pipeline.sh`**. Ninguno importa a otro: se comunican solo por archivos |
+| **`pipeline/`**[`estado.py`](pipeline/estado.py) | La **única** biblioteca compartida: sello del tema, contador de costo, reintentos. Vive con los pasos porque Python pone en `sys.path` el directorio del script, no el de trabajo |
+| **`herramientas/`**[`09_paquete_publicacion.py`](herramientas/09_paquete_publicacion.py) | Se corre una vez por lote, no por tema (lo llama `run_all.sh` al final) |
+| **`herramientas/`**[`10_metricas.py`](herramientas/10_metricas.py) | Se corre cuando hay exports nuevos. No lo llama nadie automáticamente |
+| **`herramientas/`**[`11_reporte.py`](herramientas/11_reporte.py) | Convierte `metricas.csv` en `reportes/ultimo.html`. Se corre después del 10 |
+| **`herramientas/`**[`12_recordatorio.py`](herramientas/12_recordatorio.py) | Recordatorio semanal por Telegram. Lo llama `cron`, no un `.sh` |
+| **`desuso/`** | Código que **no ejecuta nadie**: `03_voice_generator_free.py`, `publisher.py`, `ink_filter.py`, `imagen_generator_source.py`. Sigue en git como referencia. Ver [§ Código en desuso](#código-en-desuso-está-en-git-no-lo-ejecuta-nadie) |
+| `requirements.txt` | `moviepy==1.0.3` fijado; ffmpeg va aparte (apt) |
+
+⚠️ **La carpeta manda sobre el número.** `01`–`08` son el orden dentro de `pipeline/`; `09` y `10`
+conservan su número por historia, pero al estar en `herramientas/` no son pasos y no entran en
+`run_pipeline.sh`. Y `desuso/03_voice_generator_free.py` lleva un `03` que no significa nada.
+
+⚠️ **Todo se ejecuta desde la raíz**, aunque el `.py` viva en `pipeline/`. Las rutas de datos son
+relativas al directorio de trabajo; el movimiento de carpetas no cambió ni una.
+
+### 2 · Entradas
+
+| | Git | Qué es |
+|---|:--:|---|
+| `.env` | ❌ | Claves **y** estado mutable (`PROYECTO`, `TEMA`, `TITULO_VIDEO`). Nunca se commitea |
+| `.env.example` | ✅ | Plantilla del anterior |
+| `temas.csv` | ✅ | Entrada del lote: `PROYECTO,TEMA`, con encabezado y 2 campos exactos |
+| `fonts/` | ✅ | BungeeSpice (subtítulos y carrusel), Cossette_Texte |
+| `perfil/` | ✅ | Imagen de perfil y banner para el slide CTA del carrusel |
+| `music/` | ❌ | mp3 royalty-free de fondo (45 MB, ignorada) |
+| `metricas_export/*.csv`, `*.zip` | ❌ | Los exports que descargas de cada red, **tal cual vienen** |
+| `metricas_export/manual.csv`, `mapa_manual.csv` | ❌ | Lo que tecleas a mano. **Irrecuperables**: el paso 10 nunca los borra |
+
+### 3 · Estado del tema EN CURSO
+
+Se sobrescribe en cada tema y **nada de esto está en git**. Si el pipeline aborta a mitad, aquí
+queda el tema anterior — de ahí el sello de `estado.py` (trampa 1).
+
+| | Lo escribe | Lo lee |
+|---|---|---|
+| `script.txt` | 01 | 02, 03, 04 |
+| `voice.mp3` | 03 | 07 |
+| `social_posts/` | 02 | 05 (`images_to_download.txt`), 06 (`carrusel.txt`), 09 (`descripcion.txt`, `metadata.json`) |
+| `images_IA/` | 04 | 07 |
+| `source_images/` | 05 | 06, 07 |
+| `carousel_slides/` | 06 | 09 |
+| `.estado_actual` | 01 | 02, 03, 04, 07 |
+| `.costo_actual.json` | 01 (reinicia), 01-05 (suman) | 02, 04 (lo imprimen) |
+| `.cache_fotos_reales/` | 07 | 07 |
+
+### 4 · Salidas y archivo
+
+| | Qué es |
+|---|---|
+| `videos_no_music/video_$PROYECTO.mp4` | Intermedio del paso 07. **No se borra nunca**: hoy son ~700 MB (P-07) |
+| `videos/video_$PROYECTO.mp4` | **El entregable.** Lo escribe el paso 08 |
+| `proyectos/$PROYECTO/` | Respaldo permanente por tema: mp3, srt, `calidad_guion.json`, `images_IA/`, `source_images/`, `social_posts/`, `carousel_slides/` |
+| `publicar/$PROYECTO/` | Paquete listo para programar (video por hardlink + srt + `descripcion.txt` + carrusel) + `calendario.csv` |
+| `logs/` | `{PROYECTO}_{TEMA}.log` por tema + `failed.csv`, que sirve tal cual como `temas.csv` |
+| `metricas.csv` | ✅ **en git.** Una fila por `(id_plataforma, plataforma, fecha_snapshot)` |
+| `metricas_export/_normalizado/`, `_procesados/` | Trabajo interno del paso 10: los 5 formatos ya uniformados, y los crudos ya consumidos |
+
+**`T1/` es el archivo de la tanda anterior al pipeline.** Aparece dentro de `videos/`,
+`videos_no_music/` y `proyectos/` con la misma forma: 22-27 temas viejos (Messi01, Tupac01,
+Venecia01, Douglas_Bader…). No es basura — **son el `baseline` con el que se compara todo en
+`metricas.csv`**. ⚠️ Pero al estar un nivel más abajo, `proyectos/T1/<TEMA>/social_posts` queda
+fuera del glob del paso 10 y esos videos no emparejan solos (P-14 en TODO.md).
+
+### `PROYECTO` no es `TEMA`
+
+Se confunden todo el tiempo y no son lo mismo:
+
+- **`PROYECTO`** (`Historia04`) es el **identificador**: da nombre al video, a la carpeta de
+  respaldo, al log y a la carpeta de `publicar/`. Sin espacios ni acentos.
+- **`TEMA`** (`Robin Hood`) es **el asunto del guion**: solo lo usan el paso 01 (para escribir) y
+  el nombre del log.
+
+Todo lo que se nombra en disco usa `PROYECTO`. En el código del paso 09 la variable se llama
+`tema` pero contiene el `PROYECTO` — no te fíes del nombre de la variable, mira de dónde sale
+(`videos/video_*.mp4`).
+
+**[09_paquete_publicacion.py](herramientas/09_paquete_publicacion.py)** no es un paso por tema: **`run_all.sh` lo
 llama UNA vez al final**, pasándole con `--solo` los `PROYECTO` que terminaron (sin eso empaquetaría
-también los lotes viejos). Junta en `publicar/<TEMA>/` el video (con hardlink, cero espacio
+también los lotes viejos). Junta en `publicar/<PROYECTO>/` el video (con hardlink, cero espacio
 extra), el `.srt`, `descripcion.txt` y el carrusel, y escribe `publicar/calendario.csv` con
 las fechas repartidas. Marca los temas incompletos y los guiones que **no** pasaron el control de
 calidad del paso 01 (que deja su veredicto en `proyectos/$PROYECTO/calidad_guion.json`).
@@ -240,7 +340,7 @@ para no marcar como incompletos los respaldos anteriores a la fusión, y **borra
 destino antes de copiar**, para que rehacer un paquete no deje el archivo viejo al lado del nuevo.
 Sin `--solo` empaqueta **todo** lo que haya en `videos/`, incluidos los lotes viejos.
 
-**[10_metricas.py](10_metricas.py)** tampoco es un paso del pipeline: consolida en `metricas.csv`
+**[10_metricas.py](herramientas/10_metricas.py)** tampoco es un paso del pipeline: consolida en `metricas.csv`
 los exports de YouTube, TikTok, Instagram y Facebook **tal cual se descargan** (zips sin
 descomprimir incluidos) y que se dejan en `metricas_export/` con el nombre empezando por la
 plataforma. Ver **[README.md](README.md)** (bloque 5) para de dónde sale cada uno y qué métrica
@@ -268,7 +368,8 @@ trae cada red.
   `lote_nuevo_extra`, que hoy contiene `Test01`/Zidane, la prueba end-to-end del cambio). Es la
   única columna con la que se compara.
 - ⚠️ **Entran TODOS los videos publicados, con `PROYECTO` reconocido o sin él.** Los anteriores al
-  pipeline no tienen carpeta en `proyectos/`, pero son el baseline: descartarlos dejaba la
+  pipeline casi nunca emparejan —su respaldo está en `proyectos/T1/<TEMA>/`, un nivel por debajo
+  del glob `proyectos/*/social_posts` (P-14)— pero son el baseline: descartarlos dejaba la
   referencia en 7 videos en vez de 34. Por eso la clave de fusión es **`id_plataforma`** (el id
   nativo de cada red), no el `PROYECTO` — con `PROYECTO` como clave todos los desconocidos habrían
   colisionado en la misma fila vacía.
@@ -306,9 +407,61 @@ trae cada red.
   restar dos fotos. Fusiona por `(plataforma, id_plataforma, fecha_snapshot)` y nunca pisa un valor
   lleno con uno vacío.
 
-Scripts fuera del pipeline: `publisher.py` (publicación a Meta/Threads), `ink_filter.py` (convierte fotos
-reales a estilo tinta/pergamino, alternativa local al paso 04), `imagen_generator_source.py` (versión
-vieja del generador con Leonardo).
+**[11_reporte.py](herramientas/11_reporte.py)** lee `metricas.csv` y escribe un HTML autocontenido
+en `reportes/` (fechado + `ultimo.html`, nombre fijo para adjuntarlo sin adivinar). Solo stdlib y
+CSS incrustado. `reportes/` está en `.gitignore`: es derivado y `metricas.csv`, que sí está en git,
+guarda todas las fotos.
+- **`COLUMNAS_POR_PLATAFORMA` es explícito**, igual que `FUENTES` en el paso 10: cada red muestra
+  solo lo que exporta. TikTok no da `alcance`; ni YouTube ni TikTok dan `guardados`; `ctr_pct` es
+  solo de YouTube. Una tabla común sería un mar de celdas vacías.
+- ⚠️ **`TIPO_METRICA` es lo que hace que el informe no mienta, y no es cosmético.** Los videos del
+  lote nuevo llevan **4 días** publicados y los del baseline **66**. Clasifica cada métrica en:
+  `acumulativa` (crece mientras el video siga online → NO comparable con esas edades), `ventana`
+  (`vistas_24h`, `vistas_7d`: la edad ya está igualada por construcción → sí), `tasa` (un cociente
+  cuyas dos partes crecen juntas → sí) e `interna` (`retencion_relativa`, normalizada dentro de su
+  propio lote → comparar daría 0 % siempre). `comparar_lotes()` aparta lo no comparable a un bloque
+  "fuera del veredicto" en vez de esconderlo, para que nadie lo recalcule a mano.
+- ⚠️ **`vistas_por_dia` es `acumulativa`, no `tasa`, y ese es el punto.** Parece que corrige la
+  antigüedad y hace lo contrario: supone acumulación lineal, pero en video social casi todas las
+  vistas llegan en las primeras 48 h. Dividir entre 4 días en vez de entre 66 **invierte** el sesgo
+  y lo amplifica — daba «+5591 % en Instagram» sobre unos datos cuya diferencia real de vistas era
+  3.4×. Sirve para ordenar videos de edad parecida, nunca para comparar lotes.
+- Todo se compara **por mediana y con la n al lado** (`n_minimo_fiable`, 5). Con n=6, un promedio lo
+  decide un solo video viral y una mediana sin la n invita a concluir de más.
+- `retencion_pct` **puede pasar de 100 %** en YouTube (44 s de media sobre un video de 38 s): son
+  los bucles de Shorts, no un error de cálculo.
+
+**[12_recordatorio.py](herramientas/12_recordatorio.py)** es el recordatorio semanal por Telegram.
+Lo llama `cron` (no `run_all.sh`: no tiene nada que ver con generar videos).
+- **No es una alarma de calendario: mira el estado real del repo y por defecto calla si no hay nada
+  que decir.** Sin avisos y sin `--siempre` no envía — un bot que escribe todos los lunes aunque no
+  pase nada se acaba silenciando, y entonces tampoco avisa el día que importa.
+- Todo lo que comprueba son archivos que ya existen: `logs/failed.csv`, los
+  `proyectos/*/calidad_guion.json`, `publicar/calendario.csv`, la `fecha_snapshot` máxima de
+  `metricas.csv` y si los `PROYECTO` de `temas.csv` ya tienen video. Ninguna API salvo la de enviar.
+- **Importa `11_reporte.py` con `importlib` en vez de recalcular** (el nombre empieza por dígito, no
+  se puede `import` normal). A propósito: el informe ya descarta lo no comparable, y un resumen que
+  rehiciera las cuentas por su cuenta mandaría cada lunes un "+2493 % en vistas por día" que solo
+  mide la antigüedad de los videos.
+- Degrada sin romperse si faltan `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`: imprime y no envía,
+  igual que el paso 01 sin `ANTHROPIC_API_KEY`. `--dry-run` nunca envía.
+- ⚠️ Al fallar el envío **imprime solo `description`, nunca la URL**: el token va dentro de la ruta
+  y esto corre bajo cron, cuya salida acaba en un log o en un correo.
+
+### Código en desuso (está en git, no lo ejecuta nadie)
+
+Cuatro archivos que **no forman parte de ningún flujo**. Ninguno se ejecuta desde `run_pipeline.sh`
+ni desde `run_all.sh`, y todos referencian cosas que ya no existen:
+
+| Archivo | Qué era | Por qué no funciona hoy |
+|---|---|---|
+| `desuso/03_voice_generator_free.py` | Voz con OpenAI TTS (`tts-1-hd`, voz `onyx`) + modo `--test-voices` | Alternativa nunca adoptada; la primera mitad del archivo es edge-tts comentado |
+| `desuso/publisher.py` | Publicación automática a Meta/Threads | Le faltan 4 credenciales, apunta a `post_images/` (no existe) y lee `03_instagram.txt` / `04_facebook.txt`, que el paso 02 dejó de generar |
+| `desuso/ink_filter.py` | Convertir fotos reales a tinta/pergamino en local, sin fal | Funciona, pero nadie lo llama: el paso 04 genera con fal |
+| `desuso/imagen_generator_source.py` | Generador de imágenes con Leonardo | Leonardo se abandonó por fal.ai. Es quien escribía `images_IA_guidance/` |
+
+Están todos en `desuso/` justamente para que no se confundan con código vivo. Si abres uno pensando
+que forma parte del pipeline, no lo forma.
 
 ## Convenciones del código
 
@@ -316,10 +469,25 @@ vieja del generador con Leonardo).
   con emojis como marcadores de estado (✅ ❌ 🎬 ⏱️).
 - Cada script define un dict `CONFIG` al inicio con todos los parámetros ajustables y comentarios
   explicando los rangos. **Si agregas un parámetro, va en `CONFIG`, no disperso en el código.**
-- Rutas relativas al directorio del proyecto: todos los scripts asumen que se corren desde
-  `/home/juanb/video_generator`.
+- **Las rutas de datos son relativas a la RAÍZ, no a la carpeta del script.** Los `.py` están en
+  `pipeline/` y `herramientas/`, pero el directorio de trabajo siempre es
+  `/home/juanb/video_generator` (los dos `.sh` hacen `cd` ahí). Un `open("script.txt")` dentro de
+  `pipeline/04_…` abre el de la raíz, que es lo que se quiere.
 - Cada script es standalone con `if __name__ == "__main__"` y `load_dotenv()` al inicio.
 - Separadores visuales con `═` / `─` para dividir secciones dentro de un archivo.
+- Los scripts tienen celdas `#%%`: se corren enteros desde bash y por partes desde VS Code.
+
+**Dónde va un archivo nuevo**, para que la raíz no vuelva a llenarse:
+
+| Si es… | Va como | Y además |
+|---|---|---|
+| Un paso más del pipeline | `pipeline/NN_nombre.py`, con el número siguiente | se agrega a `run_pipeline.sh` **en su posición** (`run_step NN_nombre.py`, sin la carpeta: la pone la función) y se documenta en la tabla de pasos de arriba |
+| Una herramienta que se corre aparte | `herramientas/nombre.py` | se documenta como herramienta, **no** se mete en `run_pipeline.sh`. El número ya no hace falta: la carpeta dice lo que es |
+| Lógica que necesitan varios pasos | dentro de [pipeline/estado.py](pipeline/estado.py) | es el único módulo importable de `pipeline/`: los pasos empiezan por dígito y no se pueden `import` |
+| Un experimento | fuera del repositorio | si se queda y deja de usarse, a `desuso/` y a la tabla de código en desuso |
+
+⚠️ **Un paso nuevo que use ffmpeg necesita `-nostdin`** (trampa 10), y si trabaja sobre los
+archivos de la raíz debe llamar a `verificar_estado()` (trampa 1).
 
 ## Trampas conocidas (leer antes de tocar nada)
 
@@ -341,9 +509,12 @@ vieja del generador con Leonardo).
 4. El contexto del paso 04 depende de que GPT devuelva json con `personaje`, `epoca` y `estilo_visual`.
    Si falla, verás `⚠️ Contexto incompleto` en el log y las imágenes de ese tema saldrán sin anclaje
    (menos coherentes entre sí, pero el tema no aborta).
-5. Las carpetas sueltas `proyectos/social_posts`, `proyectos/carousel_slides` y `proyectos/source_images`
-   son basura de corridas viejas con `PROYECTO` vacío. Ya no se pueden volver a crear (hay guardas en los
-   pasos y en `run_pipeline.sh`), pero nadie las borró todavía.
+5. **No todo lo que hay en `proyectos/` es un tema.** `proyectos/social_posts`,
+   `proyectos/carousel_slides` y `proyectos/source_images` son basura de corridas viejas con
+   `PROYECTO` vacío (ya no se pueden volver a crear: hay guardas en los pasos y en
+   `run_pipeline.sh`), y `proyectos/T1/` es el **archivo de la tanda anterior al pipeline**, con
+   otros 27 temas un nivel más abajo. Un `glob("proyectos/*")` te devuelve las tres cosas
+   mezcladas. Inventario y limpieza: P-07 y P-14 en [TODO.md](TODO.md).
 6. **moviepy está clavado en 1.0.3** (API `from moviepy.editor import ...`). Actualizar a 2.x rompe el
    paso 07 completo. El paso 08 ya no depende de moviepy.
    ⚠️ En esa versión **`to_mask()` usa el canal ROJO por defecto (`canal=0`), no el alfa**. Cualquier
@@ -369,9 +540,15 @@ vieja del generador con Leonardo).
     parece que alguien editó el CSV a mitad de corrida. Tres defensas, todas puestas:
     `done 9< <(tail ...)` con `read <&9`, `run_pipeline.sh </dev/null`, y **`-nostdin` en las dos
     llamadas a ffmpeg** (pasos 03 y 08). Si agregas otra llamada a ffmpeg, ponle `-nostdin`.
-11. `publisher.py` está incompleto respecto al resto: necesita `META_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`,
-    `INSTAGRAM_ACCOUNT_ID` y `THREADS_USER_ID` (no están en `.env`) y apunta a una carpeta `post_images/`
-    que no existe. La publicación hoy es manual.
+    ⚠️ De la misma familia: **`logs/failed.csv` se escribe CON encabezado**. El bucle salta la
+    primera línea (`tail -n +2`), así que sin él, reusarlo como `temas.csv` para reintentar perdía
+    el primer tema caído en silencio — con `Historia07` y `Historia08` dentro, solo reintentaba
+    Einstein. Si tocas cómo se escribe ese archivo, mantén el encabezado.
+11. **Los cuatro `.py` de `desuso/` no los ejecuta nadie** — `publisher.py`, `ink_filter.py`,
+    `imagen_generator_source.py` y `03_voice_generator_free.py` (ese `03` no significa nada: no es
+    un paso). Qué era cada uno y por qué no funciona hoy:
+    [§ Código en desuso](#código-en-desuso-está-en-git-no-lo-ejecuta-nadie).
+    La publicación sigue siendo manual.
 12. Cada tema cuesta **~$0.25 real**: ~15 llamadas a GPT-4.1, 1 síntesis de ElevenLabs y 6 imágenes de
     fal.ai a 832×1472 (el 74 % del coste son las imágenes) (fal cobra por megapíxel: subir la resolución sube el costo proporcionalmente).
     `estado.py` lleva la cuenta en `.costo_actual.json` y los pasos 02 y 04 la imprimen al terminar.
@@ -380,8 +557,9 @@ vieja del generador con Leonardo).
 ## Al hacer cambios
 
 - Prueba con un tema aislado (`PROYECTO=Test01 TEMA="..." bash run_pipeline.sh`) antes del lote.
-- Para iterar solo en el video sin regenerar guion, voz e imágenes, corre `python 07_video_generator.py`
-  directamente con `TITULO_VIDEO` y `PROYECTO` exportados: reusa `images_IA/` y `voice.mp3` existentes.
+- Para iterar solo en el video sin regenerar guion, voz e imágenes, corre
+  `python pipeline/07_video_generator.py` **desde la raíz**, con `TITULO_VIDEO` y `PROYECTO`
+  exportados: reusa `images_IA/` y `voice.mp3` existentes.
 - El paso 07 con Whisper `medium` es lento (minutos). Para pruebas rápidas de layout, baja
   `whisper_model` a `"tiny"` o descomenta el `final.subclip(0, 3)` de la línea 663.
 - Los logs por tema quedan en `logs/`; los temas que fallan se acumulan en `logs/failed.csv` con el mismo

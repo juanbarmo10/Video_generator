@@ -486,6 +486,14 @@ def escribir_guion_con_control(tema: str, cfg: dict = CONFIG) -> str:
     """
     mejor = None
     mejor_nota = -1
+    # ⚠️ El veredicto viaja CON el guion, no aparte. Antes se registraba el del
+    # último intento aunque el devuelto fuera otro: en Historia08, `script.txt`
+    # quedó con el guion del examen de ingreso y `calidad_guion.json` acusando
+    # unas frases sobre el cerebro de Einstein que no estaban en él. El paso 09
+    # imprime esas objeciones al empaquetar, así que mandaba a revisar
+    # afirmaciones que el video no dice — y callaba las que sí.
+    mejor_veredicto = None
+    mejor_intento = 0
     correcciones = ""
 
     for intento in range(1, cfg["intentos_max"] + 1):
@@ -524,6 +532,7 @@ def escribir_guion_con_control(tema: str, cfg: dict = CONFIG) -> str:
 
         if nota_final > mejor_nota:
             mejor, mejor_nota = script, nota_final
+            mejor_veredicto, mejor_intento = veredicto, intento
 
         if pasa:
             print(f"\n✅ Guion aprobado en el intento {intento} (nota {nota}/10)")
@@ -543,8 +552,12 @@ def escribir_guion_con_control(tema: str, cfg: dict = CONFIG) -> str:
         raise SystemExit(f"❌ {mensaje} Tema abortado.")
 
     print(f"\n{mensaje}")
-    print("   Se usa el mejor de los intentos. REVÍSALO A MANO antes de publicar.")
-    registrar_calidad(False, cfg["intentos_max"], veredicto)
+    print(f"   Se usa el del intento {mejor_intento}. REVÍSALO A MANO antes de publicar.")
+    if mejor_veredicto.get("afirmaciones_dudosas"):
+        print("   Lo que el crítico le objetó A ESE guion:")
+        for cita in mejor_veredicto["afirmaciones_dudosas"]:
+            print(f'     ⚠️  "{cita}"')
+    registrar_calidad(False, mejor_intento, mejor_veredicto)
     return mejor
 
 
@@ -553,6 +566,10 @@ def registrar_calidad(aprobado: bool, intento: int, veredicto: dict) -> None:
 
     En un lote nocturno de 30 temas los avisos se pierden en los logs. El paso
     09 lee esto para marcar qué guiones hay que revisar a mano.
+
+    ⚠️ `intento` y `veredicto` tienen que ser los del guion que de verdad se
+    escribió en `script.txt` —el mejor—, no los del último que se probó. Si no,
+    el archivo acusa a un texto que nadie va a publicar.
     """
     if not PROYECTO:
         return

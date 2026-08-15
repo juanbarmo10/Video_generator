@@ -492,23 +492,52 @@ def generate_title(script: str) -> str:
     return response.choices[0].message.content.strip()
 
 
+def sanear_valor_env(value: str) -> str:
+    """Deja un valor que se puede escribir en el .env sin romperlo.
+
+    ⚠️ `run_pipeline.sh` hace `source .env`, o sea que esto lo lee BASH. El
+    título lo escribe un LLM, así que hay que tratarlo como texto ajeno:
+
+    - Los saltos de línea son el fallo que ya ocurrió: un título de dos líneas
+      dejaba `TITULO_VIDEO="linea 1 / linea 2"` repartido en varias líneas del
+      archivo. La corrida siguiente solo reemplaza la PRIMERA (el bucle corta en
+      el primer `startswith`), y las demás quedan sueltas — prosa que bash
+      intenta ejecutar como comando. Pasó de verdad con Historia07 (Galeón).
+    - `"` cierra la comilla antes de tiempo; `$`, `` ` `` y `\` se interpretan
+      DENTRO de comillas dobles, así que un título con `$(...)` se ejecutaría.
+
+    Ninguno de esos caracteres tiene sentido en un título que va quemado en el
+    frame 0 de un video, así que se quitan en vez de escaparse: es más simple y
+    no hay forma de que se cuelen por una regla de escapado mal puesta.
+    """
+    plano = " ".join(str(value).split())          # \n, \r y \t → un solo espacio
+    sin_peligro = plano.translate(str.maketrans("", "", '"`$\\'))
+    # Se vuelve a colapsar DESPUÉS de quitar caracteres: borrar una barra final
+    # dejaba un espacio colgando, y dos símbolos seguidos dejaban espacio doble.
+    return " ".join(sin_peligro.split())
+
+
 def save_to_env(key: str, value: str, env_path: str = ".env") -> None:
     """Actualiza o agrega una variable en el archivo .env."""
     path = Path(env_path)
     lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
 
+    limpio = sanear_valor_env(value)
+    if limpio != value:
+        print(f"  ⚠️  {key} se saneó antes de escribirlo (rompía el .env)")
+
     updated = False
     for i, line in enumerate(lines):
         if line.startswith(f"{key}="):
-            lines[i] = f'{key}="{value}"'
+            lines[i] = f'{key}="{limpio}"'
             updated = True
             break
 
     if not updated:
-        lines.append(f'{key}="{value}"')
+        lines.append(f'{key}="{limpio}"')
 
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"  ✓ {key} guardado en {env_path}: '{value}'")
+    print(f"  ✓ {key} guardado en {env_path}: '{limpio}'")
 
 
 def clean_output_dir(output_dir="social_posts") -> None:

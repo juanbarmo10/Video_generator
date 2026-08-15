@@ -54,3 +54,7 @@ publicar/
 
 # Exports crudos de las plataformas (ruido; el consolidado va en metricas.csv)
 metricas_export/
+
+# Informes HTML (derivados: se rehacen con `python herramientas/11_reporte.py`,
+# y metricas.csv —que sí está en git— guarda todas las fotos históricas)
+reportes/

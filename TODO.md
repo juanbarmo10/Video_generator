@@ -9,24 +9,25 @@
 > Arquitectura y trampas del código, **[CLAUDE.md](CLAUDE.md)**.
 
 **Estado a 15 ago 2026.** Primer lote real con el pipeline auditado (`Historia01`–`Historia08`):
-6 temas terminados, 2 abortados por saldo de fal.ai. La primera lectura de métricas confirma el
-salto de `v2-mas-cortes` sobre `baseline` (6× vistas a 24 h en YouTube, CTR ×8) con una sola
-métrica en contra. **Nada del pipeline está roto.** Lo que queda es elección de temas, costo,
-tiempo y orden del repositorio.
+**los 8 terminados** — `Historia07` y `Historia08` se recuperaron tras recargar fal.ai. El informe
+de métricas confirma el salto de `v2-mas-cortes` sobre `baseline` con las cifras que resisten un
+filtro de comparabilidad (YouTube +513 % a 24 h, CTR +785 %, retención +32 %) y una sola métrica en
+contra, `se_quedaron_pct`. **Nada del pipeline está roto.** Lo que queda es elección de temas,
+costo, tiempo y orden del repositorio.
+
+⚠️ Lo urgente ya no es generar: es **leer los 7 guiones que no pasaron el control antes de
+programarlos**.
 
 | | # | Pendiente |
 |---|---|---|
-| 🔴 | [P-01](#p-01) | Saldo de fal.ai agotado — 2 temas sin video |
-| 🔴 | [P-02](#p-02) | 5 de 6 guiones no pasaron el control de calidad (el problema entró por `temas.csv`) |
+| 🔴 | [P-02](#p-02) | 7 de 8 guiones no pasaron el control de calidad (el problema entró por `temas.csv`) |
 | 🟠 | [P-03](#p-03) | Títulos de YouTube por encima de 70 caracteres |
 | 🟠 | [P-04](#p-04) | El crítico de Anthropic nunca se ha ejecutado |
 | 🟠 | [P-12](#p-12) | `se_quedaron_pct` bajó — la única métrica que empeoró en v2 |
 | 🟠 | [P-15](#p-15) | Los planos de una misma imagen salen consecutivos: se perciben la mitad de los cortes |
 | 🟡 | [P-05](#p-05) | Composite del paso 07 sin `bg_color` — hallazgo sin confirmar |
 | 🟡 | [P-06](#p-06) | Paralelizar los temas (bloqueado por el estado global de la raíz) |
-| 🔵 | [P-16](#p-16) | Reporte de métricas — nadie lee las 147 filas de `metricas.csv` |
-| 🔵 | [P-17](#p-17) | Bot de Telegram con el recordatorio semanal |
-| ⚪ | [P-13](#p-13) | La raíz mezcla código, estado, salidas y notas |
+| 🔵 | [P-17](#p-17) | Dar de alta el bot de Telegram (el script ya está; faltan las 2 claves) |
 | ⚪ | [P-14](#p-14) | `proyectos/T1/` anidado: 78 de 147 filas de métricas sin `PROYECTO` |
 | ⚪ | [P-07](#p-07) | Basura de corridas viejas (~750 MB recuperables) |
 | ⚪ | [P-08](#p-08) | Los 16 Mundial no tienen `descripcion.txt` ni `.srt` |
@@ -40,20 +41,8 @@ tiempo y orden del repositorio.
 
 ## 🔴 Bloquean el lote actual
 
-<a id="p-01"></a>
-**P-01 · Saldo de fal.ai agotado — 2 temas sin video.**
-`Historia07` (Galeón) y `Historia08` (Einstein) abortaron en el paso 04:
-```
-❌ Error generando imagen 1: User is locked. Reason: Exhausted balance.
-❌ Solo se generaron 0/6 imágenes (mínimo 5) — el video quedaría inservible
-```
-El corte fue limpio: no se gastó de más y no quedó un video a medias. `logs/failed.csv` ya
-tiene las dos filas con los nombres corregidos, así que sirve tal cual como `temas.csv` para
-reintentar. **Recargar antes de correr cualquier lote nuevo.**
-`cp logs/failed.csv temas.csv && bash run_all.sh`
-
 <a id="p-02"></a>
-**P-02 · 5 de 6 guiones NO pasaron el control de calidad.**
+**P-02 · 7 de 8 guiones NO pasaron el control de calidad.**
 Y eso es ya el mejor de 3 intentos, con reescritura guiada por los fallos concretos.
 
 | Tema | Nota | Qué le objetó el crítico |
@@ -61,7 +50,9 @@ Y eso es ya el mejor de 3 intentos, con reescritura guiada por los fallos concre
 | Historia02 Eclipse | **3/10** | narra *"dos ejércitos **lidian** bajo el mismo sol"* — se comió que eran **lidios**, y sale así en la voz |
 | Historia05 San Lorenzo | 4/10 | *"el festival de parrilladas más popular de Roma"* |
 | Historia06 Surrealismo | 4/10 | *"juró que podía hipnotizar a una ciudad entera"* |
+| Historia07 Galeón | 4/10 | *"tres clavos cambiaron la ruta del oro"*, *"millones en plata y porcelanas"* |
 | Historia01, Historia03 | 5/10 | afirmaciones sin fuente verificable |
+| Historia08 Einstein | 6/10 | ⚠️ su `calidad_guion.json` es de **antes** del arreglo del veredicto (abajo): acusa a un guion sobre el cerebro de Einstein que no se usó. El que se publica es el del examen de ingreso — léelo directamente |
 | Historia04 Robin Hood | ✅ | el único aprobado |
 
 **El problema no está en el paso 01: entró por `temas.csv`.** `2016`, `Eclipse`, `Odisea` y
@@ -98,6 +89,12 @@ YouTube 48.5 % → **40.7 %**, TikTok 13 % → **9 %**, mientras todo lo demás 
 tiempo de exposición, porque las ventanas de 24 h ya lo neutralizan. Con n=6 puede ser ruido,
 pero apunta a que **los primeros 2 segundos empeoraron** aunque quien se queda vea mucho más.
 
+✅ **Confirmado el 15 ago con el informe** (`herramientas/11_reporte.py`): −16 % en YouTube (n=6 vs
+34) y −31 % en TikTok (n=3 vs 8, muestra pequeña). Es la **única** métrica que baja de las que
+sobreviven al filtro de comparabilidad — el resto de las que caían resultaron ser acumulados
+contaminados por la antigüedad. Que aparezca en las dos redes que la exportan, y en la misma
+dirección, le quita bastante de casualidad.
+
 Sospechosos, en orden: el título en pantalla dura 2.5 s y arranca en `y=200`; el primer corte
 llega a 1.75 s (antes 4.9 s), que puede leerse como brusco; el gancho generado abre pregunta
 pero ya no dice el desenlace, que es lo que retenía a quien buscaba respuesta rápida.
@@ -124,7 +121,7 @@ A1 B1  A2 B2  C1 D1  C2 D2 …          ← misma duración, el doble de cortes 
 ```
 
 Es gratis: no cambia el número de imágenes ni el costo de fal, solo el orden de los clips en el
-bucle de [07_video_generator.py](07_video_generator.py) (`plano_global`, ~línea 545).
+bucle de [07_video_generator.py](pipeline/07_video_generator.py) (`plano_global`, ~línea 545).
 
 ⚠️ **No barajar al azar, y esto es lo importante.** Las 6 imágenes las genera el paso 04 **en orden
 narrativo**, a partir de las escenas del guion: la imagen 1 ilustra la primera frase y la 6 el
@@ -178,142 +175,57 @@ porque `script.txt`, `voice.mp3` e `images_IA/` son **estado global en la raíz*
 vez se pisan. Habilitarlo exige un directorio de trabajo por tema. Es el cambio más grande del
 proyecto y el que más tiempo ahorra: el lote pasaría de ~1h50m a ~50 min.
 
-> Ojo al orden: **P-06 y [P-13](#p-13) son el mismo cambio visto desde dos lados.** Un directorio
-> de trabajo por tema resuelve la paralelización *y* vacía la raíz de estado mutable. Si algún día
-> se hace, hágase una sola vez y por ese motivo — no por estética.
+> Ojo: el estado global de la raíz es lo **único** que queda por ordenar ahí. El código ya se
+> movió a `pipeline/`, `herramientas/` y `desuso/`
+> ([reorganización](HISTORIAL.md#-reorganización-del-código-15-ago-2026)), y esa parte se hizo
+> precisamente porque era barata; esta no lo es. Un directorio de trabajo por tema resolvería la
+> paralelización *y* vaciaría la raíz de estado mutable: si algún día se hace, hágase una sola vez
+> y por ese motivo, no por estética.
 
 ---
 
 ## 🔵 Operación y seguimiento
 
-Las dos cierran el ciclo: hoy se generan y se miden los videos, pero nadie **lee** los números ni
-**avisa** de que toca trabajar.
-
-<a id="p-16"></a>
-**P-16 · Reporte de métricas: `11_reporte.py`.**
-`metricas.csv` tiene 147 filas × 21 columnas. Nadie va a abrir eso cada semana, así que los datos
-que tanto costó consolidar no se están usando para decidir nada.
-
-**Cómo hacerlo con lo que ya hay, sin dependencias nuevas:** leer `metricas.csv` y escribir **un
-HTML autocontenido** (stdlib + f-strings, igual que el resto del proyecto). Se abre en el navegador,
-no necesita Excel y se puede adjuntar en Telegram ([P-17](#p-17)).
-
-**Una sección por plataforma, y cada una con SUS columnas.** Es lo que evita el mar de celdas
-vacías: mostrarle a Instagram un `se_quedaron_pct` que no existe solo estorba.
-
-| Red | Columnas que valen |
-|---|---|
-| YouTube | `vistas_24h`, `se_quedaron_pct`, `retencion_pct`, `ctr_pct`, `tiempo_total_h` |
-| TikTok | `vistas`, `se_quedaron_pct`, `retencion_pct` |
-| Facebook | `alcance`, `distribucion`, `guardados`, `retencion_pct` |
-| Instagram | `alcance`, `guardados`, `compartidos`, `retencion_pct` |
-
-**Métricas derivadas que no están y aportan más que las crudas** — se calculan de lo que ya hay:
-
-- **`vistas_por_dia`** = `vistas / (hoy − fecha_publicacion)`. Quita el sesgo de que un video lleve
-  más tiempo publicado, que es lo que hoy obliga a mirar solo `vistas_24h` (y esa solo la tiene
-  YouTube).
-- **`tasa_guardado`** = `guardados / alcance`. En reels pesa más que los me gusta para que te
-  repartan, y hoy `guardados` está en 90 filas sin que nadie lo mire.
-- **`engagement`** = `(me_gusta + comentarios + compartidos + guardados) / alcance`. Comparable
-  entre redes, que es justo lo que las cifras crudas no permiten.
-- **`retencion_relativa`** = retención del video ÷ mediana de su lote. Dice si un video es bueno
-  *para tu canal*, no contra un estándar de internet.
-
-**Qué debe responder el reporte**, en este orden:
-1. ¿`v2-mas-cortes` sigue ganando a `baseline`? Comparación por mediana, nunca por promedio.
-2. ¿Qué video fue el mejor y el peor de la semana, y por qué métrica?
-3. ¿Se movió `se_quedaron_pct`? Es [P-12](#p-12) y es lo único que va en contra.
-4. Evolución entre `fecha_snapshot`: con dos o más fotos, la tendencia. Hoy solo hay una.
-
-⚠️ Con n=6 en v2, el reporte tiene que **mostrar el tamaño de muestra al lado de cada mediana**.
-Sin eso invita a concluir de más, que es peor que no tener reporte.
+El informe ya existe ([11_reporte.py](herramientas/11_reporte.py), hecho el 15 ago — está en
+[HISTORIAL.md](HISTORIAL.md#-informe-de-métricas-y-la-trampa-de-la-antigüedad-15-ago-2026)). Falta
+que **avise solo** de que toca trabajar.
 
 <a id="p-17"></a>
-**P-17 · Bot de Telegram con el recordatorio semanal: `12_recordatorio.py`.**
-El pipeline es semanal pero no avisa de nada: si se te pasa un lunes, la semana se cae sola.
+**P-17 · Dar de alta el bot de Telegram.**
+[12_recordatorio.py](herramientas/12_recordatorio.py) **ya está escrito y probado en seco**; lo que
+falta son dos claves, y eso solo lo puedes hacer tú:
 
-**Lo más simple que funciona:** la API de Telegram es un `POST` a
-`https://api.telegram.org/bot<TOKEN>/sendMessage` con `chat_id` y `text`. **No hace falta librería
-de bots** — `requests` ya está en el proyecto. Un `cron` semanal y ya:
+1. Hablarle a **`@BotFather`** → `/newbot` → guardar el token.
+2. Escribirle al bot y abrir `https://api.telegram.org/bot<TOKEN>/getUpdates` para sacar el
+   `chat_id`.
+3. Ponerlos en el `.env` como `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` (están ya en
+   `.env.example`).
+4. Programarlo:
+   ```bash
+   # crontab -e   →   lunes a las 9:00
+   0 9 * * 1  cd /home/juanb/video_generator && \
+              /home/juanb/miniforge3/envs/ai_video_bot/bin/python \
+              herramientas/12_recordatorio.py
+   ```
 
-```bash
-# crontab -e   →   lunes a las 9:00
-0 9 * * 1  /home/juanb/miniforge3/envs/ai_video_bot/bin/python 12_recordatorio.py
-```
+Sin las claves **no se rompe**: imprime el mensaje por consola, igual que el paso 01 sin
+`ANTHROPIC_API_KEY`. Pruébalo cuando quieras con
+`python herramientas/12_recordatorio.py --dry-run`.
 
-Alta: hablarle a `@BotFather` → `/newbot` → guardar el token; sacar el `chat_id` con
-`getUpdates` tras escribirle al bot. Va en `.env` como `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`,
-y **el script debe degradar sin romperse si faltan** (igual que hace el paso 01 con
-`ANTHROPIC_API_KEY`).
+⚠️ **El token es una credencial**: al `.env`, que ya está en `.gitignore`, nunca al código. Y el
+`chat_id` va fijo — un bot que responda a cualquiera que le escriba es un bot con el que cualquiera
+puede leer tus métricas.
 
-**Que no sea solo una alarma: que mire el estado real del repo y solo hable si hay algo que decir.**
-Todo esto es leer archivos que ya existen:
-
-| Comprueba | Cómo | Avisa si |
-|---|---|---|
-| Temas fallidos sin reintentar | `logs/failed.csv` no vacío | quedan temas caídos (hoy, `Historia07` y `Historia08`) |
-| Lote sin programar | fechas de `publicar/calendario.csv` ya pasadas | hay videos empaquetados que quizá no subiste |
-| Métricas desactualizadas | `fecha_snapshot` máxima de `metricas.csv` | han pasado más de 7 días desde la última consolidación |
-| Guiones sin revisar | `calidad_guion.json` con `aprobado: false` | hay videos por publicar con nota < 7 |
-| `temas.csv` vacío o ya procesado | comparar con `videos/` | toca elegir temas para la semana |
-
-Y el lunes, adjuntar el resumen de [P-16](#p-16): las tres o cuatro cifras de la semana en el
-propio mensaje, no un "ve a mirar el CSV".
-
-⚠️ **El token de Telegram es una credencial**: al `.env`, que ya está en `.gitignore`, nunca al
-código. Y `chat_id` fijo — un bot que responda a cualquiera que le escriba es un bot que cualquiera
-puede usar para ver tus métricas.
-
-**Orden sensato:** P-16 primero. El bot sin reporte es un despertador; con reporte, es el informe
-semanal llegando solo.
+**Qué queda por decidir cuando lleve unas semanas** (no hace falta ahora):
+- Si `nota_minima` (7) genera demasiado ruido. Hoy marca 7 guiones, que es mucho para un solo
+  mensaje; puede que convenga que avise solo de los que están **sin publicar**.
+- Adjuntar `reportes/ultimo.html` como archivo (`sendDocument`) en vez de nombrarlo. Se dejó fuera
+  porque el HTML pesa 51 KB y Telegram lo enseña como adjunto, no en línea: hay que ver si lo abres
+  de verdad desde el móvil antes de complicarlo.
 
 ---
 
 ## ⚪ Estructura del repositorio
-
-<a id="p-13"></a>
-**P-13 · La raíz mezcla código, estado del tema en curso, salidas y notas.**
-40 entradas en el mismo nivel, sin nada que indique de qué tipo es cada una: 13 `.py` (8 pasos,
-2 herramientas, 3 muertos), 2 `.sh`, 5 notas, 2 csv, 6 archivos de estado y 12 carpetas que van
-desde fuentes tipográficas hasta 1.6 GB de video. El mapa completo, con quién escribe y quién lee
-cada cosa, está en [CLAUDE.md § Mapa del repositorio](CLAUDE.md#mapa-del-repositorio); lo que
-sigue es qué hacer al respecto.
-
-**Lo que sí conviene mover — barato y sin tocar una sola ruta de datos:**
-
-```
-pasos/          01…08 + estado.py     ← el pipeline, en orden
-herramientas/   09, 10                ← se corren aparte, no por tema
-archivo/        03_voice_generator_free.py, publisher.py,
-                ink_filter.py, imagen_generator_source.py   ← no los llama nadie
-```
-
-Los scripts seguirían ejecutándose **con la raíz como directorio de trabajo**, así que
-`script.txt`, `images_IA/`, `videos/` y todo lo demás se resuelven igual que hoy. Cambia solo
-dónde vive el archivo `.py`. Coste real del cambio:
-
-| Qué hay que tocar | Cuánto |
-|---|---|
-| `run_pipeline.sh` | 8 líneas `run_step pasos/0N_…` |
-| `run_all.sh` | 1 línea `python herramientas/09_paquete_publicacion.py` |
-| `estado.py` | mover a `pasos/`: Python pone en `sys.path` el directorio **del script**, no el CWD, así que los 6 pasos que lo importan lo necesitan al lado |
-| Notas | los enlaces a los `.py` que hay en README, CLAUDE, TODO e HISTORIAL |
-
-Nada más. Ninguna ruta de datos aparece en juego porque **ningún script referencia a otro script**:
-se comunican solo por archivos.
-
-**Lo que NO conviene mover:** las carpetas de datos y salidas (`images_IA/`, `source_images/`,
-`social_posts/`, `videos*/`, `proyectos/`, `publicar/`, `logs/`). Están escritas a mano en los
-`CONFIG` de los 11 scripts, en `.gitignore`, y —lo caro— en los 30 respaldos ya generados y en
-los hardlinks de `publicar/`. Es tocar todo el pipeline para ganar estética. **La comunicación por
-archivos en la raíz *es* la arquitectura**, no un descuido: si algún día molesta de verdad, la
-salida buena es el directorio de trabajo por tema de [P-06](#p-06), no un cambio de nombres.
-
-**Sobre los prefijos numéricos: dejarlos.** `01_`…`08_` codifican el orden de ejecución, que es el
-dato más útil del repositorio. El precio es que no se pueden importar con la sentencia `import`
-(`SyntaxError`) — pero sí con `importlib.import_module("02_social_media_generator")`, verificado.
-O sea que los números **no son** lo que bloquea los tests; ver [P-11](#p-11).
 
 <a id="p-14"></a>
 **P-14 · `proyectos/T1/` anidado deja 78 de 147 filas de métricas sin `PROYECTO`.**
@@ -398,7 +310,7 @@ y tecleo, que es asumible. Cuando pase de ahí o superes ~50 videos, en este ord
    `metrics="audienceWatchRatio,relativeRetentionPerformance"`. Empieza por ahí — es justo lo que
    pide [P-12](#p-12).
 2. **Meta** — Instagram Graph API, `GET /{ig-media-id}/insights` con
-   `metric=plays,reach,saved,shares,total_interactions`. Aprovecha que `publisher.py` ya espera
+   `metric=plays,reach,saved,shares,total_interactions`. Aprovecha que `desuso/publisher.py` ya espera
    esas credenciales (ver P-10): las mismas sirven para publicar y para leer.
 3. **TikTok, la última.** Hay que registrar una app y pasar una revisión: semanas de trámite para
    la red que menos aporta y donde más hay que teclear.
@@ -407,23 +319,26 @@ y tecleo, que es asumible. Cuando pase de ahí o superes ~50 videos, en este ord
 cuatro cuentas conectadas y sería una descarga en vez de cinco. No te dará la curva de retención.
 
 <a id="p-10"></a>
-**P-10 · `publisher.py` sigue incompleto.** Le faltan `META_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`,
-`INSTAGRAM_ACCOUNT_ID` y `THREADS_USER_ID`, y apunta a `post_images/`, que no existe. Además lee
-`03_instagram.txt` y `04_facebook.txt`, que el paso 02 dejó de generar en agosto. La publicación
-es manual.
+**P-10 · `desuso/publisher.py` sigue incompleto.** Le faltan `META_ACCESS_TOKEN`,
+`FACEBOOK_PAGE_ID`, `INSTAGRAM_ACCOUNT_ID` y `THREADS_USER_ID`, y apunta a `post_images/`, que no
+existe. Además lee `03_instagram.txt` y `04_facebook.txt`, que el paso 02 dejó de generar en
+agosto. La publicación es manual. Está en `desuso/` justamente por eso: si algún día se retoma,
+vuelve a `herramientas/`.
 
 <a id="p-11"></a>
 <a id="p-18"></a>
 **P-18 · La cabecera del paso 06 miente sobre su propia entrada.**
-El docstring de [06_carrusel_generator.py](06_carrusel_generator.py) dice que lee
+El docstring de [06_carrusel_generator.py](pipeline/06_carrusel_generator.py) dice que lee
 `social_posts/03_instagram.txt`, un archivo que **dejó de existir** cuando el paso 02 se
 reestructuró; su `CONFIG` apunta bien a `carrusel.txt`. Manda el `CONFIG`, pero quien abra el
 archivo por primera vez va a buscar un contrato que ya no existe. Son dos líneas de comentario, y
 de paso conviene renombrar `parse_instagram_file()` — que además está duplicada, y gana la segunda.
 
 **P-11 · No hay tests.** Todo se valida a mano corriendo un tema. Lo más rentable serían pruebas
-puras, sin red: `separar_hashtags()`, `repartir_planos()`, `verificar_reglas_mecanicas()` y el
-parseo de `carrusel.txt` del paso 06.
+puras, sin red: `separar_hashtags()`, `repartir_planos()`, `verificar_reglas_mecanicas()`,
+`sanear_valor_env()` y el parseo de `carrusel.txt` del paso 06. También `comparar_lotes()` y
+`TIPO_METRICA` de [11_reporte.py](herramientas/11_reporte.py): ahí un signo invertido no rompe
+nada, solo hace que el informe afirme lo contrario de lo que pasó, que es peor.
 
 Lo que hay que saber antes de intentarlo: **el obstáculo no son los prefijos numéricos**
 (`importlib.import_module("02_…")` funciona), sino que **los pasos trabajan al importarse**. Basta
