@@ -709,11 +709,34 @@ def textos_de_proyecto(posts: Path) -> list[str]:
 
 
 def indice_proyectos(cfg: dict) -> dict:
+    """Todos los proyectos con textos, buscando a UNO y a DOS niveles.
+
+    ⚠️ El segundo nivel no es opcional: `proyectos/T1/` es el archivo de la tanda
+    anterior al pipeline (27 respaldos: Messi01, Tupac01, Douglas_Bader…), y son
+    justo los videos que forman el `baseline` con el que se compara todo. Con
+    solo `*/social_posts` quedaban invisibles —22 proyectos— y sus métricas
+    entraban en `metricas.csv` sin `PROYECTO`, o sea sin lote con el que
+    compararse. El nombre sale de `posts.parent.name`, que ya vale para los dos.
+
+    Dos niveles y no `rglob`: acotarlo evita que un respaldo dentro de otro
+    respaldo (o un `images_IA/social_posts` accidental) entre como proyecto.
+    """
+    raiz = Path(cfg["dir_proyectos"])
     indice = {}
-    for posts in sorted(Path(cfg["dir_proyectos"]).glob("*/social_posts")):
-        textos = textos_de_proyecto(posts)
-        if textos:
-            indice[posts.parent.name] = textos
+    for patron in ("*/social_posts", "*/*/social_posts"):
+        for posts in sorted(raiz.glob(patron)):
+            textos = textos_de_proyecto(posts)
+            if not textos:
+                continue
+            nombre = posts.parent.name
+            if nombre in indice:
+                # Hoy no pasa (se comprobó: 28 + 22, cero colisiones), pero si
+                # algún día se repite un nombre entre niveles, en silencio uno
+                # pisaría al otro y sus métricas se emparejarían mal.
+                print(f"   ⚠️  Nombre de proyecto repetido: {nombre} "
+                      f"({posts.parent}) — se conserva el primero")
+                continue
+            indice[nombre] = textos
     return indice
 
 

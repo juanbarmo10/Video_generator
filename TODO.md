@@ -26,7 +26,7 @@ cosas falsas y no deben publicarse tal cual. Ver [P-02](#p-02).
 | 🟡 | [P-19](#p-19) | `DELAY = 7.0` uniforme en el paso 05 — ~2-3 min/video dormidos |
 | ⚪ | [P-06](#p-06) | Paralelizar los temas — evaluado: no compensa todavía |
 | 🔵 | [P-17](#p-17) | Afinar el recordatorio con unas semanas de uso (ya funciona y está en cron) |
-| ⚪ | [P-14](#p-14) | `proyectos/T1/` anidado: 78 de 147 filas de métricas sin `PROYECTO` |
+| ✅ | [P-14](#p-14) | ~~`proyectos/T1/` anidado~~ — hecho: 43 filas de métricas recuperadas |
 | ⚪ | [P-07](#p-07) | Basura de corridas viejas (~750 MB recuperables) |
 | ⚪ | [P-08](#p-08) | Los 16 Mundial no tienen `descripcion.txt` ni `.srt` |
 | ⚪ | [P-09](#p-09) | ¿Se sigue usando el carrusel de Instagram? |
@@ -235,7 +235,14 @@ Lo que queda son dos ajustes que **solo se pueden decidir con unas semanas de us
 ## ⚪ Estructura del repositorio
 
 <a id="p-14"></a>
-**P-14 · `proyectos/T1/` anidado deja 78 de 147 filas de métricas sin `PROYECTO`.**
+**P-14 · ✅ HECHO (15 ago) · `proyectos/T1/` anidado dejaba 78 de 147 filas sin `PROYECTO`.**
+Se aplicó la salida 2 (glob a dos niveles en `indice_proyectos()`, sin mover nada de sitio). El
+índice pasó de **28 a 50 proyectos** —los 22 de `T1/` eran invisibles— y `metricas.csv` de **78 a
+35 filas sin `PROYECTO`**: 43 recuperadas, con TikTok al 15/15. Las 147 filas siguen siendo 147,
+así que no se creó ni se perdió ninguna medición, solo se les puso nombre. Los rellenos a mano de
+`mapa_manual.csv` no se tocaron. Queda el texto de abajo como registro de por qué pasaba.
+
+
 `proyectos/T1/` no es basura: son los **27 respaldos de la tanda anterior al pipeline** (Messi01,
 Tupac01, Venecia01, Douglas_Bader…), 22 de ellos con su `social_posts/`. Son justo los videos que
 forman el `baseline` con el que se compara todo.
