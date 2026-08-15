@@ -28,6 +28,7 @@ elegir temas, programar en Metricool y recoger métricas de las redes que aún n
 | | # | Pendiente | Gana |
 |---|---|---|---|
 | 🟠 | [P-10](#p-10) | Publicar automáticamente en Meta | ~15 min/semana |
+| 🟠 | [P-21](#p-21) | Publicar en Threads — texto, sin render | alcance medido a mano |
 | 🟡 | [P-20](#p-20) | Por qué menos gente para el scroll (el frame 0) | la única métrica en contra |
 | 🟡 | [P-09b](#p-09b) | Métricas por API: falta Meta y TikTok | ~10 min/semana |
 | 🟡 | [P-11](#p-11) | Tests de los pasos 03-06 | red de seguridad |
@@ -58,6 +59,27 @@ Orden realista, por coste de trámite:
    con dominio propio. Ver el aviso en [README.md](README.md).
 3. **TikTok, la última.** Registrar app y pasar revisión: semanas de trámite para la red que menos
    aporta.
+
+<a id="p-21"></a>
+**P-21 · Publicar en Threads.**
+**La señal viene del uso real, no de una suposición:** publicando a mano, Threads daba
+bastante más alcance que el resto, y sirve de empuje para Instagram. No está en `metricas.csv`
+porque nunca hubo export — eso también habría que resolverlo.
+
+**Es lo más barato que queda por añadir:** un post de Threads es **texto**, así que no hay que
+generar nada nuevo ni renderizar nada. El paso 02 ya escribe el gancho, el pie del reel y los
+hashtags.
+
+⚠️ **Threads es una API aparte de verdad**, no un añadido de la de Meta: otro host
+(`graph.threads.net`), otro flujo de autorización y **otro token**. Marcar el caso de uso al crear
+la app solo evita tener que rehacer la configuración después. Los permisos son `threads_basic`,
+`threads_content_publish` y `threads_manage_insights`.
+
+`desuso/publisher.py` tiene un `publish_threads()` de cuando se intentó, y **es el único de ese
+archivo que puede servir de base**: Threads sí acepta texto directo, así que no arrastra el
+problema de la subida de video que invalida el resto.
+
+Hacerlo **después** de [P-10](#p-10): el mismo trámite ya habrá dejado la app creada.
 
 ---
 
