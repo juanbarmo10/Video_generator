@@ -61,14 +61,24 @@ python herramientas/15_threads_api.py --hilo Historia01 --solo-texto
 |---|---|---|
 | 1 | Panel de la app → *Casos de uso* | Añadir **Threads API** (la app ya existe, no hay que crearla) |
 | 2 | Permisos | `threads_basic`, `threads_content_publish`, `threads_manage_insights` |
-| 3 | [Explorador](https://developers.facebook.com/tools/explorer/) | Cambiar el host a **`threads.net`** (arriba a la izquierda) y generar el token |
-| 4 | `.env` | `THREADS_ACCESS_TOKEN` y `THREADS_USER_ID` |
+| 3 | Panel de la app → *Roles de la app* → **Probadores de Threads** | Añadir `@chistoricas3` |
+| 4 | App de Threads → ⚙️ → *Cuenta* → **Permisos de sitios web** → *Invitaciones* | **Aceptar** la invitación |
+| 5 | [Explorador](https://developers.facebook.com/tools/explorer/) | Cambiar el host a **`threads.net`** (arriba a la izquierda) y generar el token |
+| 6 | `.env` | `THREADS_ACCESS_TOKEN` y `THREADS_USER_ID` |
 
-⚠️ **El token de la página de Facebook NO sirve aquí.** Threads es otra API de verdad: otro host
-(`graph.threads.net`), otra autorización y otro token. Con el de Meta las llamadas fallan con
-*«Unsupported get request»*, que no menciona el host en ningún momento.
+⚠️ **Los pasos 3 y 4 son los que no se parecen a nada de Facebook** (15 ago). Ahí, siendo
+administradora, ya tienes todos los permisos sobre tus propios activos y no hace falta App Review.
+En Threads **el dueño de la app también tiene que invitarse a sí mismo y aceptar desde la app de
+Threads**. Sin eso, generar el token falla con `The user has not accepted the invite to test the
+app` (código **1349245**) — un mensaje que no dice dónde está la invitación ni que haya que crearla
+antes.
 
-Después: `python herramientas/15_threads_api.py --diagnostico`.
+⚠️ **El token de la página de Facebook NO sirve aquí, y el error no lo dice.** Threads es otra API
+de verdad: otro host (`graph.threads.net`), otra autorización y otro token. Uno de Meta —válido en
+`graph.facebook.com`— se rechaza con *«Invalid OAuth access token - Cannot parse access token»*.
+Los de Threads empiezan por `TH`, no por `EAA`.
+
+Después: `python herramientas/15_threads_api.py --diagnostico`, que detecta ese caso concreto.
 
 **La señal viene del uso real, no de una suposición:** publicando a mano, Threads daba bastante más
 alcance que el resto y arrastraba a Instagram. Sigue sin estar en `metricas.csv` porque nunca hubo

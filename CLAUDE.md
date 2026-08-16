@@ -641,6 +641,10 @@ sabe hacerlo. Es lo único que llama `cron` para publicar (`--reel` a las 12:00,
   token»**, que no menciona ni el host ni el tipo. Pasó el 15 ago, así que `diagnostico()` lo
   detecta con `_es_token_de_facebook()` y dice qué cambiar. Los de Threads empiezan por `TH`, no
   por `EAA`.
+- ⚠️ **En Threads el dueño de la app tiene que invitarse a sí mismo como probador y aceptar**, cosa
+  que Facebook no pide: ahí el administrador ya tiene todos los permisos sobre sus propios activos.
+  Sin eso no se puede ni generar el token (`error_code 1349245`, *«The user has not accepted the
+  invite to test the app»*). El alta está en [README.md](README.md), punto 7.
 - ⚠️ **`escribir_hilo()` NO llama a `registrar_openai()`, y es a propósito.** Ese contador escribe
   `.costo_actual.json`, que es el estado del tema EN CURSO: esta herramienta corre una vez por
   semana y puede hacerlo con un lote en marcha, sumándole a otro tema un gasto que no es suyo.

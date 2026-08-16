@@ -193,6 +193,32 @@ De cada tema salen:
    ⚠️ **Cambia el token de usuario por el de PÁGINA** cuando el diagnóstico te lo ofrezca: el de
    usuario caduca a los 60 días, el de página no caduca.
 
+7. **Opcional: Threads.** Publicando a mano daba más alcance que el resto, y arrastraba a Instagram.
+   Reusa la app del punto 6, pero **su token es otro** y hay un paso que ninguna otra red pide.
+
+   | | Dónde | Qué |
+   |---|---|---|
+   | 1 | Panel de la app → *Casos de uso* | Añadir **Threads API** con `threads_basic`, `threads_content_publish`, `threads_manage_insights` |
+   | 2 | Panel de la app → *Roles de la app* → **Probadores de Threads** | Añadir `@chistoricas3` |
+   | 3 | App de Threads → ⚙️ *Configuración* → *Cuenta* → **Permisos de sitios web** → *Invitaciones* | **Aceptar** la invitación |
+   | 4 | [Explorador](https://developers.facebook.com/tools/explorer/) | Host a **`threads.net`** y generar el token |
+   | 5 | `.env` | `THREADS_ACCESS_TOKEN` y `THREADS_USER_ID` |
+
+   ⚠️ **Los pasos 2 y 3 no son opcionales aunque la app sea tuya**, y es la diferencia con Facebook.
+   Ahí, siendo administradora, ya tienes todos los permisos sobre tus propios activos; en Threads
+   **el dueño también tiene que invitarse y aceptar**. Si te los saltas, generar el token falla con
+   `The user has not accepted the invite to test the app` (código **1349245**), que no dice dónde
+   está la invitación ni que haya que crearla primero.
+
+   ⚠️ **El token de la página de Facebook NO sirve aquí**, aunque la app sea la misma: otro host
+   (`graph.threads.net`), otra autorización, otro token. Uno de Meta se rechaza con *«Invalid OAuth
+   access token - Cannot parse access token»*, que no menciona el host. Los de Threads empiezan por
+   `TH`, no por `EAA`. El diagnóstico detecta el caso y lo dice:
+
+   ```bash
+   python herramientas/15_threads_api.py --diagnostico
+   ```
+
 ⚠️ El `.env` lleva claves en texto plano y **es estado mutable del pipeline** (los scripts escriben
 ahí `PROYECTO`, `TEMA` y `TITULO_VIDEO`). No se commitea nunca. Lo mismo vale para
 `credenciales/`: el `client_secret*.json` y el `token_youtube.json` son secretos y están en
