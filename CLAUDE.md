@@ -354,7 +354,7 @@ falta saber para orientarse:
 | **`herramientas/`**[`11_reporte.py`](herramientas/11_reporte.py) | Convierte `metricas.csv` en `reportes/ultimo.html`. Se corre después del 10 |
 | **`herramientas/`**[`12_recordatorio.py`](herramientas/12_recordatorio.py) | Recordatorio semanal por Telegram. Lo llama `cron`, no un `.sh` |
 | **`herramientas/`**[`13_youtube_api.py`](herramientas/13_youtube_api.py) | Métricas de YouTube por API (OAuth). La **curva de retención** no la exporta ningún CSV |
-| **`herramientas/`**[`14_meta_api.py`](herramientas/14_meta_api.py) | Instagram y Facebook por API: métricas hoy, publicación (P-10) después |
+| **`herramientas/`**[`14_meta_api.py`](herramientas/14_meta_api.py) | Instagram y Facebook por API: métricas **y publicación** del reel. Estrenado con `Historia07` |
 | **`desuso/`** | Código que **no ejecuta nadie**: `03_voice_generator_free.py`, `publisher.py`, `ink_filter.py`, `imagen_generator_source.py`. Sigue en git como referencia. Ver [§ Código en desuso](#código-en-desuso-está-en-git-no-lo-ejecuta-nadie) |
 | `requirements.txt` | `moviepy==1.0.3` fijado; ffmpeg va aparte (apt) |
 
@@ -563,6 +563,41 @@ guarda todas las fotos.
   ⚠️ Un punto sin dato es `None`, **no cero**: contarlo como 0 hundiría la media y haría creer que
   el gancho falla. `relativeRetentionPerformance` puede venir vacío si el video tiene pocas vistas;
   no es un error.
+
+**[14_meta_api.py](herramientas/14_meta_api.py)** hace dos cosas con Instagram y Facebook:
+`--metricas` las lee y `--publicar PROYECTO` sube el reel a las dos.
+- **Un solo token de PÁGINA para las dos redes**, y el orden en que se saca es lo único delicado:
+  token de **usuario** → alargado a 60 días (`fb_exchange_token` + `META_APP_ID`/`META_APP_SECRET`)
+  → `me/accounts` → token de página, que **ya no caduca**.
+  ⚠️ **La permanencia se hereda, no se pide.** Un token de página sacado directamente del Explorador
+  funciona igual —lee y publica— pero caduca en 1-2 horas y **no se puede alargar**: Meta responde
+  *«An unexpected error has occurred. Please retry your request later»*, que suena transitorio y no
+  lo es. Hay que rehacer el camino desde el token de usuario.
+- ⚠️ **Los permisos se leen de `debug_token`, no de `me/permissions`.** La segunda solo responde a
+  tokens de usuario: con uno de página devuelve lista vacía **sin dar error**, y el diagnóstico
+  anunciaba «0/7» con los siete concedidos. Lo mismo con `me/accounts`, que no existe para una
+  página porque ahí `me` **ya es** la página.
+- ⚠️ **La página se elige por su Instagram vinculado, no por nombre ni orden.** La cuenta administra
+  3 páginas; solo la del canal tiene `@chistoricas3` enlazado. «La primera» habría publicado en otra.
+- **Para un archivo local la única vía es la subida reanudable** a `rupload.facebook.com`
+  (`upload_type=resumable` en Instagram; `upload_phase=start`/`finish` en Facebook). La documentada
+  `video_url` exige que el mp4 esté colgado en una URL pública. Por eso `desuso/publisher.py` no
+  sirve de base: mandaba el video como `files={"video": …}`, forma que **no existe**.
+- ⚠️ **`--dry-run` sube el video de verdad** y solo se salta la llamada final. No es una simulación
+  en seco: crea el contenedor y transfiere los bytes. Los contenedores sin publicar caducan solos.
+- ⚠️ **`publicar/publicado.csv` se comprueba antes de subir y se escribe SOLO cuando la red
+  confirma.** El calendario dice cuándo *tocaba* publicar, no si se hizo, así que sin este registro
+  el mismo reel sale dos veces. Y anotarlo al intentar —no al confirmar— haría que un fallo de red
+  marcara como publicado algo que no salió, y ese reel no se reintentaría nunca. Es la misma regla
+  que `anotar_envio()` en el paso 12.
+- ⚠️ **`secciones_de()` corta por la línea de `─`, no por «el título va en mayúsculas».** Los títulos
+  reales llevan minúsculas dentro (`TAGS DE YOUTUBE (separados por coma)`), así que detectarlos por
+  mayúsculas hacía que una sección se tragara las siguientes: el pie de Instagram salía con los tags
+  de YouTube pegados. Cada red lleva la suya: Instagram *DESCRIPCIÓN GENERAL*, Facebook *DESCRIPCIÓN
+  LARGA*.
+- ⚠️ **El id que hay que guardar en `metricas.csv` es `post_id`, no `id`.** `me/video_reels` devuelve
+  el id del **video**; el export de Facebook trae el del **post**, y son distintos. Cruzarlos metía
+  45 filas fantasma.
 
 **[12_recordatorio.py](herramientas/12_recordatorio.py)** es el recordatorio semanal por Telegram.
 Lo llama `cron` (no `run_all.sh`: no tiene nada que ver con generar videos).

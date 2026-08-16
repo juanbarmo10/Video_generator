@@ -7,8 +7,9 @@ cada uno con su texto, sus subtítulos y su carrusel.
 **Coste real: ~$0.29 y ~9 minutos por video.** Un lote de 7 son unos $2 y poco más de una hora.
 
 ```
-temas.csv  →  bash run_all.sh  →  publicar/<PROYECTO>/  →  Metricool
-              (8 pasos + paquete)                          ↓
+temas.csv  →  bash run_all.sh  →  publicar/<PROYECTO>/  →  14_meta_api.py --publicar  (IG + FB)
+              (8 pasos + paquete)              └──────→  Metricool a mano   (YouTube + TikTok)
+                                                          ↓
         reportes/ultimo.html  ←  metricas.csv  ←  python herramientas/10_metricas.py
         (11_reporte.py)
 ```
@@ -292,23 +293,46 @@ siempre en `no`; si ves un `SÍ`, es un paquete de antes de agosto de 2026.
 Lo que sí conviene mirar es **cuántos temas se cayeron** (lo dice el resumen del lote) para
 reponerlos en la tanda siguiente.
 
-## 4 · Programar en Metricool (~15 min)
+## 4 · Publicar (~15 min)
 
 Uno por día, a la misma hora. Subir el lote de golpe hace que compitan entre ellos.
+`publicar/calendario.csv` trae la fecha, hora y título de cada uno para ir tachando.
+
+### 4.1 Instagram y Facebook: un comando
+
+```bash
+python herramientas/14_meta_api.py --publicar Historia08              # las dos redes
+python herramientas/14_meta_api.py --publicar Historia08 --solo instagram
+python herramientas/14_meta_api.py --publicar Historia08 --dry-run    # ensayo, no publica
+```
+
+Coge el `.mp4` de `publicar/<PROYECTO>/` y le pone a cada red su texto: a Instagram el pie corto,
+a Facebook la descripción larga. No hay que abrir el archivo ni copiar nada.
+
+⚠️ **`--dry-run` sube el video de verdad** y se detiene antes de la llamada que lo hace público. Es
+reversible —los contenedores sin publicar caducan solos— pero no es una simulación en seco.
+
+⚠️ **Lo publicado se anota en `publicar/publicado.csv` y se comprueba antes de subir**, así que
+correr el comando dos veces no duplica el reel. El calendario dice cuándo *tocaba* publicar; este
+archivo, qué salió de verdad.
+
+**El carrusel de Instagram sigue siendo manual**, el comando solo sube el reel.
+
+### 4.2 YouTube y TikTok: a mano, en Metricool
 
 Por cada tema, abres `publicar/<PROYECTO>/` (la carpeta se llama como el `PROYECTO` del CSV,
 `Historia04`, no como el tema) y:
 
-1. Subes el `.mp4` como Reel a Facebook e Instagram, Short a YouTube, y video a TikTok.
+1. Subes el `.mp4` como Short a YouTube y como video a TikTok.
 2. Abres `descripcion.txt` y copias:
-   - **Reels, TikTok y Shorts** → la sección *DESCRIPCIÓN GENERAL* **con los hashtags de debajo**
+   - **TikTok y Shorts** → la sección *DESCRIPCIÓN GENERAL* **con los hashtags de debajo**
      (van pegados a propósito: seleccionas los dos de una pasada).
-   - **YouTube y Facebook** → *TÍTULO*, y la *DESCRIPCIÓN LARGA* con sus hashtags.
-   - **YouTube** → los *TAGS*.
+   - **YouTube** → *TÍTULO*, la *DESCRIPCIÓN LARGA* con sus hashtags, y los *TAGS*.
 3. El `.srt` se sube aparte en YouTube: mejora la indexación y sale gratis.
 4. Dejas el *COMENTARIO A FIJAR* programado o lo pones a mano al publicar.
 
-`publicar/calendario.csv` trae la fecha, hora y título de cada uno para ir tachando.
+⚠️ **Subir a YouTube por API exige el permiso `youtube.upload`, que es restringido**: hace falta
+pasar la verificación de Google con dominio propio. Por eso las dos que quedan a mano son estas.
 
 ## 5 · Recoger las métricas de la semana anterior (~15 min)
 

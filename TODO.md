@@ -27,7 +27,7 @@ elegir temas, programar en Metricool y recoger métricas de las redes que aún n
 
 | | # | Pendiente | Gana |
 |---|---|---|---|
-| 🟠 | [P-10](#p-10) | Publicar automáticamente en Meta | ~15 min/semana |
+| 🟠 | [P-10b](#p-10b) | Que el calendario dispare la publicación sola | ~15 min/semana |
 | 🟠 | [P-21](#p-21) | Publicar en Threads — texto, sin render | alcance medido a mano |
 | 🟡 | [P-20](#p-20) | Por qué menos gente para el scroll (el frame 0) | la única métrica en contra |
 | 🟡 | [P-09b](#p-09b) | Métricas por API: hechas 3 de 4 redes, falta TikTok | ~5 min/semana |
@@ -43,27 +43,25 @@ elegir temas, programar en Metricool y recoger métricas de las redes que aún n
 
 ## 🟠 Lo que más trabajo manual quita
 
-<a id="p-10"></a>
-**P-10 · Publicar automáticamente — Instagram y Facebook escritos, sin estrenar.**
+<a id="p-10b"></a>
+**P-10b · Que el calendario dispare la publicación sola.**
 
-✅ **Código listo** en [14_meta_api.py](herramientas/14_meta_api.py) (`--publicar PROYECTO`), con
-los permisos ya concedidos. **Falta la primera publicación real**, que es la única prueba que vale.
+[P-10](#p-10) está **hecho y estrenado**: `Historia07` salió en Instagram y Facebook el 15 ago
+(ver [HISTORIAL.md](HISTORIAL.md#-la-primera-publicación-real-15-ago-2026)). Hoy es **un comando
+por tema y por red**, que hay que acordarse de correr:
 
-⚠️ **`desuso/publisher.py` no servía de base.** No era que le faltaran credenciales: mandaba el
-video como `files={"video": …}` a `/media`, y esa forma no existe en la API. Para un archivo local
-hay que usar la **subida reanudable** a `rupload.facebook.com` — tres fases en vez de una. Ver
-[HISTORIAL.md](HISTORIAL.md#-publicar-en-instagram-y-facebook-15-ago-2026).
+```bash
+python herramientas/14_meta_api.py --publicar Historia08
+```
 
-Dos salvaguardas, porque publicar no se deshace:
-- `--dry-run` hace **todo menos la llamada final**, incluida la subida del video.
-- `publicar/publicado.csv` registra lo que salió y se comprueba antes de subir. Sin eso, correr el
-  comando dos veces publica el mismo reel dos veces — el calendario dice cuándo *tocaba*
-  publicar, no si se hizo. **Y de paso cierra el hueco que señalaba [P-17](#p-17)**: por fin hay un
-  registro de qué se publicó.
+Lo natural es que mande `publicar/calendario.csv` y un `cron` publique el del día, apoyándose en
+`publicar/publicado.csv` para no repetir. Pero conviene **ver unas cuantas publicaciones salir
+bien antes de automatizar el disparo**: un `cron` que publique mal publica mal muchas veces, y en
+esta parte del pipeline los errores llegan a la cuenta.
 
-**Queda por decidir cómo se dispara.** Hoy es un comando por tema; lo natural es que
-`publicar/calendario.csv` mande y un `cron` publique el del día, pero eso conviene hacerlo
-**después** de ver unas cuantas publicaciones manuales salir bien.
+⚠️ **Antes de programarlo, decidir qué pasa con el carrusel.** El comando sube el reel, y el
+carrusel de Instagram (paso 06) sigue siendo manual — o se automatiza también, o se decide que no
+se publica, que es lo que pregunta [P-09](#p-09).
 
 Las otras dos redes, por coste de trámite:
 
@@ -91,7 +89,8 @@ la app solo evita tener que rehacer la configuración después. Los permisos son
 archivo que puede servir de base**: Threads sí acepta texto directo, así que no arrastra el
 problema de la subida de video que invalida el resto.
 
-Hacerlo **después** de [P-10](#p-10): el mismo trámite ya habrá dejado la app creada.
+Hacerlo **después** de [P-10](#p-10), que ya está: el trámite dejó la app creada y el token
+permanente, así que solo falta añadir el caso de uso de Threads y sacar su token.
 
 ---
 
@@ -238,6 +237,7 @@ con lo que se midió, está en [HISTORIAL.md](HISTORIAL.md).
 | <a id="p-03"></a>**P-03** | 4 de 8 títulos de YouTube pasaban de 70 caracteres | `acortar_titulo()` reescribe con el modelo y `_truncar_titulo()` garantiza el límite en Python. 0 de 7 fuera en el lote siguiente |
 | <a id="p-04"></a>**P-04** | La puerta de calidad no aprobaba nunca | Calibrada con los 7 temas reales: `nota >= 6` y `dudosas <= 3`. El problema no era el umbral, era el guionista |
 | <a id="p-05"></a>**P-05** | El paso 07 componía un mask fantasma | `bg_color=(0,0,0)` en el composite interno: **×1.59** de velocidad, píxel a píxel idéntico |
+| <a id="p-10"></a>**P-10** | Publicar en Meta era manual | `--publicar PROYECTO` por subida reanudable. `Historia07` estrenado el 15 ago en las dos redes. Falta solo el disparo automático: [P-10b](#p-10b) |
 | <a id="p-12"></a>**P-12** | `se_quedaron_pct` bajó en v2 | La curva de retención descartó gancho y cortes. Queda [P-20](#p-20), que es una pregunta distinta |
 | <a id="p-14"></a>**P-14** | `proyectos/T1/` anidado dejaba 78 de 147 filas sin `PROYECTO` | Glob a dos niveles en `indice_proyectos()`: 43 filas recuperadas |
 | <a id="p-15"></a>**P-15** | Los planos salían en pares de la misma imagen | `dispersar_planos()`: de 8 de 13 transiciones repetidas a **0 de 15-18** |

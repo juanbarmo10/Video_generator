@@ -49,6 +49,7 @@
 | [Métricas de IG y FB](#-métricas-de-instagram-y-facebook-por-api-15-ago-2026) | `plays` deprecado, milisegundos, y el id de video que no es el id del post |
 | [Publicar en IG y FB](#-publicar-en-instagram-y-facebook-15-ago-2026) | La subida reanudable, el registro de publicado y el parseo que casi pega los tags |
 | [El token de página](#-el-token-de-página-un-callejón-sin-salida-que-parecía-otra-cosa-15-ago-2026) | «0/7 permisos» con los 7 puestos, y por qué un token de página no se puede alargar |
+| [La primera publicación real](#-la-primera-publicación-real-15-ago-2026) | `Historia07` en las dos redes, y por qué la desambiguación de página no era teórica |
 | [Anexo — evidencia medida](#anexo--evidencia-medida) | Los comandos y los números crudos |
 
 ---
@@ -2211,6 +2212,37 @@ diagnóstico ahora detecta `tipo == "PAGE"`, no intenta el intercambio y escribe
 Lo que sí salió de ese token antes de que caducara, verificado contra la API real:
 `FACEBOOK_PAGE_ID=1012265328646181` («Curiosidades Históricas») e
 `INSTAGRAM_ACCOUNT_ID=17841417726941429` (`@chistoricas3`).
+
+---
+
+## ✅ La primera publicación real (15 ago 2026)
+
+`Historia07` salió en Instagram y Facebook, y con eso [P-10](TODO.md#p-10) queda cerrado.
+
+Con un token de usuario correcto la cadena entera funcionó a la primera: 1 hora → **alargado a 60
+días** → `me/accounts` → token de página con `expires_at = 0`, **que no caduca**. Lo único con
+fecha es el *acceso a datos*, que Meta caduca a los 90 días (14 nov) para todo el mundo y se
+renueva regenerando el token.
+
+⚠️ **Las 3 páginas justifican el criterio de desambiguación**, que hasta ahora era una precaución
+teórica. La cuenta administra también *Desbloquea tu potencial* y una del Independiente Medellín;
+coger «la primera» habría publicado en la página equivocada. **El vínculo con Instagram es lo único
+que distingue** a la del canal, y por eso ese es el criterio y no el nombre ni el orden.
+
+Del ensayo a la publicación no cambió nada salvo la llamada final:
+
+| | Instagram | Facebook |
+|---|---|---|
+| Texto | *DESCRIPCIÓN GENERAL*, 528 caracteres | *DESCRIPCIÓN LARGA*, 1710 |
+| Resultado | [reel/DcFPeWUET4a](https://www.instagram.com/reel/DcFPeWUET4a/) | [reel/1461216239123761](https://facebook.com/reel/1461216239123761/) |
+
+**Las dos se verificaron leyéndolas de vuelta de la API**, no dando por buena la respuesta de la
+subida: la de Instagram vuelve como `media_product_type: REELS` y la de Facebook con sus 26.9 s.
+Una subida que responde 200 y deja el video en un estado que no es el publicado es justo el fallo
+que no se ve desde el lado del que sube.
+
+El `--dry-run` previo hizo la subida completa a las dos redes y **no escribió `publicado.csv`** —
+el archivo no existía hasta la publicación de verdad. Los dos contenedores que dejó caducan solos.
 
 ---
 
