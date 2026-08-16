@@ -9,6 +9,7 @@ Se corren con:  python -m unittest discover tests
 """
 
 import csv
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -254,6 +255,121 @@ class CredencialesDeYouTube(unittest.TestCase):
         self.assertIn("client_secret", reglas)
         self.assertIn("token_youtube.json", reglas)
         self.assertTrue(yt.CONFIG["token"].startswith("credenciales/"))
+
+
+meta = cargar("14_meta_api.py")
+
+DESCRIPCION = """TÍTULO (61/70 caracteres)
+────────────────────────────────────────
+Qhapaq Ñan: el camino que decidió un imperio
+
+
+DESCRIPCIÓN GENERAL (pie del reel — las 4 redes)
+────────────────────────────────────────
+¿Sabías que el secreto no estaba en las armas?
+
+Segunda línea del pie.
+
+#historia #inca #datoscuriosos
+
+
+DESCRIPCIÓN LARGA (YouTube y Facebook) — 1447/1999 caracteres
+────────────────────────────────────────
+Imagina un sendero que conecta tres países.
+
+¿Crees que habría cambiado algo?
+
+#historia #inca #datoscuriosos
+
+
+TAGS DE YOUTUBE (separados por coma)
+────────────────────────────────────────
+Qhapaq Ñan, Camino Inca, Tahuantinsuyo
+
+
+COMENTARIO A FIJAR
+────────────────────────────────────────
+¿Y tú qué habrías hecho?
+"""
+
+
+class SeccionesDeDescripcion(unittest.TestCase):
+    """`descripcion.txt` es el contrato entre el paso 02 y la publicación
+    automática. Un corte mal hecho aquí **no se nota hasta que está publicado**:
+    el pie del reel saldría con los tags de YouTube pegados al final."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.ruta = Path(tmp.name) / "descripcion.txt"
+        self.ruta.write_text(DESCRIPCION, encoding="utf-8")
+
+    def test_encuentra_las_cinco_secciones(self):
+        self.assertEqual(len(meta.secciones_de(self.ruta)), 5)
+
+    def test_cada_seccion_acaba_donde_empieza_la_siguiente(self):
+        """⚠️ El corte va por la línea de guiones, no por «el título está en
+        mayúsculas»: los títulos reales llevan minúsculas dentro
+        (`TAGS DE YOUTUBE (separados por coma)`). Detectarlos por mayúsculas
+        hacía que una sección se tragara todas las siguientes."""
+        pie = meta.leer_seccion(self.ruta, "DESCRIPCIÓN GENERAL")
+        self.assertIn("¿Sabías que el secreto", pie)
+        self.assertIn("#historia", pie)
+        self.assertNotIn("Camino Inca", pie, "se coló la sección de TAGS")
+        self.assertNotIn("Imagina un sendero", pie, "se coló la DESCRIPCIÓN LARGA")
+
+    def test_la_ultima_seccion_llega_hasta_el_final(self):
+        c = meta.leer_seccion(self.ruta, "COMENTARIO A FIJAR")
+        self.assertEqual(c, "¿Y tú qué habrías hecho?")
+
+    def test_el_titulo_no_arrastra_la_seccion_siguiente(self):
+        t = meta.leer_seccion(self.ruta, "TÍTULO")
+        self.assertEqual(t, "Qhapaq Ñan: el camino que decidió un imperio")
+
+    def test_una_seccion_que_no_existe_devuelve_vacio(self):
+        self.assertEqual(meta.leer_seccion(self.ruta, "NO EXISTE"), "")
+
+    def test_las_dos_redes_apuntan_a_secciones_distintas(self):
+        """Instagram lleva el pie corto y Facebook la descripción larga. Si los
+        dos apuntaran a la misma, se publicaría el texto equivocado en una."""
+        self.assertNotEqual(meta.SECCIONES["instagram"], meta.SECCIONES["facebook"])
+        ig = meta.leer_seccion(self.ruta, meta.SECCIONES["instagram"])
+        fb = meta.leer_seccion(self.ruta, meta.SECCIONES["facebook"])
+        self.assertNotEqual(ig, fb)
+        self.assertLess(len(ig), len(fb), "el pie del reel es el corto")
+
+
+class RegistroDePublicacion(unittest.TestCase):
+    """⚠️ `publicar/calendario.csv` dice cuándo TOCABA publicar, no si se hizo.
+    Sin este registro, correr el comando dos veces publica el mismo reel dos
+    veces — y eso no se puede deshacer con un `git checkout`."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self._antes = os.getcwd()
+        os.chdir(tmp.name)
+        self.addCleanup(os.chdir, self._antes)
+        self.assertNotEqual(Path.cwd().resolve(), RAIZ)
+
+    def test_sin_registro_no_hay_nada_publicado(self):
+        self.assertIsNone(meta.ya_publicado("Historia11", "instagram"))
+
+    def test_se_anota_y_se_encuentra(self):
+        meta.anotar_publicado("Historia11", "instagram", "178123")
+        r = meta.ya_publicado("Historia11", "instagram")
+        self.assertIsNotNone(r)
+        self.assertEqual(r["id_publicacion"], "178123")
+
+    def test_distingue_la_red(self):
+        """El mismo video va a las dos redes: publicarlo en Instagram no puede
+        marcar Facebook como hecho."""
+        meta.anotar_publicado("Historia11", "instagram", "178123")
+        self.assertIsNone(meta.ya_publicado("Historia11", "facebook"))
+
+    def test_distingue_el_proyecto(self):
+        meta.anotar_publicado("Historia11", "instagram", "178123")
+        self.assertIsNone(meta.ya_publicado("Historia12", "instagram"))
 
 
 if __name__ == "__main__":

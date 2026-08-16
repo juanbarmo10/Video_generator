@@ -47,6 +47,7 @@
 | [La curva cierra P-12](#-la-curva-de-retención-cierra-p-12-15-ago-2026) | Ni el gancho ni los cortes: dos métricas con denominadores distintos |
 | [Métricas por API](#-métricas-de-youtube-por-api-15-ago-2026) | OAuth, lo que la API no da, y los tres fallos que parecían de Google |
 | [Métricas de IG y FB](#-métricas-de-instagram-y-facebook-por-api-15-ago-2026) | `plays` deprecado, milisegundos, y el id de video que no es el id del post |
+| [Publicar en IG y FB](#-publicar-en-instagram-y-facebook-15-ago-2026) | La subida reanudable, el registro de publicado y el parseo que casi pega los tags |
 | [Anexo — evidencia medida](#anexo--evidencia-medida) | Los comandos y los números crudos |
 
 ---
@@ -2129,6 +2130,46 @@ Detalles de diseño que se repiten del paso 13:
 - ⚠️ **`--diagnostico` desambigua la página por el Instagram vinculado**, no por el nombre ni el
   orden: la cuenta administra tres páginas (dos de otros proyectos) y elegir «la primera» habría
   publicado en la equivocada.
+
+---
+
+## ✅ Publicar en Instagram y Facebook (15 ago 2026)
+
+`--publicar PROYECTO` en [14_meta_api.py](herramientas/14_meta_api.py).
+
+⚠️ **`desuso/publisher.py` no servía de base, y no por las credenciales.** Mandaba el video como
+`files={"video": …}` a `/media`. Esa forma **no existe** en la API de publicación de Instagram:
+falla siempre, con credenciales o sin ellas. Las dos vías reales son:
+
+| | Requiere | Sirve aquí |
+|---|---|---|
+| `video_url` | que el mp4 esté en una **URL pública** | No — el pipeline es local |
+| Subida reanudable a `rupload.facebook.com` | nada, acepta bytes locales | **Sí** |
+
+De ahí el `upload_type=resumable` de Instagram y las tres fases de Facebook
+(`upload_phase=start` → subida → `upload_phase=finish`).
+
+**Publicar es irreversible y va hacia fuera**, así que el diseño lo asume:
+
+- **`--dry-run` hace todo menos la llamada final**, incluida la subida del video y la espera al
+  procesado. Valida el camino entero sin que salga nada.
+- **`publicar/publicado.csv` registra lo que salió, y se comprueba antes de subir.** El calendario
+  dice cuándo *tocaba* publicar, no si se hizo, así que sin este registro correr el comando dos
+  veces publica el mismo reel dos veces. De paso cierra el hueco que señalaba P-17.
+- **`anotar_publicado()` se llama SOLO cuando la red confirma**, igual que en el recordatorio de
+  Telegram: anotarlo antes haría que un fallo de red marcara como publicado algo que no salió, y
+  ese reel no se reintentaría nunca.
+
+⚠️ **El parseo de `descripcion.txt` corta por la línea de guiones, no por «el título va en
+mayúsculas».** Los títulos reales llevan minúsculas dentro (`TAGS DE YOUTUBE (separados por coma)`,
+`DESCRIPCIÓN LARGA (YouTube y Facebook) — 1447/1999 caracteres`), así que detectarlos por mayúsculas
+hacía que una sección se tragara todas las siguientes: **el pie del reel de Instagram habría salido
+con los tags de YouTube pegados al final**. Es un fallo que no se nota hasta que está publicado, y
+por eso está congelado en tests.
+
+Cada red lleva su sección: Instagram el pie corto (*DESCRIPCIÓN GENERAL*, ~530 caracteres) y
+Facebook la larga (*DESCRIPCIÓN LARGA*, ~1450). Los hashtags van dentro de las dos, que es
+justamente por lo que el paso 02 los repite.
 
 ---
 

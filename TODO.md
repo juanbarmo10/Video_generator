@@ -44,20 +44,32 @@ elegir temas, programar en Metricool y recoger métricas de las redes que aún n
 ## 🟠 Lo que más trabajo manual quita
 
 <a id="p-10"></a>
-**P-10 · Publicar automáticamente.** Es el único paso del ciclo semanal que sigue siendo 100 %
-manual: subir cada video a cuatro redes y pegar el texto. `desuso/publisher.py` es el esqueleto —
-le faltan `META_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`, `INSTAGRAM_ACCOUNT_ID` y `THREADS_USER_ID`,
-apunta a `post_images/` (no existe) y lee `03_instagram.txt` / `04_facebook.txt`, que el paso 02
-dejó de generar. Si se retoma, vuelve a `herramientas/`.
+**P-10 · Publicar automáticamente — Instagram y Facebook escritos, sin estrenar.**
 
-Orden realista, por coste de trámite:
+✅ **Código listo** en [14_meta_api.py](herramientas/14_meta_api.py) (`--publicar PROYECTO`), con
+los permisos ya concedidos. **Falta la primera publicación real**, que es la única prueba que vale.
 
-1. **Meta (Instagram + Facebook)** — las credenciales sirven **también para leer métricas**
-   ([P-09b](#p-09b)), así que un solo trámite cierra dos pendientes.
-2. **YouTube** — ya tienes OAuth montado para las métricas, pero subir exige el permiso
-   `youtube.upload`, que es **restringido**: para eso sí hace falta pasar la verificación de Google
-   con dominio propio. Ver el aviso en [README.md](README.md).
-3. **TikTok, la última.** Registrar app y pasar revisión: semanas de trámite para la red que menos
+⚠️ **`desuso/publisher.py` no servía de base.** No era que le faltaran credenciales: mandaba el
+video como `files={"video": …}` a `/media`, y esa forma no existe en la API. Para un archivo local
+hay que usar la **subida reanudable** a `rupload.facebook.com` — tres fases en vez de una. Ver
+[HISTORIAL.md](HISTORIAL.md#-publicar-en-instagram-y-facebook-15-ago-2026).
+
+Dos salvaguardas, porque publicar no se deshace:
+- `--dry-run` hace **todo menos la llamada final**, incluida la subida del video.
+- `publicar/publicado.csv` registra lo que salió y se comprueba antes de subir. Sin eso, correr el
+  comando dos veces publica el mismo reel dos veces — el calendario dice cuándo *tocaba*
+  publicar, no si se hizo. **Y de paso cierra el hueco que señalaba [P-17](#p-17)**: por fin hay un
+  registro de qué se publicó.
+
+**Queda por decidir cómo se dispara.** Hoy es un comando por tema; lo natural es que
+`publicar/calendario.csv` mande y un `cron` publique el del día, pero eso conviene hacerlo
+**después** de ver unas cuantas publicaciones manuales salir bien.
+
+Las otras dos redes, por coste de trámite:
+
+1. **YouTube** — ya tienes OAuth, pero subir exige `youtube.upload`, que es **restringido**: ahí sí
+   hace falta pasar la verificación de Google con dominio propio.
+2. **TikTok, la última.** Registrar app y pasar revisión: semanas de trámite para la red que menos
    aporta.
 
 <a id="p-21"></a>

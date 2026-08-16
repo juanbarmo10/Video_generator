@@ -22,6 +22,7 @@ Uso:
 
 import argparse
 import os
+import re
 from datetime import date
 from pathlib import Path
 
@@ -527,6 +528,227 @@ def _paso10():
     return modulo
 
 
+# ══════════════════════════════════════════════════════════════
+# 📤  PUBLICAR — P-10
+# ══════════════════════════════════════════════════════════════
+#
+# ⚠️ **Publicar es irreversible y es hacia fuera.** Un error aquí no deja un
+# archivo mal en el disco: deja un reel publicado en una cuenta real. Por eso:
+#   · `--dry-run` hace TODO menos la llamada final, incluida la subida del
+#     video, así que valida el camino entero sin publicar nada.
+#   · Se registra en `publicar/publicado.csv` y se comprueba antes de subir,
+#     porque el calendario dice cuándo TOCABA publicar, no si se hizo. Sin eso,
+#     correr el comando dos veces publica el mismo reel dos veces.
+
+REGISTRO_PUBLICADO = "publicar/publicado.csv"
+SECCIONES = {
+    "instagram": "DESCRIPCIÓN GENERAL",
+    "facebook": "DESCRIPCIÓN LARGA",
+}
+
+
+def secciones_de(ruta: Path) -> dict[str, str]:
+    """{título: contenido} de `descripcion.txt`.
+
+    ⚠️ El corte se hace por la **línea de guiones** que el paso 02 escribe bajo
+    cada título, no por «el título va en mayúsculas»: los títulos reales llevan
+    minúsculas dentro (`TAGS DE YOUTUBE (separados por coma)`,
+    `DESCRIPCIÓN LARGA (YouTube y Facebook) — 1447/1999 caracteres`). Detectarlos
+    por mayúsculas hacía que una sección se tragara todas las siguientes, y el
+    pie del reel de Instagram habría salido con los tags de YouTube pegados.
+    """
+    lineas = ruta.read_text(encoding="utf-8").splitlines()
+    rayas = [i for i, l in enumerate(lineas) if l.strip() and set(l.strip()) == {"─"}]
+    secciones = {}
+    for n, raya in enumerate(rayas):
+        if raya == 0:
+            continue
+        titulo = lineas[raya - 1].strip()
+        # El contenido llega hasta el título de la sección siguiente, que es la
+        # línea justo encima de su raya.
+        fin = (rayas[n + 1] - 1) if n + 1 < len(rayas) else len(lineas)
+        secciones[titulo] = "\n".join(lineas[raya + 1:fin]).strip()
+    return secciones
+
+
+def leer_seccion(ruta: Path, encabezado: str) -> str:
+    """El contenido de la sección cuyo título empieza por `encabezado`."""
+    for titulo, cuerpo in secciones_de(ruta).items():
+        if titulo.upper().startswith(encabezado.upper()):
+            return cuerpo
+    return ""
+
+
+def ya_publicado(proyecto: str, red: str) -> dict | None:
+    ruta = Path(REGISTRO_PUBLICADO)
+    if not ruta.exists():
+        return None
+    import csv as _csv
+    with ruta.open(encoding="utf-8") as fh:
+        for f in _csv.DictReader(fh):
+            if f.get("proyecto") == proyecto and f.get("red") == red:
+                return f
+    return None
+
+
+def anotar_publicado(proyecto: str, red: str, id_pub: str) -> None:
+    """⚠️ Se llama SOLO cuando la red confirma, igual que en el recordatorio de
+    Telegram. Anotarlo antes haría que un fallo de red marcara como publicado
+    algo que no salió, y ese reel no se volvería a intentar nunca."""
+    import csv as _csv
+    ruta = Path(REGISTRO_PUBLICADO)
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    nuevo = not ruta.exists()
+    with ruta.open("a", encoding="utf-8", newline="") as fh:
+        w = _csv.writer(fh)
+        if nuevo:
+            w.writerow(["fecha", "proyecto", "red", "id_publicacion"])
+        w.writerow([date.today().isoformat(), proyecto, red, id_pub])
+
+
+def _subir_bytes(url: str, video: Path) -> bool:
+    """Sube el archivo a rupload con el protocolo reanudable de Meta."""
+    datos = video.read_bytes()
+    r = requests.post(url, data=datos, timeout=600, headers={
+        "Authorization": f"OAuth {TOKEN}",
+        "offset": "0",
+        "file_size": str(len(datos)),
+    })
+    try:
+        respuesta = r.json()
+    except ValueError:
+        respuesta = {"_raw": r.text[:200]}
+    if r.status_code >= 400 or "error" in respuesta:
+        print(f"   ❌ Falló la subida: {respuesta}")
+        return False
+    return True
+
+
+def publicar_instagram(video: Path, caption: str, dry_run: bool) -> str | None:
+    """Reel de Instagram desde un archivo LOCAL.
+
+    ⚠️ La vía documentada estándar (`video_url`) exige que el mp4 esté en una
+    URL pública, cosa que este pipeline no tiene. La alternativa es la subida
+    reanudable a `rupload.facebook.com`, que sí acepta bytes locales: por eso el
+    `upload_type=resumable`. `desuso/publisher.py` mandaba el archivo como
+    `files={"video": …}` a `/media`, que no es ninguna de las dos y falla siempre.
+    """
+    ig = os.getenv("INSTAGRAM_ACCOUNT_ID", "").strip()
+    if not ig:
+        print("   ❌ Falta INSTAGRAM_ACCOUNT_ID"); return None
+
+    r = requests.post(f"{CONFIG['graph']}/{CONFIG['api']}/{ig}/media",
+                      data={"media_type": "REELS", "upload_type": "resumable",
+                            "caption": caption, "access_token": TOKEN},
+                      timeout=CONFIG["timeout"]).json()
+    if "error" in r:
+        print(f"   ❌ No se creó el contenedor: {r['error'].get('message')}")
+        return None
+    contenedor = r.get("id")
+    print(f"   contenedor {contenedor}")
+
+    if not _subir_bytes(f"{CONFIG['rupload']}/{CONFIG['api']}/{contenedor}", video):
+        return None
+    print(f"   ✅ video subido ({video.stat().st_size / 1e6:.1f} MB)")
+
+    import time
+    for intento in range(30):
+        time.sleep(5)
+        est = _graph(f"{contenedor}", tolerar_error=True, fields="status_code,status")
+        codigo = est.get("status_code")
+        if codigo == "FINISHED":
+            break
+        if codigo == "ERROR":
+            print(f"   ❌ Meta rechazó el video: {est.get('status')}")
+            return None
+    else:
+        print("   ❌ El video sigue procesándose tras 150 s. No se publica.")
+        return None
+
+    if dry_run:
+        print("   🧪 --dry-run: subido y procesado, NO publicado")
+        return "dry-run"
+
+    pub = requests.post(f"{CONFIG['graph']}/{CONFIG['api']}/{ig}/media_publish",
+                        data={"creation_id": contenedor, "access_token": TOKEN},
+                        timeout=CONFIG["timeout"]).json()
+    if "error" in pub:
+        print(f"   ❌ {pub['error'].get('message')}")
+        return None
+    return pub.get("id")
+
+
+def publicar_facebook(video: Path, descripcion: str, dry_run: bool) -> str | None:
+    """Reel de la página de Facebook, en tres fases (start → subida → finish)."""
+    pg = os.getenv("FACEBOOK_PAGE_ID", "").strip()
+    if not pg:
+        print("   ❌ Falta FACEBOOK_PAGE_ID"); return None
+
+    base = f"{CONFIG['graph']}/{CONFIG['api']}/{pg}/video_reels"
+    r = requests.post(base, data={"upload_phase": "start", "access_token": TOKEN},
+                      timeout=CONFIG["timeout"]).json()
+    if "error" in r:
+        print(f"   ❌ No se inició la subida: {r['error'].get('message')}")
+        return None
+    video_id, url = r.get("video_id"), r.get("upload_url")
+    print(f"   video_id {video_id}")
+
+    if not _subir_bytes(url, video):
+        return None
+    print(f"   ✅ video subido ({video.stat().st_size / 1e6:.1f} MB)")
+
+    if dry_run:
+        print("   🧪 --dry-run: subido, NO publicado (queda sin finalizar)")
+        return "dry-run"
+
+    fin = requests.post(base, data={
+        "video_id": video_id, "upload_phase": "finish",
+        "video_state": "PUBLISHED", "description": descripcion,
+        "access_token": TOKEN}, timeout=CONFIG["timeout"]).json()
+    if "error" in fin:
+        print(f"   ❌ {fin['error'].get('message')}")
+        return None
+    return video_id
+
+
+def publicar(proyecto: str, redes: list[str], dry_run: bool) -> None:
+    _exigir_token()
+    carpeta = Path("publicar") / proyecto
+    video = carpeta / f"{proyecto}.mp4"
+    desc = carpeta / "descripcion.txt"
+    if not video.exists():
+        raise SystemExit(f"❌ No existe {video}")
+    if not desc.exists():
+        raise SystemExit(f"❌ No existe {desc}")
+
+    print(f"📤 {proyecto}  ({video.stat().st_size / 1e6:.1f} MB)"
+          + ("   🧪 DRY-RUN" if dry_run else ""))
+
+    for red in redes:
+        texto = leer_seccion(desc, SECCIONES[red])
+        if not texto:
+            print(f"\n⚠️  {red}: no encontré la sección "
+                  f"«{SECCIONES[red]}» en descripcion.txt. Se salta.")
+            continue
+
+        previo = ya_publicado(proyecto, red)
+        if previo and not dry_run:
+            print(f"\n⏭️  {red}: ya se publicó el {previo['fecha']} "
+                  f"(id {previo['id_publicacion']}). Se salta.")
+            continue
+
+        print(f"\n── {red} ──  {len(texto)} caracteres")
+        print("   " + texto.split("\n")[0][:88])
+
+        fn = publicar_instagram if red == "instagram" else publicar_facebook
+        id_pub = fn(video, texto, dry_run)
+        if id_pub and not dry_run:
+            anotar_publicado(proyecto, red, id_pub)
+            print(f"   ✅ publicado · id {id_pub}")
+        elif not id_pub:
+            print(f"   ❌ {red} no se publicó")
+
+
 def escribir_env(hallado: dict, ruta: str = ".env") -> None:
     """Mete en el .env lo que descubrió el diagnóstico, sin duplicar líneas.
 
@@ -577,7 +799,11 @@ def main() -> None:
     p.add_argument("--metricas", action="store_true",
                    help="Descarga las métricas de IG y FB y las funde en metricas.csv")
     p.add_argument("--dry-run", action="store_true",
-                   help="Con --metricas: enseña qué haría sin escribir")
+                   help="Con --metricas no escribe; con --publicar sube el video pero NO publica")
+    p.add_argument("--publicar", metavar="PROYECTO",
+                   help="Publica el reel de publicar/PROYECTO/ en Instagram y Facebook")
+    p.add_argument("--solo", nargs="*", choices=["instagram", "facebook"],
+                   help="Con --publicar: limitar a una red")
     args = p.parse_args()
 
     if not any(vars(args).values()):
@@ -592,6 +818,11 @@ def main() -> None:
 
     if args.metricas:
         guardar_en_metricas(dry_run=args.dry_run)
+        return
+
+    if args.publicar:
+        publicar(args.publicar, args.solo or ["instagram", "facebook"],
+                 dry_run=args.dry_run)
 
 
 if __name__ == "__main__":
