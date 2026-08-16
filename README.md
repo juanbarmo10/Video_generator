@@ -309,18 +309,20 @@ Esto es lo del lote **pasado**, no el que acabas de subir: los números necesita
 
 ### 5.1 Descargar
 
-**YouTube ya no hace falta descargarlo** si montaste la API (punto 5 de *Antes de empezar*):
+**Tres de las cuatro redes ya no hace falta descargarlas** si montaste las APIs (puntos 5 y 6 de
+*Antes de empezar*):
 
 ```bash
-python herramientas/13_youtube_api.py --metricas
+python herramientas/13_youtube_api.py --metricas    # YouTube
+python herramientas/14_meta_api.py --metricas       # Instagram + Facebook
 ```
 
-⚠️ Con dos salvedades: la API **no da** `se_quedaron_pct` («Se quedaron para mirar», que es la
-métrica de [P-20](TODO.md#p-20)) ni `alcance` (únicos por video). Si las quieres, sigue bajando el
-zip — la fusión no las pisa, así que se pueden completar después.
+⚠️ **Salvo dos columnas de YouTube que la API no expone**: `se_quedaron_pct` («Se quedaron para
+mirar», la métrica de [P-20](TODO.md#p-20)) y `alcance` (únicos por video). Si las quieres, sigue
+bajando el zip de YouTube — la fusión no las pisa, así que se completan después.
 
-El resto se sueltan **tal cual se descargan** en `metricas_export/` — zips sin descomprimir, con el
-nombre empezando por la plataforma:
+**Solo TikTok sigue siendo obligatoriamente manual.** Se suelta **tal cual se descarga** en
+`metricas_export/`, con el nombre empezando por la plataforma:
 
 | Red | Dónde | Deja el archivo como |
 |---|---|---|
@@ -361,8 +363,11 @@ exporta):
 
 | Red | Qué teclear | De dónde |
 |---|---|---|
-| **Instagram** | segundos medios vistos | App → el reel → Ver estadísticas → *Tiempo de reproducción medio* |
 | **TikTok** | alcance, segundos medios, % que vio completo | TikTok Studio → Analytics → clic en el video |
+
+💡 **Instagram ya no hay que teclearlo.** Los segundos medios vistos los da la API
+(`ig_reels_avg_watch_time`), así que `14_meta_api.py --metricas` rellena solo lo que antes era el
+único campo manual de esa red.
 
 No teclees la retención: la calcula sola dividiendo por la duración. Los porcentajes, **como
 porcentaje** (`21`, no `0.21`) — si te equivocas, avisa y lo convierte.

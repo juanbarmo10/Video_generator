@@ -46,6 +46,7 @@
 | [El paso 05 dormía de más](#-el-paso-05-dormía-el-triple-de-lo-necesario-15-ago-2026) | `DELAY` por fuente: −2.7 min por tema |
 | [La curva cierra P-12](#-la-curva-de-retención-cierra-p-12-15-ago-2026) | Ni el gancho ni los cortes: dos métricas con denominadores distintos |
 | [Métricas por API](#-métricas-de-youtube-por-api-15-ago-2026) | OAuth, lo que la API no da, y los tres fallos que parecían de Google |
+| [Métricas de IG y FB](#-métricas-de-instagram-y-facebook-por-api-15-ago-2026) | `plays` deprecado, milisegundos, y el id de video que no es el id del post |
 | [Anexo — evidencia medida](#anexo--evidencia-medida) | Los comandos y los números crudos |
 
 ---
@@ -2082,6 +2083,52 @@ pisa, así que se rellenan desde el export cuando hagan falta.
   invalidada al instante: el callback muere con `MismatchingStateError: CSRF Warning!` **mientras
   el navegador muestra que todo fue bien**. Costó tres intentos fallidos y parecía un problema de
   configuración de Google. La URL correcta es la que anuncia la propia librería.
+
+---
+
+## ✅ Métricas de Instagram y Facebook por API (15 ago 2026)
+
+[14_meta_api.py](herramientas/14_meta_api.py). Un solo trámite de credenciales cierra la lectura de
+métricas (P-09b) y deja montada la publicación (P-10): son los mismos permisos.
+
+**El mapeo NO se dedujo de la documentación: se preguntó a la API con la cuenta real.** Tres cosas
+que habrían salido mal escribiéndolo a ciegas:
+
+| Lo que parecía | Lo que es |
+|---|---|
+| `plays` es la métrica de reproducciones de Instagram | **Deprecada.** La buena es `views` — `plays` devuelve un 400 que ni menciona la deprecación |
+| Los tiempos vienen en segundos | **Milisegundos**, en las dos redes. El export en CSV los da en segundos con decimales — el mismo `9.378` que ya dio problemas |
+| La curva de retención es exclusiva de YouTube | **Facebook también la expone**, en `post_video_retention_graph` (33 puntos). Sirve para [P-20](TODO.md#p-20) |
+
+⚠️ **El bug que se comió media hora, y que habría sido invisible: `video_reels` devuelve el id del
+VIDEO y el export en CSV trae el id del POST.** Son distintos (`1033620252602631` vs
+`122111309283294832`) y ninguno de los dos lo dice. Usando el del video, cada reel entraba como
+fila **nueva** en vez de fusionarse: 45 filas fantasma, cada video de Facebook contado dos veces y
+las medianas del informe calculadas sobre datos duplicados. Se detectó porque la fusión anunció
+**45 filas nuevas donde debían ser 0** — la misma señal que delató el bug del lote pegajoso. El
+campo que las une es `post_id`, que hay que pedir explícitamente.
+
+**Lo que se ganó:** Instagram **dejó de tener campos manuales**. `duracion_media_s` —el único que
+había que teclear de esa red, mirando reel por reel en la app— lo da `ig_reels_avg_watch_time`.
+Cobertura de 36/45 a 45/45 en una corrida.
+
+**Lo que no se gana:** la API de YouTube sigue sin exponer `se_quedaron_pct` ni `alcance`, así que
+para esas dos hay que bajar el zip. Y TikTok exige registrar una app y pasar una revisión de
+semanas para la red que menos aporta.
+
+Detalles de diseño que se repiten del paso 13:
+- **No se reimplementa la fusión.** `fusionar()` del paso 10 ya sabe no pisar un valor lleno con
+  uno vacío, conservar las fotos de otros días y no degradar el lote.
+- **Se descartan las publicaciones sin ninguna métrica.** La API deja de devolver insights de las
+  más antiguas (aquí, las de mayo), y una fila con todo vacío solo baja las n del informe.
+- **La duración se presta entre redes.** Ni IG ni FB la exponen en sus insights, pero es el mismo
+  video: se toma de las filas de YouTube que ya están en `metricas.csv`, y con eso la retención se
+  puede calcular.
+- ⚠️ **El token de página se enmascara en pantalla** y se escribe al `.env` con `--escribir-env`.
+  Permite publicar en tu nombre, y esa salida acaba en logs y capturas.
+- ⚠️ **`--diagnostico` desambigua la página por el Instagram vinculado**, no por el nombre ni el
+  orden: la cuenta administra tres páginas (dos de otros proyectos) y elegir «la primera» habría
+  publicado en la equivocada.
 
 ---
 

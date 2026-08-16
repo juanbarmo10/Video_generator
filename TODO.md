@@ -30,7 +30,7 @@ elegir temas, programar en Metricool y recoger métricas de las redes que aún n
 | 🟠 | [P-10](#p-10) | Publicar automáticamente en Meta | ~15 min/semana |
 | 🟠 | [P-21](#p-21) | Publicar en Threads — texto, sin render | alcance medido a mano |
 | 🟡 | [P-20](#p-20) | Por qué menos gente para el scroll (el frame 0) | la única métrica en contra |
-| 🟡 | [P-09b](#p-09b) | Métricas por API: falta Meta y TikTok | ~10 min/semana |
+| 🟡 | [P-09b](#p-09b) | Métricas por API: hechas 3 de 4 redes, falta TikTok | ~5 min/semana |
 | 🟡 | [P-11](#p-11) | Tests de los pasos 03-06 | red de seguridad |
 | 🔵 | [P-17](#p-17) | Afinar el recordatorio con unas semanas de uso | ruido |
 | ⚪ | [P-06](#p-06) | Paralelizar los temas — evaluado: no compensa | ~25-35 % de tiempo |
@@ -104,25 +104,26 @@ Esto **acota** el problema, no lo demuestra.
 el export de YouTube.
 
 <a id="p-09b"></a>
-**P-09b · Métricas por API — YouTube hecho, faltan Meta y TikTok.**
+**P-09b · Métricas por API — hechas 3 de 4 redes. Solo falta TikTok.**
 
-✅ **YouTube listo** ([13_youtube_api.py](herramientas/13_youtube_api.py), 15 ago):
-`--metricas` descarga las 40 filas con datos y las funde en `metricas.csv` reusando `fusionar()`
-del paso 10, y `--retencion-lote` saca la curva de retención, que **ningún export trae**.
+✅ **YouTube** ([13_youtube_api.py](herramientas/13_youtube_api.py)) e ✅ **Instagram + Facebook**
+([14_meta_api.py](herramientas/14_meta_api.py)), los dos el 15 ago. Las dos herramientas funden en
+`metricas.csv` **reusando `fusionar()` del paso 10**, así que heredan sus reglas en vez de
+duplicarlas. Detalle y hallazgos en
+[HISTORIAL.md](HISTORIAL.md#-métricas-de-instagram-y-facebook-por-api-15-ago-2026).
 
-⚠️ **No elimina el export de YouTube del todo.** La API no expone dos columnas:
-`se_quedaron_pct` («Se quedaron para mirar», específica de Shorts — justo la de [P-20](#p-20)) ni
-`alcance` (espectadores únicos por video). La fusión no las pisa, así que se pueden seguir
-rellenando desde el CSV cuando hagan falta.
+De paso, **Instagram dejó de tener campos manuales**: `duracion_media_s` lo da
+`ig_reels_avg_watch_time`, que era el único que había que teclear de esa red.
 
-Lo que queda:
+⚠️ **Dos columnas de YouTube siguen necesitando el export**: `se_quedaron_pct` («Se quedaron para
+mirar», la de [P-20](#p-20)) y `alcance`. La API no las expone. La fusión no las pisa, así que se
+completan bajando el zip cuando hagan falta.
 
-1. **Meta** — Instagram Graph API, `GET /{ig-media-id}/insights` con
-   `metric=plays,reach,saved,shares,total_interactions`. Mismas credenciales que [P-10](#p-10).
-2. **TikTok, la última** — app + revisión, semanas de trámite, y es donde más se teclea a mano.
+**Queda TikTok**, y es la peor relación esfuerzo/beneficio: hay que registrar una app y pasar una
+revisión de semanas para la red que menos aporta. Hoy son ~5 min de tecleo por lote.
 
-💡 Antes de nada, mira si tu plan de **Metricool** exporta analíticas a CSV: ya tiene las cuatro
-cuentas conectadas y sería una descarga en vez de cuatro. No dará la curva de retención.
+💡 Antes de meterse en eso, mira si tu plan de **Metricool** exporta analíticas a CSV: ya tiene las
+cuatro cuentas conectadas.
 
 <a id="p-11"></a>
 **P-11 · Tests: falta ampliar a los pasos 03-06.**

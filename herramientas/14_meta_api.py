@@ -298,6 +298,235 @@ def diagnostico() -> dict:
     return hallado
 
 
+# ══════════════════════════════════════════════════════════════
+# 📊  MÉTRICAS — P-09b
+# ══════════════════════════════════════════════════════════════
+#
+# ⚠️ Este mapeo NO se dedujo de la documentación: se preguntó a la API con la
+# cuenta real (15 ago 2026), porque los nombres cambian entre versiones y la
+# documentación va por detrás. Lo que se descubrió preguntando:
+#   · `plays` está DEPRECADO en Instagram; el bueno es `views`.
+#   · Los tiempos vienen en MILISEGUNDOS en las dos redes. El export en CSV los
+#     da en segundos con decimales — de ahí el `9.378` que ya dio problemas.
+#   · Facebook expone `post_video_retention_graph`, una curva de retención de 33
+#     puntos que ningún export trae. Sirve para P-20.
+IG_METRICAS = ("views,reach,likes,comments,shares,saved,total_interactions,"
+               "ig_reels_avg_watch_time,ig_reels_video_view_total_time")
+
+IG_A_COLUMNA = {
+    "views": "vistas",
+    "reach": "alcance",
+    "likes": "me_gusta",
+    "comments": "comentarios",
+    "shares": "compartidos",
+    "saved": "guardados",
+    "total_interactions": "interacciones",
+}
+FB_A_COLUMNA = {
+    "fb_reels_total_plays": "vistas",
+    "post_impressions_unique": "alcance",
+    "post_video_followers": "seguidores_ganados",
+}
+# Los que hay que dividir: {métrica: (columna, divisor)}. ms → s, ms → h.
+IG_TIEMPOS = {"ig_reels_avg_watch_time": ("duracion_media_s", 1000),
+              "ig_reels_video_view_total_time": ("tiempo_total_h", 1000 * 3600)}
+FB_TIEMPOS = {"post_video_avg_time_watched": ("duracion_media_s", 1000),
+              "post_video_view_time": ("tiempo_total_h", 1000 * 3600)}
+
+
+def _insights(ruta: str, metric: str = "") -> dict:
+    """{nombre: valor} de un endpoint de insights. {} si falla."""
+    params = {"metric": metric} if metric else {}
+    d = _graph(ruta, tolerar_error=True, **params)
+    if "_error" in d:
+        return {}
+    return {x["name"]: (x["values"][0].get("value") if x.get("values") else None)
+            for x in d.get("data", [])}
+
+
+def _num(v, divisor: int = 1, dec: int = 0) -> str:
+    if v is None:
+        return ""
+    try:
+        n = float(v) / divisor
+    except (TypeError, ValueError):
+        return ""
+    return f"{n:.{dec}f}"
+
+
+def metricas_instagram(hoy: str, limite: int = 100) -> list[dict]:
+    ig = os.getenv("INSTAGRAM_ACCOUNT_ID", "").strip()
+    if not ig:
+        print("   ⚠️  Falta INSTAGRAM_ACCOUNT_ID en el .env")
+        return []
+    filas, despues = [], None
+    while len(filas) < limite:
+        params = {"fields": "id,caption,media_type,media_product_type,timestamp",
+                  "limit": 25}
+        if despues:
+            params["after"] = despues
+        r = _graph(f"{ig}/media", tolerar_error=True, **params)
+        if "_error" in r:
+            print(f"   ❌ {r['_error'][:110]}")
+            break
+        for m in r.get("data", []):
+            ins = _insights(f"{m['id']}/insights", IG_METRICAS)
+            fila = {
+                "plataforma": "instagram", "id_plataforma": m["id"],
+                "fecha_snapshot": hoy,
+                "fecha_publicacion": (m.get("timestamp") or "")[:10],
+                "titulo": " ".join((m.get("caption") or "").split())[:90],
+            }
+            for k, col in IG_A_COLUMNA.items():
+                fila[col] = _num(ins.get(k))
+            for k, (col, div) in IG_TIEMPOS.items():
+                fila[col] = _num(ins.get(k), div, 1 if div == 1000 else 2)
+            filas.append(fila)
+        despues = r.get("paging", {}).get("cursors", {}).get("after")
+        if not despues or not r.get("data"):
+            break
+    return filas
+
+
+def metricas_facebook(hoy: str, limite: int = 100) -> list[dict]:
+    pg = os.getenv("FACEBOOK_PAGE_ID", "").strip()
+    if not pg:
+        print("   ⚠️  Falta FACEBOOK_PAGE_ID en el .env")
+        return []
+    filas, despues = [], None
+    while len(filas) < limite:
+        # ⚠️ `post_id` no es opcional. `video_reels` devuelve el id del VIDEO
+        # (1033620252602631) y el export en CSV trae el id del POST
+        # (122111309283294832). Son distintos y ninguno de los dos lo dice.
+        # Usando el del video, cada reel entraba como fila NUEVA en vez de
+        # fusionarse con la del export: 45 filas fantasma, cada video contado
+        # dos veces y las medianas del informe calculadas sobre datos repetidos.
+        # Se descubrió porque la fusión anunció 45 nuevas donde debían ser 0.
+        params = {"fields": "id,post_id,description,created_time", "limit": 25}
+        if despues:
+            params["after"] = despues
+        r = _graph(f"{pg}/video_reels", tolerar_error=True, **params)
+        if "_error" in r:
+            print(f"   ❌ {r['_error'][:110]}")
+            break
+        for v in r.get("data", []):
+            ins = _insights(f"{v['id']}/video_insights")
+            reacciones = ins.get("post_video_likes_by_reaction_type") or {}
+            fila = {
+                "plataforma": "facebook",
+                "id_plataforma": v.get("post_id") or v["id"],
+                "fecha_snapshot": hoy,
+                "fecha_publicacion": (v.get("created_time") or "")[:10],
+                "titulo": " ".join((v.get("description") or "").split())[:90],
+            }
+            for k, col in FB_A_COLUMNA.items():
+                fila[col] = _num(ins.get(k))
+            for k, (col, div) in FB_TIEMPOS.items():
+                fila[col] = _num(ins.get(k), div, 1 if div == 1000 else 2)
+            if isinstance(reacciones, dict) and reacciones:
+                fila["me_gusta"] = str(sum(reacciones.values()))
+            filas.append(fila)
+        despues = r.get("paging", {}).get("cursors", {}).get("after")
+        if not despues or not r.get("data"):
+            break
+    return filas
+
+
+def guardar_en_metricas(dry_run: bool = False) -> None:
+    """Descarga IG + FB y funde en metricas.csv **reusando el paso 10**.
+
+    Igual que en el 13: no se reimplementa la fusión. `fusionar()` ya sabe no
+    pisar un valor lleno con uno vacío, conservar las fotos de otros días y no
+    degradar el lote.
+    """
+    _exigir_token()
+    met = _paso10()
+    cfg10 = met.CONFIG
+    hoy = date.today().isoformat()
+
+    print("📸 Instagram…")
+    filas = metricas_instagram(hoy)
+    print(f"   {len(filas)} publicaciones")
+    print("📘 Facebook…")
+    fb = metricas_facebook(hoy)
+    print(f"   {len(fb)} publicaciones")
+    filas += fb
+    if not filas:
+        raise SystemExit("❌ Nada que guardar.")
+
+    indice = met.indice_proyectos(cfg10)
+    nuevos = met.proyectos_del_lote_nuevo(cfg10)
+    temas = met.temas_por_proyecto(cfg10)
+    for f in filas:
+        f["_texto"], f["_id"] = f["titulo"], f["id_plataforma"]
+
+    for plataforma in ("instagram", "facebook"):
+        suyas = [f for f in filas if f["plataforma"] == plataforma]
+        asignado, _ = met.asignar_uno_a_uno(suyas, indice, cfg10["umbral_match"], {})
+        for i, f in enumerate(suyas):
+            proyecto = asignado.get(i, "")
+            f["PROYECTO"] = proyecto
+            f["lote"] = (cfg10["lote_nuevo"] if proyecto in nuevos
+                         else cfg10["lote_baseline"])
+            f["tema"] = temas.get(proyecto, "")
+
+    for f in filas:
+        for interno in ("_texto", "_id"):
+            f.pop(interno, None)
+        met.calcular_retencion(f)
+
+    # ⚠️ Fuera las publicaciones sin ninguna métrica. La API deja de devolver
+    # insights de las más antiguas (aquí, las de mayo), y una fila con todo
+    # vacío no aporta nada: solo ensucia metricas.csv y baja las n del informe.
+    METRICAS = ("vistas", "alcance", "me_gusta", "duracion_media_s")
+    vacias = [f for f in filas if not any(f.get(c, "").strip() for c in METRICAS)]
+    if vacias:
+        filas = [f for f in filas if f not in vacias]
+        print(f"   ⏭️  {len(vacias)} publicación(es) sin métricas, descartadas "
+              f"(la API no las devuelve para las más antiguas)")
+
+    con_nombre = sum(1 for f in filas if f["PROYECTO"])
+    print(f"\n   {con_nombre} con PROYECTO reconocido · {len(filas) - con_nombre} sin él")
+
+    ruta = Path(cfg10["salida"])
+    previas = met.leer_csv(ruta) if ruta.exists() else []
+
+    # La duración se presta entre plataformas: es el MISMO video en las cuatro
+    # redes, y ni IG ni FB la exponen en sus insights. Sin ella no hay retención.
+    # Las de YouTube ya están en metricas.csv, así que se toman de ahí.
+    duraciones = {f["PROYECTO"]: f["duracion_s"] for f in previas
+                  if f.get("PROYECTO") and f.get("duracion_s")}
+    prestadas = 0
+    for f in filas:
+        if not f.get("duracion_s") and duraciones.get(f.get("PROYECTO")):
+            f["duracion_s"] = duraciones[f["PROYECTO"]]
+            f["notas"] = (f.get("notas") or "") + "duración tomada de otra red; "
+            met.calcular_retencion(f)
+            prestadas += 1
+    if prestadas:
+        print(f"   🔁 {prestadas} fila(s) tomaron la duración de otra red "
+              f"→ retención calculable")
+
+    fundidas, nuevas_n, actualizadas = met.fusionar(previas, filas)
+    print(f"📊 {nuevas_n} filas nuevas · {actualizadas} actualizadas · "
+          f"{len(fundidas)} en total")
+    if dry_run:
+        print("🧪 --dry-run: no se escribió nada")
+        return
+    met.escribir(cfg10["salida"], fundidas)
+    print(f"✅ Guardado: {cfg10['salida']}")
+
+
+def _paso10():
+    """Importa 10_metricas.py (empieza por dígito: no vale `import`)."""
+    import importlib.util
+    ruta = Path(__file__).with_name("10_metricas.py")
+    spec = importlib.util.spec_from_file_location("met10", ruta)
+    modulo = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(modulo)
+    return modulo
+
+
 def escribir_env(hallado: dict, ruta: str = ".env") -> None:
     """Mete en el .env lo que descubrió el diagnóstico, sin duplicar líneas.
 
@@ -345,6 +574,10 @@ def main() -> None:
                    help="Comprueba el token y descubre los IDs. Empieza por aquí")
     p.add_argument("--escribir-env", action="store_true",
                    help="Con --diagnostico: escribe los IDs y el token de página en el .env")
+    p.add_argument("--metricas", action="store_true",
+                   help="Descarga las métricas de IG y FB y las funde en metricas.csv")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Con --metricas: enseña qué haría sin escribir")
     args = p.parse_args()
 
     if not any(vars(args).values()):
@@ -355,6 +588,10 @@ def main() -> None:
         hallado = diagnostico()
         if args.escribir_env:
             escribir_env(hallado)
+        return
+
+    if args.metricas:
+        guardar_en_metricas(dry_run=args.dry_run)
 
 
 if __name__ == "__main__":
