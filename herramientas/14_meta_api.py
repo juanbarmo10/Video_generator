@@ -159,12 +159,26 @@ def diagnostico() -> dict:
         # ⚠️ El de página HEREDA la caducidad del de usuario del que sale. Con un
         # token corto, el de página también dura horas: hay que alargar ANTES.
         if horas < 24 * 7:
-            largo = alargar_token(TOKEN)
+            # ⚠️ Un token de PÁGINA no se puede intercambiar: `fb_exchange_token`
+            # responde «An unexpected error has occurred. Please retry your request
+            # later», que suena a fallo transitorio y no lo es — reintentarlo no
+            # funciona nunca. La permanencia se hereda, no se pide: hay que alargar
+            # el token de USUARIO y derivar la página DESPUÉS.
+            largo = None if tipo == "PAGE" else alargar_token(TOKEN)
             if largo:
                 print("   🔄 Alargado a 60 días con META_APP_ID/META_APP_SECRET.")
                 print("      Los tokens de página que salgan de este YA no caducan.")
                 hallado["_token_largo"] = largo
                 globals()["TOKEN"] = largo
+            elif tipo == "PAGE":
+                print("      ⚠️  Este token es de PÁGINA y los de página NO se pueden alargar.\n"
+                      "      La permanencia se HEREDA del token de usuario del que salen, así\n"
+                      "      que hay que rehacer el camino entero, en este orden:\n"
+                      "        1. Explorador de la API Graph → arriba a la derecha, en\n"
+                      "           «Usuario o página», elige **Usuario actual** (no la página).\n"
+                      "        2. Genera el token y ponlo en META_ACCESS_TOKEN del .env.\n"
+                      "        3. Repite este diagnóstico con --escribir-env: alarga el de\n"
+                      "           usuario a 60 días y de él saca el de página, que ya NO caduca.")
             else:
                 print("      ⚠️  Este token dura horas, y el de PÁGINA que salga de él\n"
                       "      heredará esa caducidad. Alárgalo antes, de una de las dos formas:\n"
@@ -173,9 +187,17 @@ def diagnostico() -> dict:
                       "          herramienta de depuración → «Extender token de acceso».")
 
     # 2 · Permisos: los que hay contra los que hacen falta
-    perms = _graph("me/permissions", tolerar_error=True)
-    concedidos = {p["permission"] for p in perms.get("data", [])
-                  if p.get("status") == "granted"}
+    #
+    # ⚠️ Salen de `debug_token`, NO de `me/permissions`. Esa segunda llamada solo
+    # responde a tokens de USUARIO: con uno de página devuelve una lista vacía sin
+    # dar error, y entonces el diagnóstico anunciaba «0/7 permisos» y mandaba a
+    # regenerar el token cuando estaban los siete concedidos. `debug_token` trae
+    # los `scopes` de los dos tipos, y ya se ha llamado arriba.
+    concedidos = set(info.get("scopes", []))
+    if not concedidos:
+        perms = _graph("me/permissions", tolerar_error=True)
+        concedidos = {p["permission"] for p in perms.get("data", [])
+                      if p.get("status") == "granted"}
 
     # ⚠️ Meta partió la API de Instagram en dos caminos que NO son intercambiables:
     #   · "con Facebook Login"  → instagram_basic…      · graph.facebook.com
@@ -205,14 +227,23 @@ def diagnostico() -> dict:
               f"   genera el token otra vez.")
 
     # 3 · Páginas de Facebook y su token (el que NO caduca)
-    resp = _graph("me/accounts", tolerar_error=True, fields="id,name,access_token")
-    if "_error" in resp:
-        print(f"\n📘 Páginas de Facebook: no se pudieron leer")
-        print(f"   {resp['_error']}")
-        paginas = []
+    #
+    # ⚠️ `me/accounts` **necesita un token de USUARIO**: con uno de página, `me`
+    # ya ES la página, y Meta responde «nonexisting field (accounts)» — que no
+    # dice en ningún momento que el problema sea el tipo de token. Con un token
+    # de página no hay nada que enumerar: la página es una sola y es esta, así
+    # que se pregunta por ella directamente y el diagnóstico sigue sirviendo.
+    if tipo == "PAGE":
+        resp = _graph("me", tolerar_error=True, fields="id,name")
+        paginas = [] if "_error" in resp else [resp]
+        print("\n📘 Página del token (es de PÁGINA: no hay lista que enumerar)")
     else:
-        paginas = resp.get("data", [])
-        print(f"\n📘 Páginas de Facebook: {len(paginas)}")
+        resp = _graph("me/accounts", tolerar_error=True, fields="id,name,access_token")
+        paginas = [] if "_error" in resp else resp.get("data", [])
+        print(f"\n📘 Páginas de Facebook: "
+              + ("no se pudieron leer" if "_error" in resp else str(len(paginas))))
+    if "_error" in resp:
+        print(f"   {resp['_error']}")
     for pg in paginas:
         print(f"   · {pg['name']}  →  FACEBOOK_PAGE_ID={pg['id']}")
     if not paginas and "_error" not in resp:

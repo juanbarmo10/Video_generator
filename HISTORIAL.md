@@ -48,6 +48,7 @@
 | [Métricas por API](#-métricas-de-youtube-por-api-15-ago-2026) | OAuth, lo que la API no da, y los tres fallos que parecían de Google |
 | [Métricas de IG y FB](#-métricas-de-instagram-y-facebook-por-api-15-ago-2026) | `plays` deprecado, milisegundos, y el id de video que no es el id del post |
 | [Publicar en IG y FB](#-publicar-en-instagram-y-facebook-15-ago-2026) | La subida reanudable, el registro de publicado y el parseo que casi pega los tags |
+| [El token de página](#-el-token-de-página-un-callejón-sin-salida-que-parecía-otra-cosa-15-ago-2026) | «0/7 permisos» con los 7 puestos, y por qué un token de página no se puede alargar |
 | [Anexo — evidencia medida](#anexo--evidencia-medida) | Los comandos y los números crudos |
 
 ---
@@ -2170,6 +2171,46 @@ por eso está congelado en tests.
 Cada red lleva su sección: Instagram el pie corto (*DESCRIPCIÓN GENERAL*, ~530 caracteres) y
 Facebook la larga (*DESCRIPCIÓN LARGA*, ~1450). Los hashtags van dentro de las dos, que es
 justamente por lo que el paso 02 los repite.
+
+---
+
+## ✅ El token de página: un callejón sin salida que parecía otra cosa (15 ago 2026)
+
+Al montar el token real aparecieron **dos fallos que se disfrazaban el uno del otro**, y ninguno
+era lo que decía ser.
+
+**1. «0/7 permisos» con los siete concedidos.** El diagnóstico los leía de `me/permissions`, y esa
+llamada **solo responde a tokens de USUARIO**: con uno de página devuelve una lista vacía **sin dar
+error**. Así que anunciaba que faltaban los siete y mandaba a regenerar el token — el peor consejo
+posible, porque el token estaba bien. `debug_token` trae los `scopes` de los dos tipos y ya se
+llamaba dos líneas más arriba: ahora salen de ahí, con `me/permissions` solo como respaldo.
+
+De la misma familia, `me/accounts` respondía `nonexisting field (accounts)`. No es que falte
+`pages_show_list`: con un token de página, `me` **ya es** la página, y las páginas no tienen
+`accounts`. Con ese tipo de token no hay lista que enumerar, así que se pregunta por ella directa.
+
+**2. El token de página no se puede alargar, y Meta lo dice al revés.** `fb_exchange_token`
+responde:
+
+> An unexpected error has occurred. Please retry your request later.
+
+Que suena a fallo pasajero y **no lo es**: reintentarlo no funciona nunca. La permanencia se
+**hereda**, no se pide — un token de página dura lo que durase el de usuario del que salió. El
+orden correcto es el único que funciona:
+
+| | |
+|---|---|
+| 1 | Token de **usuario** en el Explorador («Usuario o página» → *Usuario actual*) |
+| 2 | Alargarlo a 60 días con `fb_exchange_token` + `META_APP_ID`/`META_APP_SECRET` |
+| 3 | `me/accounts` sobre el largo → token de página que **ya no caduca** |
+
+Elegir la página en el paso 1 da un token que **funciona** —lee métricas y publica igual— y por eso
+no se nota: caduca a las 1-2 horas y ya no hay forma de arreglarlo salvo volver a empezar. El
+diagnóstico ahora detecta `tipo == "PAGE"`, no intenta el intercambio y escribe los tres pasos.
+
+Lo que sí salió de ese token antes de que caducara, verificado contra la API real:
+`FACEBOOK_PAGE_ID=1012265328646181` («Curiosidades Históricas») e
+`INSTAGRAM_ACCOUNT_ID=17841417726941429` (`@chistoricas3`).
 
 ---
 

@@ -159,8 +159,15 @@ De cada tema salen:
    | Control | Qué poner | Por qué |
    |---|---|---|
    | **Host** (`facebook.com` / `instagram.com` / `threads.net`) | **`facebook.com`** | Es la bifurcación de arriba. Con `instagram.com` salen los `instagram_business_*` y Facebook queda fuera |
-   | **Tipo de token** (usuario / página) | **usuario** | Solo el de usuario puede **listar tus páginas**, y de ahí sale el de página. Al revés no funciona |
+   | **Usuario o página** | **Usuario actual** | Solo el de usuario puede **listar tus páginas** y **alargarse a 60 días**. El de página no hace ninguna de las dos |
    | **GET / POST / DELETE** | da igual | Es el método de la caja de consultas manuales, no afecta al token |
+
+   ⚠️ **Si en «Usuario o página» eliges la página, el token sale de tipo PAGE y es un callejón sin
+   salida** (pasó el 15 ago). No da error al usarlo —lee métricas y publica sin problema— pero
+   **caduca en 1-2 horas y no se puede alargar**: `fb_exchange_token` responde *«An unexpected
+   error has occurred. Please retry your request later»*, que suena a fallo pasajero y no lo es.
+   La permanencia se **hereda**, no se pide: hay que alargar el de usuario y derivar el de página
+   después, en ese orden. El diagnóstico detecta el caso y te dice los tres pasos.
 
    ⚠️ **El token del Explorador dura 1-2 horas, y el de página HEREDA esa caducidad.** Hay que
    alargarlo antes, o las métricas dejan de bajar esa misma tarde. Dos formas:
