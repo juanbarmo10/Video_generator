@@ -662,6 +662,17 @@ sabe hacerlo. Es lo único que llama `cron` para publicar (`--reel` a las 12:00,
   la cuenta montada.
 - Los mensajes van **en serie**: cada uno responde al anterior y necesita su id ya publicado. Si uno
   falla a mitad, los anteriores quedan publicados y se avisa — un hilo cortado es visible.
+- **`--metricas` guarda UNA fila por hilo**, con el id de la raíz. `metricas.csv` se indexa por
+  `id_plataforma` y un hilo son 3 objetos: sin unificar, el mismo tema entraría tres veces y las
+  medianas del informe se calcularían sobre datos repetidos.
+  ⚠️ **`vistas` sale SOLO de la raíz** —es lo que aparece en el feed; sumar los 3 contaría tres
+  veces a quien leyó el hilo entero— mientras que `me_gusta` y `compartidos` sí se suman.
+  ⚠️ **`replies` de la API NO vale como `comentarios`: cuenta nuestras propias respuestas
+  encadenadas.** Medido con interacción real cero, la raíz devolvía `replies=2`, que eran los
+  mensajes 2 y 3 del hilo: cada hilo habría nacido con 2 comentarios falsos. Se cuentan los mensajes
+  de la conversación que no son nuestros.
+  ⚠️ **`/conversation` no devuelve la raíz**, así que se suma aparte. Contarla en los dos sitios
+  duplicaría los «me gusta».
 
 **[12_recordatorio.py](herramientas/12_recordatorio.py)** es el recordatorio semanal por Telegram.
 Lo llama `cron` (no `run_all.sh`: no tiene nada que ver con generar videos).

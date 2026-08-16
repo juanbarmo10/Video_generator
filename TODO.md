@@ -22,49 +22,25 @@ Verificado sobre los 7: **0 transiciones repetidas** de 15-18 y **0 títulos** f
 
 ⚠️ **La decisión de operación es que nadie revise guiones a mano.** Por eso la puerta del paso 01
 **aborta el tema** en vez de avisar, y lo que queda por hacer se mide por si **reduce intervención
-humana**, no por si mejora un número. Hoy tu tiempo semanal está en tres sitios de ~15 min:
-elegir temas, programar en Metricool y recoger métricas de las redes que aún no tienen API.
+humana**, no por si mejora un número.
+
+**Tu semana son ahora dos cosas** (~20 min): elegir los temas y correr los tres comandos de
+métricas. Generar, empaquetar y publicar en Instagram, Facebook y Threads va solo; de subir a mano
+solo quedan YouTube y TikTok, las dos cuyo trámite de API no compensa todavía.
 
 | | # | Pendiente | Gana |
 |---|---|---|---|
-| 🟠 | [P-24](#p-24) | Threads no está en `metricas.csv` | la red con más alcance, a ciegas |
 | 🟡 | [P-20](#p-20) | Por qué menos gente para el scroll (el frame 0) | la única métrica en contra |
-| 🟡 | [P-09b](#p-09b) | Métricas por API: hechas 3 de 4 redes, falta TikTok | ~5 min/semana |
+| 🟡 | [P-09b](#p-09b) | Métricas por API: hechas 4 de 5 redes, falta TikTok | ~5 min/semana |
 | 🟡 | [P-11](#p-11) | Tests de los pasos 03-06 | red de seguridad |
 | 🔵 | [P-22](#p-22) | Vigilar la primera semana de publicación automática | confianza |
 | 🔵 | [P-23](#p-23) | ¿Un equipo siempre encendido? Decidir con datos | la hora exacta |
+| 🔵 | [P-25](#p-25) | ¿Rinde Threads de verdad? Volver a mirar con n suficiente | dónde poner el esfuerzo |
 | 🔵 | [P-17](#p-17) | Afinar el recordatorio con unas semanas de uso | ruido |
 | ⚪ | [P-06](#p-06) | Paralelizar los temas — evaluado: no compensa | ~25-35 % de tiempo |
 | ⚪ | [P-18](#p-18) | La cabecera del paso 06 miente sobre su entrada | claridad |
 | ⚪ | [P-07](#p-07) | Basura de corridas viejas | 35 MB reales |
 | ⚪ | [P-08](#p-08) | Los 16 Mundial no tienen `descripcion.txt` ni `.srt` | — |
-
----
-
-## 🟠 Lo que más trabajo manual quita
-
-<a id="p-24"></a>
-**P-24 · Threads publica, pero no medimos nada de él.**
-
-[P-21](#p-21) está cerrado: el hilo de `Historia01` salió el 15 ago y la agenda lo emite los
-sábados. Lo que queda es que **la red que más alcance daba a mano sigue siendo la única a ciegas**:
-no está en `metricas.csv`, así que no sabemos si el hilo automático rinde como los que escribías tú.
-
-El permiso ya está concedido (`threads_manage_insights`) y el token es el mismo, así que es leer
-`/{id}/insights` (`views`, `likes`, `replies`, `reposts`, `quotes`) y meterlo por el mismo camino
-que [14_meta_api.py](herramientas/14_meta_api.py) — `fusionar()` del paso 10 ya sabe hacerlo.
-
-⚠️ **Antes hay que decidir qué es «un video» en Threads.** `metricas.csv` se indexa por
-`(id_plataforma, plataforma, fecha_snapshot)` y un hilo son **3 objetos**: o se suma la conversación
-entera y se guarda con el id de la raíz, o el mismo tema aparece tres veces y las medianas del
-informe mienten. Lo primero, casi seguro — pero es una decisión, no un detalle de implementación.
-
-Las otras dos redes, por coste de trámite:
-
-1. **YouTube** — ya tienes OAuth, pero subir exige `youtube.upload`, que es **restringido**: ahí sí
-   hace falta pasar la verificación de Google con dominio propio.
-2. **TikTok, la última.** Registrar app y pasar revisión: semanas de trámite para la red que menos
-   aporta.
 
 ---
 
@@ -89,11 +65,12 @@ Esto **acota** el problema, no lo demuestra.
 el export de YouTube.
 
 <a id="p-09b"></a>
-**P-09b · Métricas por API — hechas 3 de 4 redes. Solo falta TikTok.**
+**P-09b · Métricas por API — hechas 4 de 5 redes. Solo falta TikTok.**
 
-✅ **YouTube** ([13_youtube_api.py](herramientas/13_youtube_api.py)) e ✅ **Instagram + Facebook**
-([14_meta_api.py](herramientas/14_meta_api.py)), los dos el 15 ago. Las dos herramientas funden en
-`metricas.csv` **reusando `fusionar()` del paso 10**, así que heredan sus reglas en vez de
+✅ **YouTube** ([13_youtube_api.py](herramientas/13_youtube_api.py)), ✅ **Instagram + Facebook**
+([14_meta_api.py](herramientas/14_meta_api.py)) y ✅ **Threads**
+([15_threads_api.py](herramientas/15_threads_api.py)), todos el 15 ago. Las tres herramientas funden
+en `metricas.csv` **reusando `fusionar()` del paso 10**, así que heredan sus reglas en vez de
 duplicarlas. Detalle y hallazgos en
 [HISTORIAL.md](HISTORIAL.md#-métricas-de-instagram-y-facebook-por-api-15-ago-2026).
 
@@ -109,6 +86,9 @@ revisión de semanas para la red que menos aporta. Hoy son ~5 min de tecleo por 
 
 💡 Antes de meterse en eso, mira si tu plan de **Metricool** exporta analíticas a CSV: ya tiene las
 cuatro cuentas conectadas.
+
+Y **subir** por API solo quedaría en YouTube, que exige `youtube.upload` — un permiso restringido
+que pide pasar la verificación de Google con dominio propio.
 
 <a id="p-11"></a>
 **P-11 · Tests: falta ampliar a los pasos 03-06.**
@@ -143,6 +123,35 @@ puede anticipar**:
 ⚠️ **El calendario se agota el 2026-08-23.** A partir de ahí `--reel` no encuentra fila y lo dice
 en el log, pero **no avisa**: hay que generar el paquete del lote siguiente. El recordatorio de los
 domingos ya mira `publicar/calendario.csv`, así que esto es más un recordatorio de que existe.
+
+<a id="p-25"></a>
+**P-25 · ¿Rinde Threads de verdad? Volver a mirar con n suficiente.**
+
+Ya está en `metricas.csv` ([P-24](#p-24) cerrado), y la primera lectura **no confirma ni desmiente**
+lo que se veía a ojo. Medianas de vistas, 15 ago:
+
+| Red | Mediana | Máximo | n |
+|---|---:|---:|---:|
+| facebook | 674 | 6.068 | 45 |
+| tiktok | 664 | 3.320 | 15 |
+| **threads** | **616** | **22.024** | **6** |
+| youtube | 448 | 3.209 | 40 |
+| instagram | 165 | 4.241 | 45 |
+
+⚠️ **La mediana de Threads es del montón; lo que se sale es el techo** — 22.024 vistas, 3,6× el
+mejor post de Facebook. Con n=6 eso puede ser un hilo que se viralizó y nada más, así que la
+sensación de «Threads da mucho alcance» **puede venir entera de ese caso**. No es motivo para
+apostar por la red ni para descartarla: es motivo para esperar.
+
+Con un hilo por semana, hacen falta ~2 meses para tener n≈14 y poder decir algo. Lo que hay que
+mirar entonces:
+
+- ¿El techo se repite, o fue una vez? Si se repite, Threads es la red de mayor varianza y merece
+  más de un hilo por semana.
+- ¿Los hilos automáticos rinden como los que escribías a mano? Los 6 de la tabla son **todos
+  manuales**; el primero automático es del 15 ago.
+- Si rinde, la palanca es `dias_extra` en [16_agenda.py](herramientas/16_agenda.py) — subirlo a dos
+  días no cuesta nada, porque el hilo se genera del guion que ya existe (~$0.002).
 
 <a id="p-23"></a>
 **P-23 · ¿Merece la pena un equipo siempre encendido?**
@@ -249,7 +258,8 @@ con lo que se midió, está en [HISTORIAL.md](HISTORIAL.md).
 | <a id="p-10"></a>**P-10** | Publicar en Meta era manual | `--publicar PROYECTO` por subida reanudable. `Historia07` estrenado el 15 ago en las dos redes |
 | <a id="p-10b"></a>**P-10b** | Había que acordarse de correr el comando | [16_agenda.py](herramientas/16_agenda.py) lo dispara desde `cron`: reel diario a las 12:00, extra semanal a las 18:00 |
 | <a id="p-09"></a>**P-09** | ¿Se sigue usando el carrusel? | Resuelto por el uso: la agenda lo publica sola los martes en IG y los jueves como álbum en FB. El paso 06 se queda |
-| <a id="p-21"></a>**P-21** | Threads se publicaba a mano | [15_threads_api.py](herramientas/15_threads_api.py): hilo de 3 mensajes con 2 fotos reales, los sábados. Estrenado con `Historia01`. Falta medirlo: [P-24](#p-24) |
+| <a id="p-21"></a>**P-21** | Threads se publicaba a mano | [15_threads_api.py](herramientas/15_threads_api.py): hilo de 3 mensajes con 2 fotos reales, los sábados. Estrenado con `Historia01` |
+| <a id="p-24"></a>**P-24** | Threads no estaba en `metricas.csv` | `--metricas`: **una fila por hilo**, no tres. Vistas de la raíz, interacciones sumadas y los comentarios sin contar nuestras propias respuestas. ¿Rinde? [P-25](#p-25) |
 | <a id="p-12"></a>**P-12** | `se_quedaron_pct` bajó en v2 | La curva de retención descartó gancho y cortes. Queda [P-20](#p-20), que es una pregunta distinta |
 | <a id="p-14"></a>**P-14** | `proyectos/T1/` anidado dejaba 78 de 147 filas sin `PROYECTO` | Glob a dos niveles en `indice_proyectos()`: 43 filas recuperadas |
 | <a id="p-15"></a>**P-15** | Los planos salían en pares de la misma imagen | `dispersar_planos()`: de 8 de 13 transiciones repetidas a **0 de 15-18** |

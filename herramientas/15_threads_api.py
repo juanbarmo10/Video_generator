@@ -327,6 +327,184 @@ def fotos_de(proyecto: str, cuantas: int = None) -> list[Path]:
 
 
 #%% ═══════════════════════════════════════════════════════════════
+#   📊  MÉTRICAS — un hilo es UNA publicación
+# ═══════════════════════════════════════════════════════════════
+#
+# ⚠️ **La decisión que manda aquí es qué cuenta como «una publicación».** Un hilo
+# son 3 objetos en la API, y `metricas.csv` se indexa por `id_plataforma`: sin
+# unificar, el mismo tema entraría tres veces y las medianas del informe se
+# calcularían sobre datos repetidos — el mismo daño que hicieron las 45 filas
+# fantasma de Facebook. Se guarda **una fila por hilo**, con el id de la raíz.
+#
+# Y no se suma todo por igual, porque no todas las métricas significan lo mismo
+# repartidas entre mensajes:
+#
+# | Columna | De dónde | Por qué |
+# |---|---|---|
+# | `vistas` | **solo la raíz** | Es lo que aparece en el feed: mide a cuánta gente llegó. Sumar los 3 contaría tres veces a quien leyó el hilo entero |
+# | `me_gusta`, `compartidos` | suma de **nuestros** mensajes | Un «me gusta» al mensaje 2 es interacción con esta publicación, no con otra |
+# | `comentarios` | mensajes de **otros** en la conversación | ⚠️ Ver abajo |
+#
+# ⚠️ **`replies` de la API NO sirve como `comentarios`: cuenta nuestras propias
+# respuestas encadenadas.** Medido sobre el hilo de `Historia01` recién publicado,
+# con cero interacción real: la raíz devolvía `replies=2`, que son los mensajes 2
+# y 3 del propio hilo. Usándolo tal cual, **cada hilo nacería con 2 comentarios
+# falsos** y el engagement de Threads saldría inflado para siempre. Por eso se
+# cuentan los mensajes de la conversación que **no son nuestros**.
+
+METRICAS_HILO = "views,likes,replies,reposts,quotes,shares"
+
+
+def _insights(media_id: str) -> dict:
+    d = _get(f"{media_id}/insights", metric=METRICAS_HILO)
+    if "error" in d:
+        return {}
+    return {x["name"]: (x["values"][0].get("value") if x.get("values") else None)
+            for x in d.get("data", [])}
+
+
+def _entero(v) -> int:
+    try:
+        return int(v or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def conversacion(raiz_id: str) -> list[dict]:
+    """Las RESPUESTAS del hilo, con quién las escribió.
+
+    ⚠️ **No incluye el mensaje raíz.** Por eso las métricas suman `raiz` aparte y
+    luego recorren esto: si se contara la raíz en las dos partes, cada hilo
+    duplicaría sus «me gusta». Verificado sobre el hilo de 5 mensajes de mayo,
+    que devuelve 4.
+    """
+    mensajes, despues = [], None
+    while True:
+        params = {"fields": "id,username,text", "limit": 50}
+        if despues:
+            params["after"] = despues
+        d = _get(f"{raiz_id}/conversation", **params)
+        if "error" in d:
+            return mensajes
+        mensajes += d.get("data", [])
+        despues = d.get("paging", {}).get("cursors", {}).get("after")
+        if not despues or not d.get("data"):
+            return mensajes
+
+
+def metricas_threads(hoy: str, limite: int = 100) -> list[dict]:
+    """Una fila por hilo, con las métricas de toda la conversación."""
+    _exigir_token()
+    yo = _get("me", fields="id,username")
+    usuario = yo.get("username", "")
+
+    filas, despues = [], None
+    while len(filas) < limite:
+        params = {"fields": "id,text,timestamp,is_reply,permalink", "limit": 25}
+        if despues:
+            params["after"] = despues
+        d = _get(f"{USER_ID}/threads", **params)
+        if "error" in d:
+            print(f"   ❌ {d['error'].get('message', '')[:110]}")
+            break
+
+        for m in d.get("data", []):
+            # ⚠️ Defensivo: hoy `/threads` solo devuelve raíces, pero si algún
+            # día incluyera respuestas, cada hilo se contaría 3 veces.
+            if m.get("is_reply"):
+                continue
+
+            raiz = _insights(m["id"])
+            hilo = conversacion(m["id"])
+            mios = [x for x in hilo if x.get("username") == usuario]
+            ajenos = [x for x in hilo if x.get("username") != usuario]
+
+            me_gusta = _entero(raiz.get("likes"))
+            compartidos = _entero(raiz.get("reposts")) + _entero(raiz.get("quotes"))
+            for x in mios:
+                ins = _insights(x["id"])
+                me_gusta += _entero(ins.get("likes"))
+                compartidos += _entero(ins.get("reposts")) + _entero(ins.get("quotes"))
+
+            comentarios = len(ajenos)
+            filas.append({
+                "plataforma": "threads",
+                "id_plataforma": m["id"],
+                "fecha_snapshot": hoy,
+                "fecha_publicacion": (m.get("timestamp") or "")[:10],
+                "titulo": " ".join((m.get("text") or "").split())[:90],
+                "vistas": str(_entero(raiz.get("views"))) if raiz else "",
+                "me_gusta": str(me_gusta),
+                "comentarios": str(comentarios),
+                "compartidos": str(compartidos),
+                "interacciones": str(me_gusta + comentarios + compartidos),
+                # +1 por la raíz, que `conversacion()` no devuelve.
+                "notas": (f"hilo de {len(mios) + 1} mensajes; " if mios else ""),
+            })
+
+        despues = d.get("paging", {}).get("cursors", {}).get("after")
+        if not despues or not d.get("data"):
+            break
+    return filas
+
+
+def _paso10():
+    ruta = RAIZ / "herramientas" / "10_metricas.py"
+    spec = importlib.util.spec_from_file_location("met10", ruta)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def guardar_en_metricas(dry_run: bool = False) -> None:
+    """Funde las filas de Threads en `metricas.csv` **reusando el paso 10**.
+
+    Igual que en los pasos 13 y 14: no se reimplementa la fusión. `fusionar()` ya
+    sabe no pisar un valor lleno con uno vacío y `lotes_ya_asignados()` que nunca
+    hay que degradar un lote con nombre.
+    """
+    met = _paso10()
+    cfg10 = met.CONFIG
+    hoy = date.today().isoformat()
+
+    print("🧵 Threads…")
+    filas = metricas_threads(hoy)
+    print(f"   {len(filas)} hilo(s)")
+    if not filas:
+        raise SystemExit("❌ Nada que guardar.")
+
+    indice = met.indice_proyectos(cfg10)
+    nuevos = met.proyectos_del_lote_nuevo(cfg10)
+    temas = met.temas_por_proyecto(cfg10)
+    for f in filas:
+        f["_texto"], f["_id"] = f["titulo"], f["id_plataforma"]
+
+    asignado, _ = met.asignar_uno_a_uno(filas, indice, cfg10["umbral_match"], {})
+    for i, f in enumerate(filas):
+        proyecto = asignado.get(i, "")
+        f["PROYECTO"] = proyecto
+        f["lote"] = (cfg10["lote_nuevo"] if proyecto in nuevos
+                     else cfg10["lote_baseline"])
+        f["tema"] = temas.get(proyecto, "")
+        for interno in ("_texto", "_id"):
+            f.pop(interno, None)
+
+    con_nombre = sum(1 for f in filas if f["PROYECTO"])
+    print(f"   {con_nombre} con PROYECTO reconocido · {len(filas) - con_nombre} sin él")
+
+    ruta = Path(cfg10["salida"])
+    previas = met.leer_csv(ruta) if ruta.exists() else []
+    fundidas, nuevas_n, actualizadas = met.fusionar(previas, filas)
+    print(f"📊 {nuevas_n} filas nuevas · {actualizadas} actualizadas · "
+          f"{len(fundidas)} en total")
+    if dry_run:
+        print("🧪 --dry-run: no se escribió nada")
+        return
+    met.escribir(cfg10["salida"], fundidas)
+    print(f"✅ Guardado: {cfg10['salida']}")
+
+
+#%% ═══════════════════════════════════════════════════════════════
 #   📤  PUBLICAR
 # ═══════════════════════════════════════════════════════════════
 
@@ -445,7 +623,9 @@ def main() -> None:
     p.add_argument("--diagnostico", action="store_true",
                    help="Comprueba el token de Threads. Empieza por aquí")
     p.add_argument("--escribir-env", action="store_true",
-                   help="Con --diagnostico: corrige THREADS_USER_ID en el .env")
+                   help="Con --diagnostico: corrige el token y THREADS_USER_ID en el .env")
+    p.add_argument("--metricas", action="store_true",
+                   help="Descarga las métricas de los hilos y las funde en metricas.csv")
     p.add_argument("--hilo", metavar="PROYECTO",
                    help="Escribe y publica el hilo de ese tema")
     p.add_argument("--solo-texto", action="store_true",
@@ -456,6 +636,8 @@ def main() -> None:
 
     if args.diagnostico:
         diagnostico(escribir=args.escribir_env)
+    elif args.metricas:
+        guardar_en_metricas(dry_run=args.dry_run)
     elif args.hilo and args.solo_texto:
         # ⚠️ No pasa por `_exigir_token()`: es el único modo que sirve para
         # afinar el prompt antes de tener la cuenta de Threads montada.

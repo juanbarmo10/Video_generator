@@ -87,6 +87,14 @@ COLUMNAS_POR_PLATAFORMA = {
         "retencion_pct", "retencion_relativa",
         "guardados", "tasa_guardado", "compartidos", "engagement",
     ],
+    # ⚠️ Threads es TEXTO: no hay duración, así que no hay retención ni
+    # `se_quedaron_pct` ni `tiempo_total_h`. Tampoco alcance ni guardados — su
+    # API no los da. Lo que sí tiene, y es justo lo que se quiere comparar con
+    # las otras redes, es `vistas` y `engagement`.
+    "threads": [
+        "vistas", "vistas_por_dia", "me_gusta", "comentarios",
+        "compartidos", "engagement",
+    ],
 }
 
 # ── Cómo se comporta cada métrica con el paso del tiempo ────────────────
@@ -136,6 +144,7 @@ METRICA_PRINCIPAL = {
     "tiktok": "vistas",
     "facebook": "vistas",
     "instagram": "vistas",
+    "threads": "vistas",
 }
 
 ETIQUETAS = {
@@ -555,13 +564,18 @@ def bloque_ranking(filas: list[dict]) -> str:
         seleccion = ([("🔼", candidatos[i]) for i in arriba] +
                      [("🔽", candidatos[i]) for i in abajo])
 
+        # ⚠️ Las de retención solo si esa red las tiene. Threads es TEXTO: no hay
+        # duración, así que serían dos columnas de guiones en todas sus filas —
+        # el mar de celdas vacías que `COLUMNAS_POR_PLATAFORMA` existe para evitar.
+        extra = [c for c in ("retencion_pct", "retencion_relativa")
+                 if c in COLUMNAS_POR_PLATAFORMA[plataforma]]
         partes.append(
             f'<h3>{esc(plataforma)} · por {esc(ETIQUETAS.get(campo, campo))}</h3>'
             '<div class="scroll"><table><thead><tr>'
             '<th>Video</th><th>Lote</th>'
-            f'<th>{esc(ETIQUETAS.get(campo, campo))}</th>'
-            '<th>Días pub.</th><th>Retención %</th><th>Ret. relativa</th><th>Publicado</th>'
-            '</tr></thead><tbody>'
+            f'<th>{esc(ETIQUETAS.get(campo, campo))}</th><th>Días pub.</th>'
+            + "".join(f'<th>{esc(ETIQUETAS.get(c, c))}</th>' for c in extra)
+            + '<th>Publicado</th></tr></thead><tbody>'
         )
         for marca, f in seleccion:
             es_nuevo = f.get("lote") == CONFIG["lote_nuevo"]
@@ -571,9 +585,8 @@ def bloque_ranking(filas: list[dict]) -> str:
                 f'<tr><td>{marca} {esc(nombre_video(f))}</td><td>{pill}</td>'
                 f'<td>{formato(f.get(campo), campo)}</td>'
                 f'<td>{formato(f.get("edad_dias"), "edad_dias")}</td>'
-                f'<td>{formato(f.get("retencion_pct"), "retencion_pct")}</td>'
-                f'<td>{formato(f.get("retencion_relativa"), "retencion_relativa")}</td>'
-                f'<td>{esc(f.get("fecha_publicacion", ""))}</td></tr>'
+                + "".join(f'<td>{formato(f.get(c), c)}</td>' for c in extra)
+                + f'<td>{esc(f.get("fecha_publicacion", ""))}</td></tr>'
             )
         partes.append('</tbody></table></div>')
     return "\n".join(partes)

@@ -2387,6 +2387,36 @@ ya no es un aviso** —lo normal es que esté publicada— así que ahora se cru
 solo habla de lo que venció **y** no ha salido. Su consejo era «comprueba en Metricool que se
 subieron»; ahora es «mira `logs/agenda.log`, la agenda no está saliendo».
 
+### Un hilo es UNA publicación, y no todo se suma igual
+
+`metricas.csv` se indexa por `id_plataforma` y un hilo son **3 objetos**. Sin unificar, el mismo
+tema entraría tres veces y las medianas del informe se calcularían sobre datos repetidos — el mismo
+daño que hicieron las 45 filas fantasma de Facebook. Se guarda **una fila por hilo**, con el id de
+la raíz. `/{user}/threads` ya ayuda: devuelve solo mensajes con `is_reply=False`.
+
+Pero unificar no es sumarlo todo, porque las métricas no significan lo mismo repartidas:
+
+| Columna | De dónde | Por qué |
+|---|---|---|
+| `vistas` | **solo la raíz** | Es lo que aparece en el feed. Sumar los 3 contaría tres veces a quien leyó el hilo entero |
+| `me_gusta`, `compartidos` | suma de **nuestros** mensajes | Un «me gusta» al mensaje 2 es interacción con esta publicación |
+| `comentarios` | mensajes de **otros** en la conversación | ⚠️ |
+
+⚠️ **`replies` de la API no sirve como `comentarios`: cuenta nuestras propias respuestas
+encadenadas.** Medido sobre el hilo de `Historia01` recién publicado, con interacción real cero, la
+raíz devolvía `replies=2` — los mensajes 2 y 3 del propio hilo. Usándolo tal cual, **cada hilo
+nacería con 2 comentarios falsos** y el engagement de Threads saldría inflado para siempre. Por eso
+se cuentan los mensajes de la conversación que **no son nuestros**.
+
+⚠️ **Y `/conversation` NO devuelve la raíz**: por eso las métricas la suman aparte y luego recorren
+la conversación. Contándola en las dos partes, cada hilo duplicaría sus «me gusta». Se vio en el
+hilo de mayo etiquetado *«1/5»*, que devuelve 4 mensajes.
+
+El informe gana su columna: Threads es **texto**, así que no hay duración y por tanto no hay
+retención, ni `se_quedaron_pct`, ni `tiempo_total_h`. `bloque_ranking()` dejó de escribir esas dos
+columnas a lo fijo y ahora las pide a `COLUMNAS_POR_PLATAFORMA`, que era el sitio donde ya estaba
+decidido.
+
 ### Lo que el hilo de Threads no hace
 
 ⚠️ **`escribir_hilo()` no llama a `registrar_openai()`, y es a propósito.** Ese contador escribe

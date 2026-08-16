@@ -409,13 +409,19 @@ Esto es lo del lote **pasado**, no el que acabas de subir: los números necesita
 
 ### 5.1 Descargar
 
-**Tres de las cuatro redes ya no hace falta descargarlas** si montaste las APIs (puntos 5 y 6 de
-*Antes de empezar*):
+**Cuatro de las cinco redes ya no hace falta descargarlas** si montaste las APIs (puntos 5, 6 y 7
+de *Antes de empezar*):
 
 ```bash
-python herramientas/13_youtube_api.py --metricas    # YouTube
-python herramientas/14_meta_api.py --metricas       # Instagram + Facebook
+python herramientas/13_youtube_api.py --metricas     # YouTube
+python herramientas/14_meta_api.py --metricas        # Instagram + Facebook
+python herramientas/15_threads_api.py --metricas     # Threads
 ```
+
+⚠️ **En Threads, cada hilo cuenta como UNA publicación**, no como tres. Las vistas son las de su
+primer mensaje —es el que aparece en el feed— y los «me gusta» se suman de todo el hilo. Los
+comentarios **descuentan nuestras propias respuestas encadenadas**: sin eso, cada hilo nacería con
+2 comentarios que no existen.
 
 ⚠️ **Salvo dos columnas de YouTube que la API no expone**: `se_quedaron_pct` («Se quedaron para
 mirar», la métrica de [P-20](TODO.md#p-20)) y `alcance` (únicos por video). Si las quieres, sigue
@@ -544,18 +550,22 @@ solo hay una (`2026-08-15`); con la segunda, el informe llena solo su sección d
 
 Medido sobre los exports reales, no sobre la documentación de las plataformas:
 
-| Métrica | YouTube | TikTok | Facebook | Instagram |
-|---|:--:|:--:|:--:|:--:|
-| Vistas · me gusta · comentarios · compartidos | ✅ | ✅ | ✅ | ✅ |
-| Alcance | ✅ | ✍️ | ✅ | ✅ |
-| Impresiones | ✅ | ❌ | ✅ | ❌ |
-| **Retención %** | ✅ | ✍️ | ⚙️ | ✍️ |
-| **Duración media vista** | ✅ | ✍️ | ✅ | ✍️ |
-| **Se quedaron a mirar %** | ✅ | ✍️ | ❌ | ❌ |
-| Guardados | ❌ | ❌ | ✅ | ✅ |
-| Seguidores ganados | ✅ | ❌ | ✅ | ✅ |
+| Métrica | YouTube | TikTok | Facebook | Instagram | Threads |
+|---|:--:|:--:|:--:|:--:|:--:|
+| Vistas · me gusta · comentarios · compartidos | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Alcance | ✅ | ✍️ | ✅ | ✅ | ❌ |
+| Impresiones | ✅ | ❌ | ✅ | ❌ | ❌ |
+| **Retención %** | ✅ | ✍️ | ⚙️ | ✍️ | — |
+| **Duración media vista** | ✅ | ✍️ | ✅ | ✍️ | — |
+| **Se quedaron a mirar %** | ✅ | ✍️ | ❌ | ❌ | — |
+| Guardados | ❌ | ❌ | ✅ | ✅ | ❌ |
+| Seguidores ganados | ✅ | ❌ | ✅ | ✅ | ❌ |
 
-✅ viene en el export · ✍️ se teclea en `manual.csv` · ⚙️ la calcula el script · ❌ no existe
+✅ viene en el export · ✍️ se teclea en `manual.csv` · ⚙️ la calcula el script · ❌ no existe ·
+— no aplica
+
+**Threads es texto, no video**: las tres métricas de retención no le aplican, y el informe no le
+dibuja esas columnas. Se compara con el resto por vistas y engagement, que es lo que tienen todas.
 
 **YouTube es la única red con la que puedes diagnosticar de verdad**, y trae dos cosas que las
 demás no:
