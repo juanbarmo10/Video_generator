@@ -3,12 +3,18 @@
 """
 12_recordatorio.py — El recordatorio semanal por Telegram.
 
-No es un paso del pipeline. Lo llama `cron` una vez por semana:
+No es un paso del pipeline. Lo llama `cron`, con **tres entradas y un solo
+mensaje** (las de verdad instaladas, no un ejemplo):
 
-    # crontab -e   →   lunes a las 9:00
-    0 9 * * 1  cd /home/juanb/video_generator && \\
-               /home/juanb/miniforge3/envs/ai_video_bot/bin/python \\
-               herramientas/12_recordatorio.py
+    0 10 * * 0    herramientas/12_recordatorio.py
+    0 16 * * 0    herramientas/12_recordatorio.py
+    0 10 * * 1-6  herramientas/12_recordatorio.py --si-falta
+
+⚠️ **La semana empieza el DOMINGO** (`dia_inicio_semana`, 6), que es cuando corre
+el aviso principal; el `--si-falta` de lunes a sábado solo cubre el domingo con
+el equipo apagado y no hace nada si ya se envió algo esa semana. Si mueves el
+cron a otro día, mueve `dia_inicio_semana` con él o la recuperación cuenta mal
+la semana.
 
 **No es una alarma: mira el estado real del repositorio y solo habla si hay algo
 que decir.** Un recordatorio fijo que dice lo mismo todos los lunes se ignora a

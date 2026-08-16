@@ -9,8 +9,10 @@
 
 ## Dónde vamos
 
-**Estado a 15 ago 2026.** Dos lotes completos y el pipeline **sin intervención humana de punta a
-punta**.
+**Estado a 16 ago 2026.** Dos lotes completos y el pipeline **sin intervención humana de punta a
+punta** — y desde hoy eso ya no es una afirmación de diseño: a las 12:00 `cron` publicó
+`Historia08` en Instagram y Facebook **sin que nadie tocara nada**, y lo anotó en
+`publicado.csv`. Es la primera. Lo que queda por ver está en [P-22](#p-22).
 
 | | `v2-mas-cortes` (Historia01-08) | `v3-guion-y-dispersion` (Historia09-15) |
 |---|---|---|
@@ -24,18 +26,85 @@ Verificado sobre los 7: **0 transiciones repetidas** de 15-18 y **0 títulos** f
 **aborta el tema** en vez de avisar, y lo que queda por hacer se mide por si **reduce intervención
 humana**, no por si mejora un número.
 
-**Tu semana son ahora dos cosas** (~20 min): elegir los temas y correr los tres comandos de
+**Tu semana son ahora dos cosas** (~20 min): elegir los temas y correr los cuatro comandos de
 métricas. Generar, empaquetar y publicar en Instagram, Facebook y Threads va solo; de subir a mano
-solo quedan YouTube y TikTok, las dos cuyo trámite de API no compensa todavía.
+solo quedan YouTube y TikTok, las dos cuyo trámite de publicación por API no compensa.
 
 | | # | Pendiente | Gana |
 |---|---|---|---|
+| 🔴 | [P-27](#p-27) | `Historia07` y `Historia08` se archivarán como `baseline` | que el lote no mienta |
+| 🔴 | [P-28](#p-28) | El informe compara `v2` mientras el paso 10 etiqueta `v3` | ver el lote nuevo |
 | 🟡 | [P-20](#p-20) | Por qué menos gente para el scroll (el frame 0) | la única métrica en contra |
-| 🟡 | [P-09b](#p-09b) | Métricas por API: hechas 4 de 5 redes, **falta TikTok** | ~5 min/semana |
+| 🟡 | [P-26](#p-26) | TikTok: 3 columnas que ninguna API pública da | ~5 min/semana |
 | 🔵 | [P-22](#p-22) | Vigilar la primera semana de publicación automática | confianza |
 | 🔵 | [P-23](#p-23) | ¿Un equipo siempre encendido? Decidir con datos | la hora exacta |
 | 🔵 | [P-25](#p-25) | ¿Rinde Threads de verdad? Volver a mirar con n suficiente | dónde poner el esfuerzo |
 | 🔵 | [P-17](#p-17) | Afinar el recordatorio con unas semanas de uso | ruido |
+| ⚪ | [P-29](#p-29) | 880 MB de intermedios y de una prueba | espacio en disco |
+
+⚠️ **P-27 y P-28 muerden solos, sin que nadie toque nada.** Los dos salen de la
+revisión del 16 ago y los dos fallan **en silencio**: no rompen nada, producen un
+informe que se lee perfectamente y dice algo que no es. Son media hora entre los
+dos y conviene hacerlos **antes del domingo que viene**, que es cuando entran las
+primeras métricas de `Historia07`-`Historia08`.
+
+---
+
+## 🔴 Lo que miente en silencio
+
+<a id="p-27"></a>
+**P-27 · `Historia07` y `Historia08` van a entrar como `baseline`, y son `v2`.**
+
+El `lote` de una fila lo decide `proyectos_del_lote_nuevo()`, que lee
+**`temas.csv`** — y `temas.csv` ya solo tiene `Historia09`-`Historia15`. Los dos
+únicos videos de `v2-mas-cortes` que **todavía no tienen ninguna fila** en
+`metricas.csv` son justo `Historia07` (publicado el 15 ago) y `Historia08` (hoy).
+Cuando lleguen sus métricas:
+
+| | |
+|---|---|
+| ¿Está en `temas.csv`? | No → no es del lote nuevo |
+| ¿Lo protege `lotes_ya_asignados()`? | **No**: solo protege lo que ya tiene fila, y no la tienen |
+| Resultado | `lote = baseline` — dos videos de `v2` contados como grupo de control |
+
+⚠️ **Es el mismo fallo del 15 ago visto por el otro lado.** El mecanismo pegajoso
+se hizo para que cargar una tanda nueva no degradara la anterior, y funciona: lo
+que **no** cubre es un video de un lote viejo al que se le ve la primera métrica
+*después* de que `temas.csv` haya pasado de página. La pertenencia a una tanda es
+historia, y la historia no puede vivir en un archivo que se reescribe cada semana.
+
+**El arreglo, en el `CONFIG` del paso 10:** un mapa explícito e histórico
+(`"lotes_historicos": {"v2-mas-cortes": ["Historia01", …, "Historia08"]}`) que se
+consulte **antes** que `temas.csv`. `temas.csv` se queda para lo que sí sabe: cuál
+es el lote *en curso*.
+
+✅ **Es recuperable, y por eso no es urgente-urgente:** `lotes_ya_asignados()` es
+asimétrica y **sí promueve** desde `baseline`, así que corregir el mapa y volver a
+correr el paso 10 los sube a `v2` aunque ya hayan entrado mal. Lo que no se
+recupera es un informe que ya leíste creyéndotelo.
+
+<a id="p-28"></a>
+**P-28 · El informe compara `v2-mas-cortes`; el paso 10 etiqueta `v3-guion-y-dispersion`.**
+
+Son **dos `CONFIG` distintos que nadie sincroniza**:
+
+| Archivo | `lote_nuevo` |
+|---|---|
+| [10_metricas.py](herramientas/10_metricas.py) | `v3-guion-y-dispersion` ← con lo que se **etiqueta** |
+| [11_reporte.py](herramientas/11_reporte.py) | `v2-mas-cortes` ← con lo que se **compara** |
+
+Hoy no se nota porque `Historia09`-`Historia15` aún no tienen ni una fila (empiezan
+a publicarse mañana). En cuanto la tengan, sus métricas entrarán a `metricas.csv`
+como `v3` y el informe **no las mirará**: no son `lote_nuevo` para él, tampoco son
+`baseline`, así que **desaparecen del veredicto sin aparecer en ningún sitio**. El
+informe seguirá comparando `v2` contra `baseline` y diciéndolo con toda claridad,
+que es lo que lo hace difícil de pillar.
+
+**Dos arreglos posibles, y el segundo es el bueno:**
+1. Acordarse de subir `lote_nuevo` a mano en los dos archivos. Es lo que ya falló.
+2. Que `11_reporte.py` **lea el `lote_nuevo` del paso 10** en vez de tener el suyo,
+   y que avise si encuentra en `metricas.csv` algún `lote` que no sea ni el nuevo
+   ni el baseline. Un lote huérfano es siempre un error; que lo diga él.
 
 ---
 
@@ -56,37 +125,40 @@ empiece**. Lo único que actúa ahí es lo que se ve sin reproducir: **el primer
 frame 0— y comparar. Es `CONFIG` del paso 07, no hay que tocar código.
 ⚠️ n=6 en v2 y los lotes difieren en muchas cosas a la vez (duración, gancho, cortes, música).
 Esto **acota** el problema, no lo demuestra.
-⚠️ `se_quedaron_pct` **no la da la API** (ver P-09b): para seguir midiendo esto hay que descargar
-el export de YouTube.
+⚠️ `se_quedaron_pct` **no la da la API** (ver [P-26](#p-26)): para seguir midiendo esto hay que
+descargar el export de YouTube.
 
-<a id="p-09b"></a>
-**P-09b · Métricas por API — hechas 4 de 5 redes. Solo falta TikTok.**
+<a id="p-26"></a>
+**P-26 · TikTok: tres columnas que ninguna API pública da.**
 
-✅ **YouTube** ([13_youtube_api.py](herramientas/13_youtube_api.py)), ✅ **Instagram + Facebook**
-([14_meta_api.py](herramientas/14_meta_api.py)) y ✅ **Threads**
-([15_threads_api.py](herramientas/15_threads_api.py)), todos el 15 ago. Las tres herramientas funden
-en `metricas.csv` **reusando `fusionar()` del paso 10**, así que heredan sus reglas en vez de
-duplicarlas. Detalle y hallazgos en
-[HISTORIAL.md](HISTORIAL.md#-métricas-de-instagram-y-facebook-por-api-15-ago-2026).
+[P-09b](#p-09b) está cerrado —las cinco redes bajan métricas por API— pero TikTok **no dejó de
+teclearse del todo**, y conviene que quede claro por qué.
 
-De paso, **Instagram dejó de tener campos manuales**: `duracion_media_s` lo da
-`ig_reels_avg_watch_time`, que era el único que había que teclear de esa red.
+La Display API trae vistas, me gusta, comentarios, compartidos y la **duración**. Lo que no trae, y
+sigue saliendo de `metricas_export/manual.csv`:
 
-⚠️ **Dos columnas de YouTube siguen necesitando el export**: `se_quedaron_pct` («Se quedaron para
-mirar», la de [P-20](#p-20)) y `alcance`. La API no las expone. La fusión no las pisa, así que se
-completan bajando el zip cuando hagan falta.
+| Columna | Dónde está |
+|---|---|
+| `alcance` | Solo en pantalla, video por video |
+| `duracion_media_s` | Solo en pantalla |
+| `se_quedaron_pct` | Solo en pantalla |
 
-**El cliente de TikTok está escrito y probado en todo lo que no necesita cuenta**
-([17_tiktok_api.py](herramientas/17_tiktok_api.py)); lo que falta es el trámite, que es tuyo y está
-en [README.md](README.md), punto 8. Endpoints y campos verificados contra la documentación de
-TikTok el 15 ago, no de memoria.
+⚠️ **No es un permiso que falte: no existen en la Display API.** Están en la *Research API*, que
+pide acreditación académica y no la vamos a tener. Así que esto no se «arregla»: o se teclean, o se
+vive sin ellas — y sin `duracion_media_s` no hay `retencion_pct` de TikTok.
 
-⚠️ **Lo que hay que vigilar la primera vez que corra `--metricas`:** si anuncia filas nuevas y
-**cero actualizadas**, el `id_plataforma` dejó de casar con el del export y cada video se estaría
-contando dos veces. El comando lo dice solo, pero conviene saber qué significa.
+**Lo que sí ganó la API**, medido el 16 ago:
 
-Y **subir** por API solo quedaría en YouTube, que exige `youtube.upload` — un permiso restringido
-que pide pasar la verificación de Google con dominio propio.
+| | export | API |
+|---|---:|---:|
+| Videos | 15 | **41** |
+| `duracion_s` | prestada de otra red | **nativa, 41/41** |
+
+Los 26 videos de más son los anteriores al pipeline, que el export no traía. Y la duración nativa
+importa: antes solo la tenían los que emparejaban un `PROYECTO` con otra red.
+
+**Decidir con uso:** si al cabo de unas semanas `retencion_pct` de TikTok no se usa para nada en el
+informe, lo honesto es sacar esas tres de `CAMPOS_MANUALES` y dejar de pedirlas.
 
 ---
 
@@ -95,9 +167,14 @@ que pide pasar la verificación de Google con dominio propio.
 <a id="p-22"></a>
 **P-22 · Vigilar la primera semana de publicación automática.**
 
-Desde el 15 ago `cron` publica solo: el reel a las 12:00 y el extra semanal a las 18:00. Lo que
-hay que mirar durante una semana **no es si funciona —eso está probado— sino lo que ninguna prueba
-puede anticipar**:
+Desde el 15 ago `cron` publica solo: el reel a las 12:00 y el extra semanal a las 18:00.
+
+✅ **Primera corrida real: 16 ago, 12:00.** `Historia08` salió en Instagram (`1812283566…`) y
+Facebook (`1601375514…`), las dos anotadas en `publicado.csv`, sin intervención. También quedó
+confirmado que `cron` va bien: el recordatorio de las 10:00 de ese mismo domingo se envió solo.
+
+Lo que hay que mirar durante una semana **no es si funciona —eso ya salió— sino lo que ninguna
+prueba puede anticipar**:
 
 - **`logs/agenda.log`**, que es donde va todo. Un fallo de red a las 12:00 no avisa a nadie: la
   agenda lo escribe ahí y sigue. Merece que el recordatorio del paso 12 lo mire (una línea).
@@ -178,6 +255,44 @@ Dos ajustes que **solo se deciden con uso**, no ahora:
 
 ## ⚪ Deuda y limpieza
 
+<a id="p-29"></a>
+**P-29 · 880 MB de intermedios y de una prueba. Decidir, no borrar a ciegas.**
+
+Medido el 16 ago, con el proyecto en **2,1 GB**:
+
+| Qué | Pesa | ¿Se puede borrar? |
+|---|---:|---|
+| `videos_no_music/` | **858 MB** | Sí, pero **no es gratis**: son la entrada del paso 08 |
+| `videos/video_Test01.mp4` + `proyectos/Test01/` + `publicar/Test01/` | **22 MB** | Sí, es una prueba |
+| `logs/` | 42 MB | Sí; casi todo son barras de progreso de moviepy |
+
+⚠️ **`videos_no_music/` no es basura: es lo que permite cambiar la música sin
+rehacer el video.** El paso 08 es un mux de 3 segundos sobre ese archivo; sin él,
+rehacer la mezcla obliga a repetir el paso 07 entero (whisper + moviepy, ~10 min
+por video). La pregunta honesta es si alguna vez se va a querer recambiar la
+música de un video ya publicado. Si la respuesta es no —y probablemente lo es—,
+se borran los de los lotes ya medidos y se quedan solo los de la tanda en curso.
+
+Ya hecho en esta revisión: **−38 MB** de `muestras_p15/` (las dos muestras de
+[P-15](#p-15), que está cerrado y documentado) y de los `__pycache__`.
+
+<a id="p-30"></a>
+**P-30 · `publicado.csv` guarda el `video_id` de Facebook; `metricas.csv`, el `post_id`.**
+
+`publicar_facebook()` devuelve el `video_id` de `me/video_reels` y eso es lo que
+acaba en `publicar/publicado.csv`. Pero la parte de métricas del mismo archivo ya
+hace lo correcto —`v.get("post_id") or v["id"]`, con su aviso al lado— porque el
+export de Facebook trae el del **post**. Son dos ids distintos del mismo reel.
+
+**No rompe nada hoy**: quien se apoya en `publicado.csv` (`ya_salio()` de la
+agenda, `calendario_vencido()` del recordatorio) empareja por `proyecto` + `red`,
+no por id, así que la protección contra publicar dos veces sigue intacta. Lo que
+se pierde es poder **cruzar las dos tablas**: dado un reel en `metricas.csv`, no
+hay forma de llegar a su fila de `publicado.csv`, ni al revés.
+
+Arreglo: leer el `post_id` en la fase `finish` (o pedirlo después con
+`fields=post_id`) y guardar ese. Un `id_video` extra al lado no sobra.
+
 ---
 
 ## Resueltos
@@ -199,7 +314,8 @@ con lo que se midió, está en [HISTORIAL.md](HISTORIAL.md).
 | <a id="p-06"></a>**P-06** | ¿Paralelizar los temas? | **Medido y descartado, no pendiente.** El techo real en esta máquina es 25-35 %, no el 55 % que suponía la nota vieja, y exige reescribir `run_all.sh`. **No lo vuelvas a proponer sin cambiar de máquina** — los números están abajo |
 | <a id="p-18"></a>**P-18** | La cabecera del paso 06 mentía sobre su entrada | Docstring corregido (`carrusel.txt`, `source_images/`), la `parse_instagram_file()` muerta borrada y la viva renombrada a `parse_carrusel()`. Congelado en tests |
 | <a id="p-07"></a>**P-07** | Basura de corridas viejas | **36 MB borrados.** ⚠️ Los slides obsoletos no estaban donde decía la nota, y su receta habría borrado el CTA bueno de dos respaldos: [HISTORIAL](HISTORIAL.md#limpieza-y-recuperación-de-los-lotes-viejos-15-ago-2026) |
-| <a id="p-08"></a>**P-08** | Los 16 Mundial sin `descripcion.txt` ni `.srt` | Recuperados: el texto estaba en el formato viejo (`03_instagram.txt` + `04_facebook.txt`) y los `.srt` se rehacen desde el mp3 con el mismo whisper del paso 07 |
+| <a id="p-08"></a>**P-08** | Los 16 Mundial sin `descripcion.txt` ni `.srt` | Recuperados: el texto estaba en el formato viejo (`03_instagram.txt` + `04_facebook.txt`) y los `.srt` se rehacen desde el mp3 con el mismo whisper del paso 07. ⚠️ Se dio por cerrado el 15 ago **estando a medias** (10 de 16): el script vivía en un temporal y se lo llevó la limpieza del sistema sin que nada avisara. Ahora es [herramientas/18_rehacer_srt.py](herramientas/18_rehacer_srt.py), con `--listar` para no volver a creerse un «ya está» |
+| <a id="p-09b"></a>**P-09b** | Métricas a mano en las 5 redes | Las cinco por API: YouTube, Meta, Threads y TikTok. ⚠️ De TikTok quedan 3 columnas que **ninguna API pública expone**: [P-26](#p-26) |
 | <a id="p-11"></a>**P-11** | Tests solo de los pasos 01, 02 y 07 | +27 sobre los pasos **04, 05 y 06** ([tests/test_pasos_medios.py](tests/test_pasos_medios.py)), **166** en total |
 | <a id="p-12"></a>**P-12** | `se_quedaron_pct` bajó en v2 | La curva de retención descartó gancho y cortes. Queda [P-20](#p-20), que es una pregunta distinta |
 | <a id="p-14"></a>**P-14** | `proyectos/T1/` anidado dejaba 78 de 147 filas sin `PROYECTO` | Glob a dos niveles en `indice_proyectos()`: 43 filas recuperadas |

@@ -284,6 +284,11 @@ De cada tema salen:
    El token de acceso dura 24 h y el de refresco 365 días; **se renueva solo** antes de cada uso y
    se guarda en `credenciales/token_tiktok.json` (permisos `600`, en `.gitignore`).
 
+   ⚠️ **Esto NO elimina el tecleo de TikTok, solo lo reduce.** La Display API trae vistas, me gusta,
+   comentarios, compartidos y la duración —41 videos, frente a los 15 del export— pero `alcance`,
+   `duracion_media_s` y `se_quedaron_pct` **no existen en ninguna API pública de TikTok**: siguen
+   saliendo de `manual.csv`. Ver [P-26](TODO.md#p-26).
+
 ⚠️ El `.env` lleva claves en texto plano y **es estado mutable del pipeline** (los scripts escriben
 ahí `PROYECTO`, `TEMA` y `TITULO_VIDEO`). No se commitea nunca. Lo mismo vale para
 `credenciales/`: el `client_secret*.json` y el `token_youtube.json` son secretos y están en
@@ -662,8 +667,11 @@ mismo mp4 en las cuatro.
 | El lote deja carpetas con nombres raros | Ya arreglado (ffmpeg se comía bytes de `temas.csv`); si reaparece, ponle `-nostdin` a la llamada nueva de ffmpeg |
 | `command not found` al correr un paso suelto | Alguna línea del `.env` no es `CLAVE=VALOR`. `run_pipeline.sh` hace `source .env` y bash intenta ejecutarla. Bórrala |
 | El informe da porcentajes absurdos (+2000 %) | Estás mirando una métrica acumulada entre lotes de edades distintas. El informe las aparta solo; si la ves, es del bloque "fuera del veredicto" |
+| Los tests fallan con `No module named 'dotenv'` | Estás con el Python de base. `conda activate ai_video_bot` primero. Son 166 tests; si ves 39, es esto |
+| A un respaldo le falta el `.srt` | `python herramientas/18_rehacer_srt.py --listar` dice cuáles, y sin `--listar` los rehace desde el mp3 (~11 min cada uno) |
 
 Los logs por tema están en `logs/`. El coste del tema en curso, en `.costo_actual.json`.
+Lo que publica `cron` va a `logs/agenda.log`; el recordatorio, a `logs/recordatorio.log`.
 
 ---
 

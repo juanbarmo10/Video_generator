@@ -358,6 +358,7 @@ falta saber para orientarse:
 | **`herramientas/`**[`15_threads_api.py`](herramientas/15_threads_api.py) | Threads: **otra API, otro host, otro token**. Escribe el hilo con GPT y lo publica |
 | **`herramientas/`**[`16_agenda.py`](herramientas/16_agenda.py) | **Lo único que `cron` llama para publicar.** Decide qué sale hoy y se lo pide a los dos anteriores |
 | **`herramientas/`**[`17_tiktok_api.py`](herramientas/17_tiktok_api.py) | Métricas de TikTok. Cierra P-09b: era la última red que se tecleaba a mano |
+| **`herramientas/`**[`18_rehacer_srt.py`](herramientas/18_rehacer_srt.py) | Rehace los `.srt` que falten desde el mp3 del respaldo. Reparación, se corre a mano |
 | **`desuso/`** | Código que **no ejecuta nadie**: `03_voice_generator_free.py`, `publisher.py`, `ink_filter.py`, `imagen_generator_source.py`. Sigue en git como referencia. Ver [§ Código en desuso](#código-en-desuso-está-en-git-no-lo-ejecuta-nadie) |
 | `requirements.txt` | `moviepy==1.0.3` fijado; ffmpeg va aparte (apt) |
 
@@ -697,8 +698,16 @@ sabe hacerlo. Es lo único que llama `cron` para publicar (`--reel` a las 12:00,
   `token_vivo()` renueva solo antes de cada uso. ⚠️ El refresco **puede devolver un
   `refresh_token` distinto**; hay que guardar el nuevo o a los 365 días se pierde el acceso sin
   que nada avise.
-- Si la fusión anuncia filas nuevas y **cero actualizadas**, el formato del id dejó de casar. El
-  propio comando lo dice en vez de dejarlo pasar.
+- ⚠️ **La comprobación de que el id sigue casando mira los IDS, no «cuántas filas se
+  actualizaron».** `fusionar()` indexa por `(plataforma, id, fecha_snapshot)`, así que en la primera
+  corrida de cada día **todas** las filas son nuevas por diseño — son una foto nueva. La versión
+  que miraba `actualizadas == 0` daba la alarma todos los días, que es peor que no darla: enseña a
+  ignorarla. Lo que delata un id roto es que **ningún** id nuevo aparezca entre los que ya había.
+- ⚠️ **No trae todo lo que había que teclear.** Da vistas, me gusta, comentarios, compartidos y la
+  **duración** (que el export no incluye y antes se prestaba de otra red), pero `alcance`,
+  `duracion_media_s` y `se_quedaron_pct` **no están en ninguna API pública** —solo en la Research
+  API, que pide acreditación académica— así que siguen en `CAMPOS_MANUALES`. Lo que se gana es
+  cobertura: 41 videos frente a los 15 del export.
 
 **[12_recordatorio.py](herramientas/12_recordatorio.py)** es el recordatorio semanal por Telegram.
 Lo llama `cron` (no `run_all.sh`: no tiene nada que ver con generar videos).
@@ -729,6 +738,24 @@ Lo llama `cron` (no `run_all.sh`: no tiene nada que ver con generar videos).
   (en `.gitignore`: es estado de esta máquina).
 - ⚠️ Al fallar el envío **imprime solo `description`, nunca la URL**: el token va dentro de la ruta
   y esto corre bajo cron, cuya salida acaba en un log o en un correo.
+
+**[18_rehacer_srt.py](herramientas/18_rehacer_srt.py)** rehace los `.srt` que falten,
+desde el mp3 de cada respaldo. Es una herramienta de **reparación**: no la llama nadie.
+- **Reusa las dos funciones del paso 07** (`transcribe_words` y `exportar_srt`) en vez de
+  reimplementarlas, para que los `.srt` viejos y los nuevos salgan con el mismo troceado.
+  ⚠️ El paso 07 **trabaja al importarse**, así que `cargar_paso07()` le prepara el entorno
+  desde fuera igual que `cargar_paso()` en los tests: `chdir` a un temporal sin sello y
+  variables de mentira. Todas las rutas del script son **absolutas** para que ese `chdir`
+  no toque nada más.
+- Busca **a dos niveles** (`proyectos/*` y `proyectos/T1/*`), que es la trampa 5.
+- ⚠️ **Escribe cada `.srt` en cuanto lo tiene**, no al final: son ~11 min por video con
+  whisper `medium` en CPU, y así una interrupción no tira lo hecho. Existe justo por eso —
+  la primera vez el script vivía en un temporal del sistema, la limpieza se lo llevó a
+  mitad y **P-08 se quedó en 10 de 16 sin que nada avisara**. `--listar` responde «¿cuántos
+  faltan de verdad?» en un segundo, que es lo que había que haber preguntado.
+- Los 21 respaldos de `proyectos/T1/` también salen en `--listar` y **no se han rehecho a
+  propósito**: son de la tanda anterior al pipeline, están publicados y su `.srt` no lo
+  consume nadie. Serían ~4 h de CPU para completar un archivo que no se usa.
 
 ### Código en desuso (está en git, no lo ejecuta nadie)
 
@@ -773,8 +800,16 @@ que forma parte del pipeline, no lo forma.
 ### Tests
 
 ```bash
+conda activate ai_video_bot            # ⚠️ no es opcional, ver abajo
 python -m unittest discover tests      # desde la raíz, 166 tests, ~0.4 s
 ```
+
+⚠️ **Los tests son de stdlib, pero el entorno no.** Con el Python de base fallan
+**4 de 4 módulos al cargarse**, no en un assert: `cargar()` y `cargar_paso()`
+importan de verdad los archivos que prueban, y esos sí traen `dotenv`, `openai` o
+`PIL`. El error que sale es `ModuleNotFoundError: No module named 'dotenv'` en la
+**línea del import del test**, que parece un test roto y es el intérprete
+equivocado. Si ves 4 errores y 39 tests en vez de 166, es esto.
 
 Solo `unittest` de la stdlib, sin dependencias nuevas y **sin red**. Cubren
 [herramientas/10_metricas.py](herramientas/10_metricas.py),

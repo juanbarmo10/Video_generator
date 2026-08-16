@@ -6,8 +6,8 @@ son estado global compartido: solo existe el tema EN CURSO. Si un paso falla a
 mitad del pipeline, los siguientes seguirían trabajando con los datos del tema
 anterior sin notarlo, y producirían un video convincente pero equivocado.
 
-El paso 01 escribe `.estado_actual` con el PROYECTO y el TEMA; los pasos 03, 04
-y 07 llaman a `verificar_estado()` antes de trabajar.
+El paso 01 escribe `.estado_actual` con el PROYECTO y el TEMA; los pasos 02, 03,
+04 y 07 llaman a `verificar_estado()` antes de trabajar.
 
 Es el único módulo compartido del pipeline: el resto de los pasos siguen siendo
 procesos independientes que se comunican solo por archivos.

@@ -8,8 +8,13 @@
     python herramientas/17_tiktok_api.py --diagnostico
     python herramientas/17_tiktok_api.py --metricas
 
-Cierra el último hueco de P-09b: era la única de las cinco redes cuyos números
-había que escribir a mano en `metricas_export/manual.csv`.
+⚠️ **La Display API NO da todo lo que había que teclear.** Trae vistas, me gusta,
+comentarios, compartidos y —esto sí es nuevo— la **duración**, que el export no
+incluye y que antes se prestaba de otra red. Pero `alcance`, `duracion_media_s` y
+`se_quedaron_pct` **no están en ninguna API pública de TikTok** (solo en la
+Research API, que pide acreditación académica), así que siguen saliendo de
+`metricas_export/manual.csv`. Lo que se gana es cobertura —41 videos frente a los
+15 del export— y no tener que bajar el zip para lo básico.
 
 ⚠️ **No hay flujo automático como en YouTube, y no es un descuido.** TikTok exige
 que el `redirect_uri` sea **https y esté registrado en la app**, así que el
@@ -337,13 +342,31 @@ def guardar_en_metricas(dry_run: bool = False) -> None:
 
     ruta = Path(cfg10["salida"])
     previas = met.leer_csv(ruta) if ruta.exists() else []
+
+    # ⚠️ La comprobación va sobre los IDS, no sobre «cuántas filas se
+    # actualizaron». `fusionar()` indexa por `(plataforma, id, fecha_snapshot)`,
+    # así que **en la primera corrida de cada día todas las filas son nuevas por
+    # diseño** — son una foto nueva. Mirar `actualizadas == 0` daba la alarma
+    # todos los días, que es peor que no darla: enseña a ignorarla.
+    # Lo que de verdad delata un formato de id roto es que NINGÚN id nuevo
+    # aparezca entre los que ya había. Es el fallo de las 45 filas fantasma de
+    # Facebook, y aquí es fácil de cometer: la API devuelve el id pelado y las
+    # filas del export usan la URL completa.
+    ids_previos = {f["id_plataforma"] for f in previas if f.get("plataforma") == "tiktok"}
+    ids_nuevos = {f["id_plataforma"] for f in filas}
+    if ids_previos and not (ids_previos & ids_nuevos):
+        print(f"   ⚠️  Ninguno de los {len(ids_nuevos)} ids coincide con los "
+              f"{len(ids_previos)} que ya había.\n"
+              f"      Cada video se contaría dos veces. Comprueba que "
+              f"`id_plataforma` sea\n"
+              f"      la URL completa y no el id numérico.")
+    elif ids_previos:
+        print(f"   🔗 {len(ids_previos & ids_nuevos)} de {len(ids_previos)} "
+              f"videos ya conocidos reconocidos por su id")
+
     fundidas, nuevas_n, actualizadas = met.fusionar(previas, filas)
     print(f"📊 {nuevas_n} filas nuevas · {actualizadas} actualizadas · "
           f"{len(fundidas)} en total")
-    if nuevas_n and actualizadas == 0:
-        print("   ⚠️  Ninguna fila se fundió con las que ya había. Si esperabas\n"
-              "      actualizar, mira que `id_plataforma` tenga el MISMO formato\n"
-              "      que las del export (la URL completa, no el id numérico).")
     if dry_run:
         print("🧪 --dry-run: no se escribió nada")
         return
