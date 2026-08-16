@@ -614,6 +614,15 @@ sabe hacerlo. Es lo único que llama `cron` para publicar (`--reel` a las 12:00,
 - ⚠️ **`temas_ya_usados()` mira TODAS las redes juntas, y ahí está la variedad.** Un tema gasta un
   solo extra en toda su vida. Si cada red llevara su cuenta, las tres acabarían contando el mismo
   tema en semanas distintas — lo contrario de lo que se busca.
+- ⚠️ **Ni `--reel` ni `--extras` preguntan «¿qué toca hoy?», sino «¿qué falta?».** Es lo que hace
+  que un día con el PC apagado no pierda contenido, y no es un detalle: con la pregunta simple,
+  `cron` sin correr el día 18 dejaba `Historia10` **sin publicar para siempre** — nadie vuelve a
+  mirar esa fila y el fallo no deja rastro porque no llega a ejecutarse nada.
+  `pendientes()` devuelve las filas con fecha ya pasada a las que les falte **una sola** red;
+  `extra_que_toca()` mira si el extra de cada red ya salió **esta semana** (lunes como inicio),
+  igual que el `--si-falta` del paso 12. Los dos publican **uno por corrida**: la cadencia de uno
+  al día es lo que evita que compitan, así que un atraso se recupera a uno por día en vez de
+  vaciarse en una tarde.
 - ⚠️ Dos reglas que no son obvias y están congeladas en tests: **el reel no gasta el turno** (si lo
   gastara, ningún tema tendría nunca carrusel: todos salen antes en video) y **un extra no adelanta
   al reel de su propio tema** (`temas_pendientes_de_reel()`). Los temas fuera del calendario —los
@@ -626,9 +635,12 @@ sabe hacerlo. Es lo único que llama `cron` para publicar (`--reel` a las 12:00,
 
 **[15_threads_api.py](herramientas/15_threads_api.py)** escribe y publica hilos de 3 mensajes con
 1-2 fotos reales. **Falta el token** ([P-21](TODO.md#p-21)); todo lo demás está probado.
-- ⚠️ **El token de la página de Facebook NO sirve.** Otro host (`graph.threads.net`), otra
-  autorización, otro token. Con el de Meta las llamadas fallan con *«Unsupported get request»*, que
-  no menciona el host.
+- ⚠️ **El token de la página de Facebook NO sirve, y el error no lo dice.** Otro host
+  (`graph.threads.net`), otra autorización, otro token. Un token de Meta —perfectamente válido en
+  `graph.facebook.com`— se rechaza aquí con **«Invalid OAuth access token - Cannot parse access
+  token»**, que no menciona ni el host ni el tipo. Pasó el 15 ago, así que `diagnostico()` lo
+  detecta con `_es_token_de_facebook()` y dice qué cambiar. Los de Threads empiezan por `TH`, no
+  por `EAA`.
 - ⚠️ **`escribir_hilo()` NO llama a `registrar_openai()`, y es a propósito.** Ese contador escribe
   `.costo_actual.json`, que es el estado del tema EN CURSO: esta herramienta corre una vez por
   semana y puede hacerlo con un lote en marcha, sumándole a otro tema un gasto que no es suyo.
@@ -707,7 +719,7 @@ que forma parte del pipeline, no lo forma.
 ### Tests
 
 ```bash
-python -m unittest discover tests      # desde la raíz, 128 tests, ~0.2 s
+python -m unittest discover tests      # desde la raíz, 139 tests, ~0.2 s
 ```
 
 Solo `unittest` de la stdlib, sin dependencias nuevas y **sin red**. Cubren

@@ -152,6 +152,68 @@ class TestCalendario(AgendaFalsa):
         self.assertIsNone(ag.ya_salio("Historia01", "instagram_carrusel"))
 
 
+class TestRecuperacion(AgendaFalsa):
+    """Lo que pasa cuando el PC estuvo apagado. Es el caso que no se ve fallar:
+    nada da error, simplemente ese video no sale nunca."""
+
+    CAL = [
+        ("2026-08-16", "12:00", "Historia08", "no"),
+        ("2026-08-17", "12:00", "Historia09", "no"),
+        ("2026-08-18", "12:00", "Historia03", "no"),
+    ]
+
+    def test_un_dia_perdido_no_pierde_el_video(self):
+        """Con `toca_hoy()` a secas, Historia08 no se publicaba jamás."""
+        cola = ag.pendientes("2026-08-18")
+        self.assertEqual([f["proyecto"] for f in cola],
+                         ["Historia08", "Historia09", "Historia03"])
+
+    def test_publica_el_mas_antiguo_primero(self):
+        self.assertEqual(ag.pendientes("2026-08-20")[0]["proyecto"], "Historia08")
+
+    def test_no_adelanta_los_del_futuro(self):
+        self.assertEqual([f["proyecto"] for f in ag.pendientes("2026-08-16")],
+                         ["Historia08"])
+
+    def test_lo_ya_publicado_sale_de_la_cola(self):
+        self.anotar(("2026-08-16", "Historia08", "instagram", "1"),
+                    ("2026-08-16", "Historia08", "facebook", "2"))
+        self.assertEqual([f["proyecto"] for f in ag.pendientes("2026-08-20")],
+                         ["Historia09", "Historia03"])
+
+    def test_una_red_a_medias_sigue_pendiente(self):
+        """Si Instagram salió y Facebook falló, la fila vuelve mañana: dentro,
+        `publicar()` se salta la red que ya está."""
+        self.anotar(("2026-08-16", "Historia08", "instagram", "1"))
+        self.assertEqual(ag.pendientes("2026-08-20")[0]["proyecto"], "Historia08")
+
+    def test_extra_perdido_se_recupera_el_mismo_semana(self):
+        """Martes apagado: el carrusel sale el miércoles, no la semana que viene."""
+        self.assertEqual(ag.extra_que_toca("2026-08-19"), "instagram_carrusel")
+
+    def test_extra_ya_hecho_no_se_repite(self):
+        self.anotar(("2026-08-18", "Historia01", "instagram_carrusel", "1"))
+        self.assertEqual(ag.extra_que_toca("2026-08-19"), None)
+
+    def test_el_de_la_semana_pasada_no_cuenta(self):
+        """Lunes 17 abre semana nueva: lo del martes anterior no vale."""
+        self.anotar(("2026-08-11", "Historia01", "instagram_carrusel", "1"))
+        self.assertEqual(ag.extra_que_toca("2026-08-18"), "instagram_carrusel")
+
+    def test_uno_por_corrida(self):
+        """Sábado con los tres pendientes: sale el primero, no los tres."""
+        self.assertEqual(ag.extra_que_toca("2026-08-22"), "instagram_carrusel")
+        self.anotar(("2026-08-22", "Historia01", "instagram_carrusel", "1"))
+        self.assertEqual(ag.extra_que_toca("2026-08-22"), "facebook_album")
+
+    def test_lunes_no_toca_nada(self):
+        self.assertIsNone(ag.extra_que_toca("2026-08-17"))
+
+    def test_la_semana_empieza_en_lunes(self):
+        self.assertEqual(ag.inicio_de_semana("2026-08-22"), "2026-08-17")
+        self.assertEqual(ag.inicio_de_semana("2026-08-17"), "2026-08-17")
+
+
 class TestDiasExtra(unittest.TestCase):
 
     def test_una_red_por_dia(self):

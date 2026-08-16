@@ -98,11 +98,46 @@ def _get(ruta: str, **params) -> dict:
 #   🩺  DIAGNÓSTICO
 # ═══════════════════════════════════════════════════════════════
 
+def _es_token_de_facebook(token: str) -> bool:
+    """¿Este token es de la API de Meta en vez de la de Threads?
+
+    ⚠️ Es el error fácil de cometer y el peor de diagnosticar: el Explorador de
+    la API Graph sirve para las dos, y si no cambias el host de `facebook.com` a
+    `threads.net` te da un token de Facebook perfectamente válido… que
+    `graph.threads.net` rechaza con **«Invalid OAuth access token - Cannot parse
+    access token»**, un mensaje que no menciona ni el host ni el tipo de token.
+    Pasó el 15 ago.
+    """
+    app = os.getenv("META_APP_ID", "").strip()
+    secreto = os.getenv("META_APP_SECRET", "").strip()
+    if not (app and secreto):
+        return False
+    try:
+        d = requests.get("https://graph.facebook.com/v21.0/debug_token",
+                         params={"input_token": token,
+                                 "access_token": f"{app}|{secreto}"},
+                         timeout=CONFIG["timeout"]).json()
+    except requests.RequestException:
+        return False
+    return bool(d.get("data", {}).get("is_valid"))
+
+
 def diagnostico() -> None:
     _exigir_token()
     yo = _get("me", fields="id,username,threads_profile_picture_url")
     if "error" in yo:
-        raise SystemExit(f"❌ {yo['error'].get('message')}")
+        mensaje = yo["error"].get("message", "")
+        if "parse" in mensaje.lower() and _es_token_de_facebook(TOKEN):
+            raise SystemExit(
+                "❌ THREADS_ACCESS_TOKEN tiene un token de **Facebook**, no de Threads.\n"
+                "   Es válido —responde en graph.facebook.com— pero graph.threads.net\n"
+                "   no sabe leerlo, y su error no lo dice.\n\n"
+                "   En el Explorador de la API Graph, arriba a la izquierda hay un\n"
+                "   desplegable de host con `facebook.com` / `instagram.com` /\n"
+                "   `threads.net`. **Ponlo en `threads.net`** y genera el token otra\n"
+                "   vez: cambian los permisos a `threads_*` y el token empieza por `TH`,\n"
+                "   no por `EAA`.")
+        raise SystemExit(f"❌ {mensaje}")
     print(f"🧵 Cuenta: @{yo.get('username', '?')}  (id {yo.get('id')})")
     if yo.get("id") != USER_ID:
         print(f"   ⚠️  THREADS_USER_ID dice {USER_ID}, pero el token es de "

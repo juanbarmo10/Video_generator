@@ -32,6 +32,7 @@ elegir temas, programar en Metricool y recoger métricas de las redes que aún n
 | 🟡 | [P-09b](#p-09b) | Métricas por API: hechas 3 de 4 redes, falta TikTok | ~5 min/semana |
 | 🟡 | [P-11](#p-11) | Tests de los pasos 03-06 | red de seguridad |
 | 🔵 | [P-22](#p-22) | Vigilar la primera semana de publicación automática | confianza |
+| 🔵 | [P-23](#p-23) | ¿Un equipo siempre encendido? Decidir con datos | la hora exacta |
 | 🔵 | [P-17](#p-17) | Afinar el recordatorio con unas semanas de uso | ruido |
 | ⚪ | [P-06](#p-06) | Paralelizar los temas — evaluado: no compensa | ~25-35 % de tiempo |
 | ⚪ | [P-18](#p-18) | La cabecera del paso 06 miente sobre su entrada | claridad |
@@ -163,6 +164,25 @@ puede anticipar**:
 ⚠️ **El calendario se agota el 2026-08-23.** A partir de ahí `--reel` no encuentra fila y lo dice
 en el log, pero **no avisa**: hay que generar el paquete del lote siguiente. El recordatorio de los
 domingos ya mira `publicar/calendario.csv`, así que esto es más un recordatorio de que existe.
+
+<a id="p-23"></a>
+**P-23 · ¿Merece la pena un equipo siempre encendido?**
+
+Con el PC apagado no se pierde nada —la agenda recupera lo atrasado, uno por día— pero **la hora sí
+se pierde**, y la hora es una de las condiciones que mantiene comparables los lotes. Un video que
+sale a las 20:00 en vez de a las 12:00 ensucia la medición de un modo que ninguna columna registra.
+
+Programar en la plataforma **no lo resuelve**: medido el 15 ago, `scheduled_publish_time` funciona
+en Facebook, Instagram responde *«User must be on whitelist»* y Threads no lo tiene. Cubre una red
+de tres.
+
+Así que la opción real es un equipo encendido: un VPS de ~5 €/mes o una Raspberry Pi. **Solo
+necesita la parte de publicar**, no la de generar: el repo, el `.env` y `publicar/` (~140 MB por
+semana, un `rsync` después de cada lote). La generación se queda donde está, que es donde están la
+GPU y los 1.6 GB.
+
+**Decidir después de unas semanas**, cuando se sepa cuántos días se pierde la hora de verdad. Si
+son uno o dos al mes, no compensa.
 
 <a id="p-17"></a>
 **P-17 · Afinar el recordatorio con unas semanas de uso.**

@@ -100,6 +100,26 @@ def toca_hoy(hoy: str) -> dict | None:
     return None
 
 
+def pendientes(hoy: str) -> list[dict]:
+    """Filas cuya fecha ya llegó y a las que aún les falta alguna red.
+
+    ⚠️ **Esto es lo que hace que un día sin encender el PC no pierda un video.**
+    Mirar solo la fila de hoy parecía natural y era un agujero: si `cron` no
+    corre el día 18, `Historia10` no se publica **nunca** — nadie vuelve a mirar
+    esa fila, y el fallo no deja rastro porque no llega a ejecutarse nada.
+
+    Una fila sigue pendiente mientras le falte **una sola** red: si Instagram
+    salió y Facebook falló, vuelve mañana y `publicar()` se salta la que ya está.
+    """
+    vivas = []
+    for f in calendario():
+        if f.get("fecha", "") > hoy:
+            continue
+        if any(not ya_salio(f["proyecto"], red) for red in CONFIG["redes_reel"]):
+            vivas.append(f)
+    return vivas
+
+
 #%% ═══════════════════════════════════════════════════════════════
 #   ROTACIÓN — qué tema le toca al extra de esta semana
 # ═══════════════════════════════════════════════════════════════
@@ -166,10 +186,28 @@ def _cargar(nombre: str):
 
 
 def publicar_reel(hoy: str, dry_run: bool) -> bool:
-    fila = toca_hoy(hoy)
-    if not fila:
-        print(f"🗓️  {hoy}: el calendario no tiene nada para hoy.")
+    """Publica UN reel: el más antiguo al que aún le falte alguna red.
+
+    ⚠️ **Uno por corrida, aunque haya varios atrasados.** Si el PC estuvo tres
+    días apagado, la tentación es soltar los tres de golpe; pero la cadencia de
+    uno al día es justamente lo que evita que compitan entre ellos, así que el
+    calendario se recupera a un video por día en vez de vaciarse en una tarde.
+    """
+    cola = pendientes(hoy)
+    if not cola:
+        hay_calendario = bool(calendario())
+        print(f"🗓️  {hoy}: nada pendiente."
+              + ("" if hay_calendario else " El calendario está vacío."))
         return False
+
+    fila = cola[0]
+    atraso = (datetime.strptime(hoy, "%Y-%m-%d").date()
+              - datetime.strptime(fila["fecha"], "%Y-%m-%d").date()).days
+    if atraso:
+        print(f"⏰ {fila['proyecto']} se quedó atrás: le tocaba el "
+              f"{fila['fecha']} ({atraso} día(s)). Se publica ahora.")
+        if len(cola) > 1:
+            print(f"   Quedan {len(cola) - 1} atrasado(s); saldrán uno por día.")
 
     proyecto = fila["proyecto"]
     aviso = (fila.get("revisar_a_mano") or "").strip()
@@ -186,14 +224,48 @@ def publicar_reel(hoy: str, dry_run: bool) -> bool:
     return True
 
 
-def publicar_extra(hoy: str, dry_run: bool) -> bool:
+DIAS = "lunes martes miércoles jueves viernes sábado domingo".split()
+
+
+def inicio_de_semana(hoy: str) -> str:
+    """El lunes de la semana de `hoy`."""
+    d = datetime.strptime(hoy, "%Y-%m-%d").date()
+    return (d - timedelta(days=d.weekday())).isoformat()
+
+
+def extra_que_toca(hoy: str) -> str | None:
+    """La red cuyo extra falta esta semana y cuyo día ya pasó.
+
+    ⚠️ **No es «¿hoy es martes?», y ahí está la recuperación.** Con la pregunta
+    simple, un martes con el PC apagado se lleva por delante el carrusel de esa
+    semana entera. Aquí se mira si el extra de cada red **ya salió esta semana**;
+    si no y su día ya pasó, sale hoy. Es la misma idea que el `--si-falta` del
+    recordatorio de Telegram.
+
+    Devuelve una sola red por corrida: dos publicaciones el mismo día en la misma
+    página compiten entre ellas, que es justo lo que reparte `dias_extra`.
+    """
     dia = datetime.strptime(hoy, "%Y-%m-%d").date().weekday()
-    red = CONFIG["dias_extra"].get(dia)
+    desde = inicio_de_semana(hoy)
+    ya_esta_semana = {f["red"] for f in publicado() if f.get("fecha", "") >= desde}
+    for dia_red, red in sorted(CONFIG["dias_extra"].items()):
+        if dia_red <= dia and red not in ya_esta_semana:
+            return red
+    return None
+
+
+def publicar_extra(hoy: str, dry_run: bool) -> bool:
+    red = extra_que_toca(hoy)
     if not red:
-        dias = "lunes martes miércoles jueves viernes sábado domingo".split()
-        print(f"🗓️  {dias[dia]}: no toca extra. "
-              f"Salen {', '.join(sorted(set(CONFIG['dias_extra'].values())))}.")
+        dia = datetime.strptime(hoy, "%Y-%m-%d").date().weekday()
+        print(f"🗓️  {DIAS[dia]}: no toca extra "
+              f"(o el de esta semana ya salió).")
         return False
+
+    dia_suyo = next(d for d, r in CONFIG["dias_extra"].items() if r == red)
+    if dia_suyo != datetime.strptime(hoy, "%Y-%m-%d").date().weekday():
+        print(f"⏰ El extra de {red} era el {DIAS[dia_suyo]} y no salió. "
+              f"Se recupera hoy.")
 
     tema = siguiente_tema(hoy)
     if not tema:
@@ -222,14 +294,19 @@ def estado(hoy: str) -> None:
     print(f"🗓️  Agenda al {hoy}\n")
 
     cal = calendario()
-    pendientes = [f for f in cal if f.get("fecha", "") >= hoy]
-    print(f"📹 Reels programados: {len(pendientes)} de {len(cal)} por salir")
-    for f in pendientes[:5]:
+    futuros = [f for f in cal if f.get("fecha", "") > hoy]
+    atrasados = pendientes(hoy)
+    print(f"📹 Reels: {len(atrasados)} pendiente(s), {len(futuros)} programado(s)")
+    for f in atrasados:
+        dias = (datetime.strptime(hoy, "%Y-%m-%d").date()
+                - datetime.strptime(f["fecha"], "%Y-%m-%d").date()).days
+        print(f"   ⏰ {f['fecha']}  {f['proyecto']:<12} atrasado {dias} día(s)")
+    for f in futuros[:4]:
         marca = "⚠️ " if (f.get("revisar_a_mano") or "").upper().startswith("SÍ") else "  "
         print(f"   {marca} {f['fecha']} {f['hora']}  {f['proyecto']}")
-    if len(pendientes) > 5:
-        print(f"      … y {len(pendientes) - 5} más")
-    if cal and not pendientes:
+    if len(futuros) > 4:
+        print(f"      … y {len(futuros) - 4} más")
+    if cal and not futuros and not atrasados:
         print("   ⚠️  El calendario se agotó: genera el paquete del lote siguiente")
 
     hechos = publicado()

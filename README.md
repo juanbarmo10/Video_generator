@@ -342,6 +342,25 @@ nada sale dos veces. El calendario dice cuándo *tocaba* publicar; ese archivo, 
 ⚠️ **Cuando el calendario se agota, `--reel` no encuentra fila y lo dice en `logs/agenda.log`, pero
 no avisa por Telegram.** Es el recordatorio del domingo el que mira si queda calendario.
 
+### 4.1.1 Si el PC estuvo apagado
+
+**No se pierde nada.** La agenda no pregunta «¿qué toca hoy?» sino «¿qué falta?»: publica el reel
+más antiguo que aún no haya salido, y recupera el extra de la semana aunque su día ya pasara.
+
+Se recupera **uno por corrida**, o sea uno al día. Con tres días de atraso, tres días para ponerse
+al corriente — es a propósito: soltar los tres de golpe haría que compitieran entre ellos, que es
+justo lo que evita la cadencia diaria. `--estado` muestra la cola con los días de atraso.
+
+Si vas a estar mucho tiempo sin encender, hay dos caminos y ninguno es gratis:
+
+| | Cuesta | Qué implica |
+|---|---|---|
+| **Un equipo siempre encendido** (VPS de ~5 €/mes o una Raspberry Pi) | dinero o cacharro | Lo más limpio: mismo repo, mismo `cron`, mismos tokens. Solo hay que copiarle `publicar/` cada semana (~140 MB) y el `.env` |
+| **Programar en la plataforma** | nada | ⚠️ **Solo sirve para Facebook.** Medido: Instagram responde *«User must be on whitelist»* y Threads no lo tiene. Cubre una red de tres |
+
+⚠️ **Y ojo con la hora si publicas atrasado**: un video que sale a las 20:00 en vez de a las 12:00
+ya no es comparable con el resto. Si se acumula, lo honesto es anotarlo o darle su propio `lote`.
+
 ### 4.2 YouTube y TikTok: a mano, en Metricool
 
 Por cada tema, abres `publicar/<PROYECTO>/` (la carpeta se llama como el `PROYECTO` del CSV,

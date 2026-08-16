@@ -50,7 +50,7 @@
 | [Publicar en IG y FB](#-publicar-en-instagram-y-facebook-15-ago-2026) | La subida reanudable, el registro de publicado y el parseo que casi pega los tags |
 | [El token de página](#-el-token-de-página-un-callejón-sin-salida-que-parecía-otra-cosa-15-ago-2026) | «0/7 permisos» con los 7 puestos, y por qué un token de página no se puede alargar |
 | [La primera publicación real](#-la-primera-publicación-real-15-ago-2026) | `Historia07` en las dos redes, y por qué la desambiguación de página no era teórica |
-| [La publicación se automatiza](#-la-publicación-se-vuelve-automática-15-ago-2026) | El `cron`, la rotación de extras, y por qué las imágenes no se pueden subir por bytes |
+| [La publicación se automatiza](#-la-publicación-se-vuelve-automática-15-ago-2026) | El `cron`, la rotación de extras, el PC apagado, y por qué las imágenes no se pueden subir por bytes |
 | [Anexo — evidencia medida](#anexo--evidencia-medida) | Los comandos y los números crudos |
 
 ---
@@ -2318,6 +2318,45 @@ publicar y luego se adjuntan a la entrada con `attached_media`, que es lo que la
 único que impide publicar dos veces el mismo reel. Se excluye con `publicar/*` y una negación, no
 con `publicar/` a secas — **git no entra en un directorio ignorado**, así que con la forma corta la
 excepción no habría tenido ningún efecto y el archivo habría seguido fuera sin avisar.
+
+### El agujero que destapó una pregunta
+
+⚠️ **«¿Y si el PC está apagado?» no era una pregunta de infraestructura: era un bug.** La primera
+versión miraba la fila del calendario **cuya fecha es hoy**. Si `cron` no corre el día 18,
+`Historia10` no se publica **nunca** — nadie vuelve a mirar esa fila, y no queda ni rastro del
+fallo porque no llega a ejecutarse nada.
+
+Las dos rutas pasaron de preguntar *«¿qué toca hoy?»* a *«¿qué falta?»*:
+
+| | Antes | Ahora |
+|---|---|---|
+| Reel | la fila con `fecha == hoy` | la más antigua con `fecha <= hoy` a la que le falte **una** red |
+| Extra | `¿hoy es martes?` | ¿el extra de esta red ya salió **esta semana**? |
+
+Las dos publican **una cosa por corrida**. La tentación con tres días de atraso es soltar los tres
+de golpe, pero la cadencia de uno al día es justo lo que evita que compitan: el calendario se
+recupera a un video por día en vez de vaciarse en una tarde.
+
+Que una fila siga pendiente mientras le falte **una sola** red arregla de paso el caso parcial: si
+Instagram salió y Facebook falló, la fila vuelve mañana y `publicar()` se salta la que ya está.
+
+**Verificado por mutación:** volver a `fecha == hoy` hace fallar 4 tests.
+
+### Programar en la plataforma: medido, y no llega
+
+Antes de recomendar infraestructura, se probó si Meta puede programar por API. Resultado del 15 ago,
+contra la cuenta real:
+
+| | `scheduled_publish_time` |
+|---|---|
+| Facebook (`/feed`) | ✅ acepta, y `is_published: false` con la fecha guardada |
+| Instagram (`/media`) | ❌ **«(#3) User must be on whitelist»** |
+| Threads | no existe en la API |
+
+O sea que **cubre una red de tres**, y justo no las dos que más importan. Programar solo Facebook
+dejaría Instagram y Threads dependiendo igualmente de que la máquina esté encendida, con la
+complicación añadida de tener dos mecanismos distintos. La recuperación de arriba resuelve el
+problema real —no perder contenido— sin depender de ninguna plataforma.
 
 ### Lo que el hilo de Threads no hace
 
