@@ -50,9 +50,16 @@ CONFIG = {
     "usuario":    "https://open.tiktokapis.com/v2/user/info/",
     "videos":     "https://open.tiktokapis.com/v2/video/list/",
 
-    # `video.list` es el que da las métricas; `user.info.basic` identifica la
-    # cuenta y da el `username`, que hace falta para la clave de fusión.
-    "scopes": ["user.info.basic", "video.list"],
+    # ⚠️ Los campos de usuario están repartidos entre TRES scopes, y el reparto
+    # no es intuitivo:
+    #   · user.info.basic   → open_id, display_name, avatar
+    #   · user.info.profile → **username**, bio, verificado
+    #   · user.info.stats   → follower_count, video_count, likes_count
+    # `username` NO está en `basic` a pesar del nombre, y es el que construye el
+    # `id_plataforma` (ver `filas_de()`). Sin `user.info.profile` vuelve vacío y
+    # las métricas abortan justo al final, después de bajarlo todo.
+    "scopes": ["user.info.basic", "user.info.profile", "user.info.stats",
+               "video.list"],
 
     # El Video Object completo. Las cuatro métricas de engagement están aquí:
     # el export en CSV no trae ni la duración, y sin ella no hay retención.
@@ -297,8 +304,11 @@ def guardar_en_metricas(dry_run: bool = False) -> None:
 
     usuario = info_usuario().get("username", "")
     if not usuario:
-        raise SystemExit("❌ La API no devolvió el `username`; sin él la clave de "
-                         "fusión no casaría con las filas del export.")
+        raise SystemExit(
+            "❌ La API no devolvió el `username`, y sin él la clave de fusión no\n"
+            "   casaría con las filas del export (cada video entraría dos veces).\n"
+            "   Casi seguro falta el scope **user.info.profile**: `username` va ahí,\n"
+            "   no en `user.info.basic`. Añádelo en el panel y vuelve a autorizar.")
     print("🎵 TikTok…")
     filas = filas_de(videos(), usuario, hoy)
     print(f"   {len(filas)} video(s)")

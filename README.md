@@ -234,7 +234,7 @@ De cada tema salen:
    | 4 | *Sandbox settings* → **Target users** → *Add account* | Inicias sesión con **@curiosidad3s_historicas** y aceptas los términos |
    | 5 | *Products* | Añadir **Login Kit** y **Display API**. Nada más — ver el aviso de abajo |
    | 6 | Login Kit → *Redirect URI* | Una URL **https** tuya. Vale la del repositorio: `https://github.com/juanbarmo10/Video_generator` |
-   | 7 | Display API → *Scopes* | `user.info.basic` y `video.list` |
+   | 7 | Display API → *Scopes* | **Los cuatro**: `user.info.basic`, `user.info.profile`, `user.info.stats` y `video.list` |
    | 8 | *Credentials*, **en modo Sandbox** | Copiar **Client key** y **Client secret** |
    | 9 | `.env` | `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI` (la del paso 6, **exacta**) |
 
@@ -251,6 +251,12 @@ De cada tema salen:
    que Threads: ser dueño de la app no basta, la cuenta del canal tiene que estar añadida
    explícitamente y aceptar los términos. Y ⚠️ **puede tardar hasta una hora en surtir efecto** —
    si falla justo después de añadirla, espera antes de tocar nada.
+
+   ⚠️ **`user.info.profile` no es opcional aunque lo parezca.** Los campos de usuario están
+   repartidos entre tres scopes y el reparto no es intuitivo: `username` va en `profile`, **no en
+   `basic`**. Y `username` es lo que construye el identificador con el que las filas nuevas se
+   funden con las que ya hay. Sin él, las métricas se bajan enteras y abortan al final.
+   `user.info.stats` solo alimenta el diagnóstico (seguidores, nº de vídeos), pero sale gratis.
 
    ⚠️ **No añadas «Content Posting API» aunque tiente.** Sirve para publicar videos por API, pero
    **sin auditoría todo lo que publica sale en privado** (`SELF_ONLY` o solo amigos mutuos): sería

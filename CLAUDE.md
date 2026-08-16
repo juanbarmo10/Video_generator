@@ -680,8 +680,11 @@ sabe hacerlo. Es lo único que llama `cron` para publicar (`--reel` a las 12:00,
   archivo. Las filas que ya hay vienen del export en CSV, que identifica cada video por su enlace;
   la API devuelve el id pelado. Usarlo tal cual no fundiría nada: crearía una fila nueva por video
   y cada uno quedaría contado dos veces — el mismo fallo que las 45 filas fantasma de Facebook. Se
-  reconstruye la URL con el `username`, y por eso `user.info.basic` no es opcional.
-  Tampoco vale `share_url` de la API: a veces devuelve un enlace corto (`tiktok.com/t/…`).
+  reconstruye la URL con el `username`. Tampoco vale `share_url` de la API: a veces devuelve un
+  enlace corto (`tiktok.com/t/…`).
+  ⚠️ **Y `username` va en el scope `user.info.profile`, no en `user.info.basic`** — el reparto de
+  campos entre los tres scopes de usuario no es intuitivo. Sin ese scope las métricas se bajan
+  enteras y abortan al final, al construir la clave.
 - ⚠️ **No hay flujo automático como en YouTube**, y no es un descuido: TikTok exige un
   `redirect_uri` **https y registrado**, así que el `run_local_server()` de Google (que levanta un
   `http://localhost`) se rechaza. El código se pega a mano con `--codigo`, una sola vez.
