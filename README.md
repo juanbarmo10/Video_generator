@@ -220,24 +220,39 @@ De cada tema salen:
    ```
 
 8. **Opcional: TikTok por API.** Es lo último que se teclea a mano
-   (`metricas_export/manual.csv`): alcance, segundos medios y % que vio completo. El trámite es el
-   más largo de los tres, así que hazlo cuando te sobre un rato.
+   (`metricas_export/manual.csv`): alcance, segundos medios y % que vio completo.
+
+   ⚠️ **La cuenta de desarrollador NO es tu cuenta de TikTok.** Se crea aparte, con un correo, en
+   [developers.tiktok.com](https://developers.tiktok.com). Tu cuenta del canal entra después, como
+   *usuario de prueba* — es el paso 4, y es el que más se salta.
 
    | | Dónde | Qué |
    |---|---|---|
-   | 1 | [developers.tiktok.com](https://developers.tiktok.com) → Manage apps | *Connect an app* → nombre y descripción |
-   | 2 | Panel de la app → *Products* | Añadir **Login Kit** y **Display API** |
-   | 3 | Login Kit → *Redirect URI* | Una URL **https** tuya. Vale la del repositorio: `https://github.com/juanbarmo10/Video_generator` |
-   | 4 | Display API → *Scopes* | Pedir `user.info.basic` y `video.list` |
-   | 5 | Panel → *Credentials* | Copiar **Client key** y **Client secret** |
-   | 6 | `.env` | `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI` (la misma del paso 3, **exacta**) |
+   | 1 | [developers.tiktok.com](https://developers.tiktok.com) → *Sign up* | Cuenta de desarrollador **con tu correo** |
+   | 2 | *Manage apps* → *Connect an app* | Nombre, descripción, categoría |
+   | 3 | Junto al nombre de la app, cambia a **Sandbox** → *Create Sandbox* | Es lo que permite usarla **sin pasar revisión** |
+   | 4 | *Sandbox settings* → **Target users** → *Add account* | Inicias sesión con **@curiosidad3s_historicas** y aceptas los términos |
+   | 5 | *Products* | Añadir **Login Kit** y **Display API** |
+   | 6 | Login Kit → *Redirect URI* | Una URL **https** tuya. Vale la del repositorio: `https://github.com/juanbarmo10/Video_generator` |
+   | 7 | Display API → *Scopes* | `user.info.basic` y `video.list` |
+   | 8 | *Credentials*, **en modo Sandbox** | Copiar **Client key** y **Client secret** |
+   | 9 | `.env` | `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI` (la del paso 6, **exacta**) |
+
+   ⚠️ **Sin el paso 3, TikTok exige revisión de la app antes de dejarte llamar a nada** — y esa
+   revisión pide vídeo de demostración y tarda. El *Sandbox* existe justo para saltársela: se
+   pueden crear hasta 5 y admiten 10 cuentas de prueba.
+
+   ⚠️ **Sin el paso 4, la autorización falla aunque todo lo demás esté bien.** Es el mismo tropiezo
+   que Threads: ser dueño de la app no basta, la cuenta del canal tiene que estar añadida
+   explícitamente y aceptar los términos. Y ⚠️ **puede tardar hasta una hora en surtir efecto** —
+   si falla justo después de añadirla, espera antes de tocar nada.
+
+   ⚠️ **Las credenciales del Sandbox no son las de producción.** Cópialas con el selector puesto en
+   *Sandbox*, o autorizarás contra una app que no tiene tu cuenta de prueba.
 
    ⚠️ **El `redirect_uri` tiene que ser `https` y estar registrado**, y por eso aquí no hay flujo
    automático como en YouTube: `run_local_server()` levanta un `http://localhost` que TikTok
    rechaza. El código llega a la barra del navegador y se pega a mano. Es una sola vez.
-
-   ⚠️ **`video.list` puede tardar en concederse.** Mientras no lo esté, autorizar funciona pero las
-   llamadas responden `scope_not_authorized`. No es un fallo del montaje.
 
    Con eso hecho:
 

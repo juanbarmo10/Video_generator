@@ -16,9 +16,13 @@ que el `redirect_uri` sea **https y esté registrado en la app**, así que el
 `run_local_server()` de Google (que levanta un `http://localhost`) no vale aquí.
 El código llega a la barra del navegador y se pega con `--codigo`. Es una vez.
 
-⚠️ **Los scopes `user.info.basic` y `video.list` hay que pedirlos en la app.**
-Hasta que TikTok los conceda, la autorización funciona pero las llamadas
-devuelven `scope_not_authorized`. El alta completa está en README.md, punto 8.
+⚠️ **La cuenta de desarrollador NO es la cuenta de TikTok**: se crea aparte con un
+correo. La del canal entra después como *target user* de un **Sandbox**, y ese
+paso es el que no se puede saltar — sin él TikTok pide revisión de la app, con
+vídeo de demostración incluido. Es el mismo tropiezo que la invitación de
+probador en Threads: ser dueño de la app no basta.
+
+El alta completa, en orden, está en README.md, punto 8.
 """
 
 #%% ═══════════════════════════════════════════════════════════════

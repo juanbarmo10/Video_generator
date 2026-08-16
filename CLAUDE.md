@@ -685,6 +685,11 @@ sabe hacerlo. Es lo único que llama `cron` para publicar (`--reel` a las 12:00,
 - ⚠️ **No hay flujo automático como en YouTube**, y no es un descuido: TikTok exige un
   `redirect_uri` **https y registrado**, así que el `run_local_server()` de Google (que levanta un
   `http://localhost`) se rechaza. El código se pega a mano con `--codigo`, una sola vez.
+- ⚠️ **La cuenta de desarrollador no es la de TikTok, y la del canal hay que añadirla como *target
+  user* de un Sandbox.** Sin el Sandbox, TikTok exige revisión de la app (con vídeo de
+  demostración) antes de la primera llamada; sin el target user, la autorización falla aunque todo
+  lo demás esté bien. Es el mismo patrón que la invitación de probador de Threads: **ser dueño de
+  la app nunca basta**. Los cambios tardan hasta una hora en surtir efecto.
 - **Los dos tokens caducan**: el de acceso a las 24 h y el de refresco a los 365 días.
   `token_vivo()` renueva solo antes de cada uso. ⚠️ El refresco **puede devolver un
   `refresh_token` distinto**; hay que guardar el nuevo o a los 365 días se pierde el acceso sin
