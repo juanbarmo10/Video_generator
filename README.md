@@ -7,8 +7,8 @@ cada uno con su texto, sus subtítulos y su carrusel.
 **Coste real: ~$0.29 y ~9 minutos por video.** Un lote de 7 son unos $2 y poco más de una hora.
 
 ```
-temas.csv  →  bash run_all.sh  →  publicar/<PROYECTO>/  →  14_meta_api.py --publicar  (IG + FB)
-              (8 pasos + paquete)              └──────→  Metricool a mano   (YouTube + TikTok)
+temas.csv  →  bash run_all.sh  →  publicar/<PROYECTO>/  →  cron + 16_agenda.py  (IG, FB, Threads)
+              (8 pasos + paquete)              └──────→  Metricool a mano    (YouTube + TikTok)
                                                           ↓
         reportes/ultimo.html  ←  metricas.csv  ←  python herramientas/10_metricas.py
         (11_reporte.py)
@@ -293,30 +293,54 @@ siempre en `no`; si ves un `SÍ`, es un paquete de antes de agosto de 2026.
 Lo que sí conviene mirar es **cuántos temas se cayeron** (lo dice el resumen del lote) para
 reponerlos en la tanda siguiente.
 
-## 4 · Publicar (~15 min)
+## 4 · Publicar
 
-Uno por día, a la misma hora. Subir el lote de golpe hace que compitan entre ellos.
-`publicar/calendario.csv` trae la fecha, hora y título de cada uno para ir tachando.
+### 4.1 Instagram, Facebook y Threads: no hay que hacer nada
 
-### 4.1 Instagram y Facebook: un comando
+**Lo publica `cron`.** Solo hay que haber corrido el paso 3, que deja el paquete y el calendario.
+
+| Cuándo | Qué sale | Dónde |
+|---|---|---|
+| todos los días, **12:00** | el reel del calendario | Instagram + Facebook |
+| martes 18:00 | el carrusel del paso 06 | Instagram |
+| jueves 18:00 | las mismas slides como álbum | Facebook |
+| sábado 18:00 | un hilo de 3 mensajes con 1-2 fotos reales | Threads |
+
+⚠️ **Las 12:00 no son una preferencia: es la hora a la que se publicó todo lo anterior.** La hora
+mueve el alcance por sí sola, así que cambiarla mezclaría dos condiciones distintas en la misma
+columna de `metricas.csv` y los lotes dejarían de ser comparables. Si algún día se prueba otra
+hora, que sea un lote entero y con su propio nombre de `lote`.
+
+Los extras van **uno por red y por semana, cada uno de un tema distinto**, para dar variedad a las
+páginas. **Un tema gasta un solo extra en toda su vida**: es lo que impide que las tres redes
+cuenten lo mismo la misma semana. Se reponen solos con cada lote nuevo.
+
+Para ver qué hay hecho y qué falta, sin publicar nada:
 
 ```bash
-python herramientas/14_meta_api.py --publicar Historia08              # las dos redes
-python herramientas/14_meta_api.py --publicar Historia08 --solo instagram
-python herramientas/14_meta_api.py --publicar Historia08 --dry-run    # ensayo, no publica
+python herramientas/16_agenda.py --estado
 ```
 
-Coge el `.mp4` de `publicar/<PROYECTO>/` y le pone a cada red su texto: a Instagram el pie corto,
-a Facebook la descripción larga. No hay que abrir el archivo ni copiar nada.
+Y si hace falta empujar algo a mano:
 
-⚠️ **`--dry-run` sube el video de verdad** y se detiene antes de la llamada que lo hace público. Es
-reversible —los contenedores sin publicar caducan solos— pero no es una simulación en seco.
+```bash
+python herramientas/16_agenda.py --reel                        # el del día, ya
+python herramientas/14_meta_api.py --publicar Historia08       # uno concreto
+python herramientas/14_meta_api.py --carrusel Historia03       # su carrusel en IG
+python herramientas/14_meta_api.py --album Historia04          # sus slides en FB
+python herramientas/15_threads_api.py --hilo Historia05        # su hilo en Threads
+```
+
+Todos aceptan `--dry-run`. ⚠️ **`--dry-run` sube los archivos de verdad** y se detiene antes de la
+llamada que los hace públicos: es reversible —lo que queda sin publicar caduca o se borra solo—
+pero no es una simulación en seco.
 
 ⚠️ **Lo publicado se anota en `publicar/publicado.csv` y se comprueba antes de subir**, así que
-correr el comando dos veces no duplica el reel. El calendario dice cuándo *tocaba* publicar; este
-archivo, qué salió de verdad.
+nada sale dos veces. El calendario dice cuándo *tocaba* publicar; ese archivo, qué salió de verdad
+— y es el único de `publicar/` que está en git, porque no se puede regenerar.
 
-**El carrusel de Instagram sigue siendo manual**, el comando solo sube el reel.
+⚠️ **Cuando el calendario se agota, `--reel` no encuentra fila y lo dice en `logs/agenda.log`, pero
+no avisa por Telegram.** Es el recordatorio del domingo el que mira si queda calendario.
 
 ### 4.2 YouTube y TikTok: a mano, en Metricool
 

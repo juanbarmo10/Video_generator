@@ -27,15 +27,14 @@ elegir temas, programar en Metricool y recoger métricas de las redes que aún n
 
 | | # | Pendiente | Gana |
 |---|---|---|---|
-| 🟠 | [P-10b](#p-10b) | Que el calendario dispare la publicación sola | ~15 min/semana |
-| 🟠 | [P-21](#p-21) | Publicar en Threads — texto, sin render | alcance medido a mano |
+| 🟠 | [P-21](#p-21) | Threads: el código está, **falta que saques el token** | alcance medido a mano |
 | 🟡 | [P-20](#p-20) | Por qué menos gente para el scroll (el frame 0) | la única métrica en contra |
 | 🟡 | [P-09b](#p-09b) | Métricas por API: hechas 3 de 4 redes, falta TikTok | ~5 min/semana |
 | 🟡 | [P-11](#p-11) | Tests de los pasos 03-06 | red de seguridad |
+| 🔵 | [P-22](#p-22) | Vigilar la primera semana de publicación automática | confianza |
 | 🔵 | [P-17](#p-17) | Afinar el recordatorio con unas semanas de uso | ruido |
 | ⚪ | [P-06](#p-06) | Paralelizar los temas — evaluado: no compensa | ~25-35 % de tiempo |
 | ⚪ | [P-18](#p-18) | La cabecera del paso 06 miente sobre su entrada | claridad |
-| ⚪ | [P-09](#p-09) | ¿Se sigue usando el carrusel de Instagram? | $0.004 y 8 s/tema |
 | ⚪ | [P-07](#p-07) | Basura de corridas viejas | 35 MB reales |
 | ⚪ | [P-08](#p-08) | Los 16 Mundial no tienen `descripcion.txt` ni `.srt` | — |
 
@@ -43,25 +42,42 @@ elegir temas, programar en Metricool y recoger métricas de las redes que aún n
 
 ## 🟠 Lo que más trabajo manual quita
 
-<a id="p-10b"></a>
-**P-10b · Que el calendario dispare la publicación sola.**
+<a id="p-21"></a>
+**P-21 · Threads: el código está escrito, falta el token.**
 
-[P-10](#p-10) está **hecho y estrenado**: `Historia07` salió en Instagram y Facebook el 15 ago
-(ver [HISTORIAL.md](HISTORIAL.md#-la-primera-publicación-real-15-ago-2026)). Hoy es **un comando
-por tema y por red**, que hay que acordarse de correr:
+[15_threads_api.py](herramientas/15_threads_api.py) escribe el hilo con GPT a partir del guion y la
+investigación, lo recorta a los 500 caracteres por mensaje **en Python** y lo publica encadenado
+con 1-2 fotos reales del tema. [16_agenda.py](herramientas/16_agenda.py) ya le tiene reservado el
+sábado. Probado lo que se puede probar sin cuenta:
 
 ```bash
-python herramientas/14_meta_api.py --publicar Historia08
+python herramientas/15_threads_api.py --hilo Historia01 --solo-texto
 ```
 
-Lo natural es que mande `publicar/calendario.csv` y un `cron` publique el del día, apoyándose en
-`publicar/publicado.csv` para no repetir. Pero conviene **ver unas cuantas publicaciones salir
-bien antes de automatizar el disparo**: un `cron` que publique mal publica mal muchas veces, y en
-esta parte del pipeline los errores llegan a la cuenta.
+**Lo único que falta es tuyo**, y es el mismo trámite que ya hiciste con Meta:
 
-⚠️ **Antes de programarlo, decidir qué pasa con el carrusel.** El comando sube el reel, y el
-carrusel de Instagram (paso 06) sigue siendo manual — o se automatiza también, o se decide que no
-se publica, que es lo que pregunta [P-09](#p-09).
+| | Dónde | Qué |
+|---|---|---|
+| 1 | Panel de la app → *Casos de uso* | Añadir **Threads API** (la app ya existe, no hay que crearla) |
+| 2 | Permisos | `threads_basic`, `threads_content_publish`, `threads_manage_insights` |
+| 3 | [Explorador](https://developers.facebook.com/tools/explorer/) | Cambiar el host a **`threads.net`** (arriba a la izquierda) y generar el token |
+| 4 | `.env` | `THREADS_ACCESS_TOKEN` y `THREADS_USER_ID` |
+
+⚠️ **El token de la página de Facebook NO sirve aquí.** Threads es otra API de verdad: otro host
+(`graph.threads.net`), otra autorización y otro token. Con el de Meta las llamadas fallan con
+*«Unsupported get request»*, que no menciona el host en ningún momento.
+
+Después: `python herramientas/15_threads_api.py --diagnostico`.
+
+**La señal viene del uso real, no de una suposición:** publicando a mano, Threads daba bastante más
+alcance que el resto y arrastraba a Instagram. Sigue sin estar en `metricas.csv` porque nunca hubo
+export — `threads_manage_insights` es justo lo que lo resolvería, y por eso está en la lista de
+permisos aunque hoy no se use.
+
+⚠️ Lo que queda del **`publish_threads()` de `desuso/publisher.py` es la idea, no el código**:
+suponía que las imágenes se mandan como archivo, y Threads —igual que el carrusel de Instagram—
+solo acepta `image_url`. Ver el andamio de fotos en
+[HISTORIAL.md](HISTORIAL.md#-la-publicación-se-vuelve-automática-15-ago-2026).
 
 Las otras dos redes, por coste de trámite:
 
@@ -69,28 +85,6 @@ Las otras dos redes, por coste de trámite:
    hace falta pasar la verificación de Google con dominio propio.
 2. **TikTok, la última.** Registrar app y pasar revisión: semanas de trámite para la red que menos
    aporta.
-
-<a id="p-21"></a>
-**P-21 · Publicar en Threads.**
-**La señal viene del uso real, no de una suposición:** publicando a mano, Threads daba
-bastante más alcance que el resto, y sirve de empuje para Instagram. No está en `metricas.csv`
-porque nunca hubo export — eso también habría que resolverlo.
-
-**Es lo más barato que queda por añadir:** un post de Threads es **texto**, así que no hay que
-generar nada nuevo ni renderizar nada. El paso 02 ya escribe el gancho, el pie del reel y los
-hashtags.
-
-⚠️ **Threads es una API aparte de verdad**, no un añadido de la de Meta: otro host
-(`graph.threads.net`), otro flujo de autorización y **otro token**. Marcar el caso de uso al crear
-la app solo evita tener que rehacer la configuración después. Los permisos son `threads_basic`,
-`threads_content_publish` y `threads_manage_insights`.
-
-`desuso/publisher.py` tiene un `publish_threads()` de cuando se intentó, y **es el único de ese
-archivo que puede servir de base**: Threads sí acepta texto directo, así que no arrastra el
-problema de la subida de video que invalida el resto.
-
-Hacerlo **después** de [P-10](#p-10), que ya está: el trámite dejó la app creada y el token
-permanente, así que solo falta añadir el caso de uso de Threads y sacar su token.
 
 ---
 
@@ -150,6 +144,26 @@ No hace falta tocar `pipeline/`: `cargar_paso()` en
 
 ## 🔵 Operación y seguimiento
 
+<a id="p-22"></a>
+**P-22 · Vigilar la primera semana de publicación automática.**
+
+Desde el 15 ago `cron` publica solo: el reel a las 12:00 y el extra semanal a las 18:00. Lo que
+hay que mirar durante una semana **no es si funciona —eso está probado— sino lo que ninguna prueba
+puede anticipar**:
+
+- **`logs/agenda.log`**, que es donde va todo. Un fallo de red a las 12:00 no avisa a nadie: la
+  agenda lo escribe ahí y sigue. Merece que el recordatorio del paso 12 lo mire (una línea).
+- **Que la cadencia se vea bien en la página.** Reel diario + extra semanal son 8 publicaciones por
+  semana en Instagram y otras 8 en Facebook. Si es demasiado, la palanca es `dias_extra` en el
+  `CONFIG` de [16_agenda.py](herramientas/16_agenda.py), no tocar el `cron`.
+- **Si el álbum de Facebook rinde.** Es lo único que no tiene precedente: el carrusel se ha
+  publicado a mano en Instagram, pero como álbum de Facebook no lo hemos visto nunca. Si no aporta,
+  se quita esa entrada de `dias_extra` y ya.
+
+⚠️ **El calendario se agota el 2026-08-23.** A partir de ahí `--reel` no encuentra fila y lo dice
+en el log, pero **no avisa**: hay que generar el paquete del lote siguiente. El recordatorio de los
+domingos ya mira `publicar/calendario.csv`, así que esto es más un recordatorio de que existe.
+
 <a id="p-17"></a>
 **P-17 · Afinar el recordatorio con unas semanas de uso.**
 El bot ya funciona (`@CHvideo_bot`) y está en `cron`: domingo 10:00 y 16:00, más `--si-falta` de
@@ -196,10 +210,6 @@ El docstring de [06_carrusel_generator.py](pipeline/06_carrusel_generator.py) di
 Manda el `CONFIG`. Son dos líneas de comentario, y de paso conviene renombrar
 `parse_instagram_file()` — que además está duplicada y gana la segunda.
 
-<a id="p-09"></a>
-**P-09 · ¿Se sigue usando el carrusel de Instagram?** Si no, el paso 06 y `carrusel.txt` salen del
-pipeline: ahorra $0.004 y 8 s por tema, y quita el contrato frágil de formato con el paso 02.
-
 <a id="p-07"></a>
 **P-07 · Basura de corridas viejas — menos de lo que parecía.**
 La nota decía «~750 MB recuperables», pero **700 de esos son `videos_no_music/`**, que conviene
@@ -237,7 +247,9 @@ con lo que se midió, está en [HISTORIAL.md](HISTORIAL.md).
 | <a id="p-03"></a>**P-03** | 4 de 8 títulos de YouTube pasaban de 70 caracteres | `acortar_titulo()` reescribe con el modelo y `_truncar_titulo()` garantiza el límite en Python. 0 de 7 fuera en el lote siguiente |
 | <a id="p-04"></a>**P-04** | La puerta de calidad no aprobaba nunca | Calibrada con los 7 temas reales: `nota >= 6` y `dudosas <= 3`. El problema no era el umbral, era el guionista |
 | <a id="p-05"></a>**P-05** | El paso 07 componía un mask fantasma | `bg_color=(0,0,0)` en el composite interno: **×1.59** de velocidad, píxel a píxel idéntico |
-| <a id="p-10"></a>**P-10** | Publicar en Meta era manual | `--publicar PROYECTO` por subida reanudable. `Historia07` estrenado el 15 ago en las dos redes. Falta solo el disparo automático: [P-10b](#p-10b) |
+| <a id="p-10"></a>**P-10** | Publicar en Meta era manual | `--publicar PROYECTO` por subida reanudable. `Historia07` estrenado el 15 ago en las dos redes |
+| <a id="p-10b"></a>**P-10b** | Había que acordarse de correr el comando | [16_agenda.py](herramientas/16_agenda.py) lo dispara desde `cron`: reel diario a las 12:00, extra semanal a las 18:00 |
+| <a id="p-09"></a>**P-09** | ¿Se sigue usando el carrusel? | Resuelto por el uso: la agenda lo publica sola los martes en IG y los jueves como álbum en FB. El paso 06 se queda |
 | <a id="p-12"></a>**P-12** | `se_quedaron_pct` bajó en v2 | La curva de retención descartó gancho y cortes. Queda [P-20](#p-20), que es una pregunta distinta |
 | <a id="p-14"></a>**P-14** | `proyectos/T1/` anidado dejaba 78 de 147 filas sin `PROYECTO` | Glob a dos niveles en `indice_proyectos()`: 43 filas recuperadas |
 | <a id="p-15"></a>**P-15** | Los planos salían en pares de la misma imagen | `dispersar_planos()`: de 8 de 13 transiciones repetidas a **0 de 15-18** |

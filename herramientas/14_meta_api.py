@@ -21,6 +21,7 @@ Uso:
 """
 
 import argparse
+import json
 import os
 import re
 from datetime import date
@@ -51,6 +52,9 @@ CONFIG = {
     "permisos_solo_publicar": ["instagram_content_publish", "pages_manage_posts"],
 
     "timeout": 30,
+    # Subir una imagen va por multipart y tarda más que una llamada normal;
+    # con 30 s se cortaban carruseles de 6 slides a media subida.
+    "timeout_subida": 120,
 }
 
 TOKEN = os.getenv("META_ACCESS_TOKEN", "").strip()
@@ -575,6 +579,11 @@ REGISTRO_PUBLICADO = "publicar/publicado.csv"
 SECCIONES = {
     "instagram": "DESCRIPCIÓN GENERAL",
     "facebook": "DESCRIPCIÓN LARGA",
+    # Las publicaciones extra reusan el mismo texto que el reel de su red: son
+    # el mismo tema contado en otro formato, y el paso 02 ya lo escribió a la
+    # medida de cada una (pie corto para Instagram, texto largo para Facebook).
+    "instagram_carrusel": "DESCRIPCIÓN GENERAL",
+    "facebook_album": "DESCRIPCIÓN LARGA",
 }
 
 
@@ -742,6 +751,214 @@ def publicar_facebook(video: Path, descripcion: str, dry_run: bool) -> str | Non
     return video_id
 
 
+# ══════════════════════════════════════════════════════════════
+# 🖼️   FOTOS — el andamio que necesitan el carrusel y Threads
+# ══════════════════════════════════════════════════════════════
+#
+# ⚠️ **Las imágenes NO se pueden subir por bytes.** Es la asimetría que más
+# despista de esta API: el video sí (subida reanudable a `rupload`), pero tanto
+# el carrusel de Instagram como los posts con imagen de Threads solo aceptan
+# `image_url`, o sea una **URL pública**. Y este pipeline solo tiene archivos
+# locales.
+#
+# La salida es subir la foto a la PÁGINA de Facebook con `published=false` —no
+# aparece en la página, no la ve nadie— y usar la URL de su CDN, que sí es
+# pública. Comprobado el 15 ago: la URL responde 200 sin token ni cabeceras.
+#
+# El andamio se retira siempre (`borrar_foto()` en un `finally`), porque si no
+# la biblioteca de la página se llena de fotos invisibles que nadie limpia.
+
+def subir_foto_staging(img: Path) -> tuple[str, str] | None:
+    """Sube una imagen SIN publicarla y devuelve `(id, url_publica)`."""
+    pg = os.getenv("FACEBOOK_PAGE_ID", "").strip()
+    if not pg:
+        print("   ❌ Falta FACEBOOK_PAGE_ID"); return None
+    with img.open("rb") as fh:
+        r = requests.post(f"{CONFIG['graph']}/{CONFIG['api']}/{pg}/photos",
+                          data={"published": "false", "access_token": TOKEN},
+                          files={"source": fh}, timeout=CONFIG["timeout_subida"]).json()
+    if "error" in r:
+        print(f"   ❌ No se subió {img.name}: {r['error'].get('message')}")
+        return None
+    pid = r["id"]
+    d = _graph(pid, tolerar_error=True, fields="images,picture")
+    url = (d.get("images") or [{}])[0].get("source") or d.get("picture")
+    if not url:
+        print(f"   ❌ {img.name} subió pero no dio URL pública")
+        borrar_foto(pid)
+        return None
+    return pid, url
+
+
+def borrar_foto(photo_id: str) -> None:
+    requests.delete(f"{CONFIG['graph']}/{CONFIG['api']}/{photo_id}",
+                    params={"access_token": TOKEN}, timeout=CONFIG["timeout"])
+
+
+def _esperar_contenedor(contenedor: str, segundos: int = 60) -> bool:
+    """Sondea hasta que el contenedor esté FINISHED. Las imágenes tardan poco."""
+    import time
+    for _ in range(segundos // 3):
+        est = _graph(contenedor, tolerar_error=True, fields="status_code,status")
+        if est.get("status_code") == "FINISHED":
+            return True
+        if est.get("status_code") == "ERROR":
+            print(f"   ❌ Meta rechazó el contenedor: {est.get('status')}")
+            return False
+        time.sleep(3)
+    return False
+
+
+def publicar_carrusel_instagram(imagenes: list[Path], caption: str,
+                                dry_run: bool) -> str | None:
+    """Carrusel de Instagram: un contenedor hijo por imagen y uno que los agrupa.
+
+    ⚠️ Instagram admite **de 2 a 10** imágenes por carrusel. El paso 06 genera 6,
+    así que cabe entero, pero si algún día genera más hay que recortar aquí.
+    """
+    ig = os.getenv("INSTAGRAM_ACCOUNT_ID", "").strip()
+    if not ig:
+        print("   ❌ Falta INSTAGRAM_ACCOUNT_ID"); return None
+    if not 2 <= len(imagenes) <= 10:
+        print(f"   ❌ Un carrusel necesita entre 2 y 10 imágenes, hay {len(imagenes)}")
+        return None
+
+    staging, hijos = [], []
+    try:
+        for img in imagenes:
+            subida = subir_foto_staging(img)
+            if not subida:
+                return None
+            pid, url = subida
+            staging.append(pid)
+            r = requests.post(f"{CONFIG['graph']}/{CONFIG['api']}/{ig}/media",
+                              data={"image_url": url, "is_carousel_item": "true",
+                                    "access_token": TOKEN},
+                              timeout=CONFIG["timeout"]).json()
+            if "error" in r:
+                print(f"   ❌ {img.name}: {r['error'].get('message')}")
+                return None
+            hijos.append(r["id"])
+        print(f"   {len(hijos)} imágenes preparadas")
+
+        grupo = requests.post(f"{CONFIG['graph']}/{CONFIG['api']}/{ig}/media",
+                              data={"media_type": "CAROUSEL",
+                                    "children": ",".join(hijos),
+                                    "caption": caption, "access_token": TOKEN},
+                              timeout=CONFIG["timeout"]).json()
+        if "error" in grupo:
+            print(f"   ❌ No se agrupó el carrusel: {grupo['error'].get('message')}")
+            return None
+        if not _esperar_contenedor(grupo["id"]):
+            print("   ❌ El carrusel no terminó de procesarse")
+            return None
+
+        if dry_run:
+            print("   🧪 --dry-run: carrusel montado, NO publicado")
+            return "dry-run"
+
+        pub = requests.post(f"{CONFIG['graph']}/{CONFIG['api']}/{ig}/media_publish",
+                            data={"creation_id": grupo["id"], "access_token": TOKEN},
+                            timeout=CONFIG["timeout"]).json()
+        if "error" in pub:
+            print(f"   ❌ {pub['error'].get('message')}")
+            return None
+        return pub.get("id")
+    finally:
+        # ⚠️ Siempre, también si falló a medias: si no, quedan fotos invisibles
+        # acumulándose en la biblioteca de la página.
+        for pid in staging:
+            borrar_foto(pid)
+
+
+def publicar_album_facebook(imagenes: list[Path], mensaje: str,
+                            dry_run: bool) -> str | None:
+    """Publicación de varias fotos en la página, en una sola entrada del muro.
+
+    ⚠️ Aquí las fotos **no son andamio**: se suben sin publicar y luego se
+    adjuntan a la entrada con `attached_media`, que es lo que las agrupa en un
+    único post en vez de dejar una entrada suelta por foto. Por eso no se borran.
+    """
+    pg = os.getenv("FACEBOOK_PAGE_ID", "").strip()
+    if not pg:
+        print("   ❌ Falta FACEBOOK_PAGE_ID"); return None
+
+    ids = []
+    for img in imagenes:
+        subida = subir_foto_staging(img)
+        if not subida:
+            for pid in ids:
+                borrar_foto(pid)
+            return None
+        ids.append(subida[0])
+    print(f"   {len(ids)} imágenes subidas")
+
+    if dry_run:
+        print("   🧪 --dry-run: subidas sin publicar, se retiran")
+        for pid in ids:
+            borrar_foto(pid)
+        return "dry-run"
+
+    adjuntos = {f"attached_media[{i}]": json.dumps({"media_fbid": pid})
+                for i, pid in enumerate(ids)}
+    pub = requests.post(f"{CONFIG['graph']}/{CONFIG['api']}/{pg}/feed",
+                        data={"message": mensaje, "access_token": TOKEN, **adjuntos},
+                        timeout=CONFIG["timeout"]).json()
+    if "error" in pub:
+        print(f"   ❌ {pub['error'].get('message')}")
+        for pid in ids:
+            borrar_foto(pid)
+        return None
+    return pub.get("id")
+
+
+def slides_de(proyecto: str) -> list[Path]:
+    """Las slides del carrusel del tema, en orden."""
+    return sorted((Path("publicar") / proyecto / "carrusel").glob("*.jpg"))
+
+
+def publicar_extra(proyecto: str, red: str, dry_run: bool) -> str | None:
+    """El carrusel de Instagram o el álbum de Facebook de un tema ya emitido.
+
+    Comparte con `publicar()` el registro y la lectura de secciones: la
+    diferencia está solo en qué se sube y a qué endpoint.
+    """
+    _exigir_token()
+    imagenes = slides_de(proyecto)
+    desc = Path("publicar") / proyecto / "descripcion.txt"
+    if not imagenes:
+        print(f"❌ {proyecto} no tiene carrusel en publicar/{proyecto}/carrusel/")
+        return None
+    if not desc.exists():
+        print(f"❌ No existe {desc}")
+        return None
+
+    previo = ya_publicado(proyecto, red)
+    if previo and not dry_run:
+        print(f"⏭️  {proyecto} · {red}: ya salió el {previo['fecha']} "
+              f"(id {previo['id_publicacion']}). Se salta.")
+        return None
+
+    texto = leer_seccion(desc, SECCIONES[red])
+    if not texto:
+        print(f"⚠️  {proyecto}: no encontré la sección «{SECCIONES[red]}». Se salta.")
+        return None
+
+    print(f"🖼️  {proyecto} · {red}  ({len(imagenes)} imágenes, "
+          f"{len(texto)} caracteres)" + ("   🧪 DRY-RUN" if dry_run else ""))
+    print("   " + texto.split("\n")[0][:88])
+
+    fn = (publicar_carrusel_instagram if red == "instagram_carrusel"
+          else publicar_album_facebook)
+    id_pub = fn(imagenes, texto, dry_run)
+    if id_pub and not dry_run:
+        anotar_publicado(proyecto, red, id_pub)
+        print(f"   ✅ publicado · id {id_pub}")
+    elif not id_pub:
+        print(f"   ❌ no se publicó")
+    return id_pub
+
+
 def publicar(proyecto: str, redes: list[str], dry_run: bool) -> None:
     _exigir_token()
     carpeta = Path("publicar") / proyecto
@@ -835,6 +1052,10 @@ def main() -> None:
                    help="Publica el reel de publicar/PROYECTO/ en Instagram y Facebook")
     p.add_argument("--solo", nargs="*", choices=["instagram", "facebook"],
                    help="Con --publicar: limitar a una red")
+    p.add_argument("--carrusel", metavar="PROYECTO",
+                   help="Publica el carrusel de ese tema en Instagram")
+    p.add_argument("--album", metavar="PROYECTO",
+                   help="Publica las slides de ese tema como álbum en Facebook")
     args = p.parse_args()
 
     if not any(vars(args).values()):
@@ -854,6 +1075,12 @@ def main() -> None:
     if args.publicar:
         publicar(args.publicar, args.solo or ["instagram", "facebook"],
                  dry_run=args.dry_run)
+        return
+
+    for proyecto, red in ((args.carrusel, "instagram_carrusel"),
+                          (args.album, "facebook_album")):
+        if proyecto:
+            publicar_extra(proyecto, red, dry_run=args.dry_run)
 
 
 if __name__ == "__main__":

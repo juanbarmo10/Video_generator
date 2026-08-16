@@ -43,7 +43,15 @@ CONFIG = {
 
     # Cadencia por defecto. 1 video al día es lo que sostiene la señal de canal;
     # subir el lote entero de golpe hace que compitan entre ellos.
-    "hora_defecto":  "19:00",
+    #
+    # ⚠️ **Las 12:00 no son una preferencia: son la hora de los videos anteriores.**
+    # Todo lo que hay en `metricas.csv` se publicó a mediodía, y la hora de
+    # publicación mueve el alcance por sí sola. Cambiarla mezclaría en la misma
+    # columna dos condiciones distintas y los lotes dejarían de ser comparables —
+    # el mismo problema que resolvió `lote` en el paso 10, pero sin una columna
+    # que lo delate. Si algún día se prueba otra hora, que sea un lote entero y
+    # con su propio nombre de `lote`.
+    "hora_defecto":  "12:00",
     "cada_n_dias":   1,
 
     # EL archivo publicable que queda al lado del video: título, pie del reel,

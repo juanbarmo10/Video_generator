@@ -50,6 +50,7 @@
 | [Publicar en IG y FB](#-publicar-en-instagram-y-facebook-15-ago-2026) | La subida reanudable, el registro de publicado y el parseo que casi pega los tags |
 | [El token de página](#-el-token-de-página-un-callejón-sin-salida-que-parecía-otra-cosa-15-ago-2026) | «0/7 permisos» con los 7 puestos, y por qué un token de página no se puede alargar |
 | [La primera publicación real](#-la-primera-publicación-real-15-ago-2026) | `Historia07` en las dos redes, y por qué la desambiguación de página no era teórica |
+| [La publicación se automatiza](#-la-publicación-se-vuelve-automática-15-ago-2026) | El `cron`, la rotación de extras, y por qué las imágenes no se pueden subir por bytes |
 | [Anexo — evidencia medida](#anexo--evidencia-medida) | Los comandos y los números crudos |
 
 ---
@@ -2243,6 +2244,87 @@ que no se ve desde el lado del que sube.
 
 El `--dry-run` previo hizo la subida completa a las dos redes y **no escribió `publicado.csv`** —
 el archivo no existía hasta la publicación de verdad. Los dos contenedores que dejó caducan solos.
+
+---
+
+## ✅ La publicación se vuelve automática (15 ago 2026)
+
+`cron` publica solo: el reel del día a las **12:00** y un extra semanal a las **18:00**. Cierra
+[P-10b](TODO.md#p-10b) y, de rebote, [P-09](TODO.md#p-09).
+
+### El planificador no vive con las APIs
+
+`14_meta_api.py` sabe publicar; **no sabe cuándo**. El calendario, la rotación y el reparto entre
+redes viven en [16_agenda.py](herramientas/16_agenda.py), que es lo único que toca `cron`. La
+separación no es estética: Threads es otra API con otro token y otro host, y sin ella la lógica de
+«qué toca hoy» habría acabado duplicada en dos archivos que no se hablan.
+
+### Las 12:00 son un dato, no un gusto
+
+⚠️ **Todos los videos anteriores se publicaron a mediodía**, y la hora de publicación mueve el
+alcance por sí sola. Publicar el lote nuevo a otra hora habría metido dos condiciones distintas en
+la misma columna de `metricas.csv` — el mismo problema que resolvió `lote` en el paso 10, pero sin
+una columna que lo delatara. `hora_defecto` del paso 09 baja de 19:00 a 12:00 y el comentario dice
+por qué, para que nadie la «arregle» de vuelta.
+
+Al regenerar el calendario apareció un hueco: **`Historia08` no estaba en él**. El paquete se hizo
+con `--solo` sobre el lote nuevo (`Historia09`-`15`) y ese tema, del lote anterior y sin publicar,
+no habría salido nunca — un `cron` que se salta un video en silencio es peor que no tenerlo.
+
+### Un tema gasta UN extra en toda su vida
+
+Es la regla que da la variedad, y mira **todas las redes juntas**:
+
+| Día | Qué sale | Dónde |
+|---|---|---|
+| todos | el reel del calendario | Instagram + Facebook |
+| martes | el carrusel del paso 06 | Instagram |
+| jueves | las mismas slides como álbum | Facebook |
+| sábado | un hilo de 3 mensajes | Threads |
+
+Si cada red llevara su propia cuenta de temas ya usados, las tres acabarían contando el mismo tema
+en semanas distintas — justo lo contrario de lo que se busca. Dos reglas más, ninguna obvia:
+
+- **El reel NO gasta el turno.** Si lo gastara, ningún tema tendría nunca carrusel: todos salen
+  antes en video.
+- **Un extra no puede adelantar al reel de su propio tema.** El carrusel remata la publicación del
+  día, no la anuncia. Los temas que no están en el calendario (los lotes viejos, publicados a mano)
+  sí entran desde el primer día.
+
+Las dos están congeladas en tests, y **verificadas por mutación**: cambiar `temas_ya_usados()` para
+que mire una sola red hace fallar `test_no_repite_tema_entre_redes`; quitar el filtro de fechas
+futuras hace fallar `test_no_adelanta_un_tema_a_su_propio_reel`.
+
+### Las imágenes no se pueden subir por bytes
+
+⚠️ **Es la asimetría que más despista de esta API.** El video sí sube por bytes (reanudable a
+`rupload`), pero el **carrusel de Instagram y los posts con imagen de Threads solo aceptan
+`image_url`**, o sea una URL pública — y este pipeline solo tiene archivos locales.
+
+La salida es un andamio: subir la foto a la página de Facebook con `published=false` —no aparece en
+la página, no la ve nadie— y usar la URL de su CDN. Comprobado el 15 ago: **responde 200 sin token
+ni cabeceras**, 438 KB, `image/jpeg`.
+
+El andamio se retira siempre, en un `finally`. Si no, cada carrusel dejaría 6 fotos invisibles
+acumulándose en la biblioteca de la página, y nadie las limpiaría porque nadie las ve.
+
+⚠️ **En el álbum de Facebook esas fotos NO son andamio y por eso no se borran**: se suben sin
+publicar y luego se adjuntan a la entrada con `attached_media`, que es lo que las agrupa en un
+único post en vez de dejar seis entradas sueltas en el muro.
+
+### El registro entra en git
+
+`publicar/` está en `.gitignore` porque es regenerable, pero **`publicado.csv` no lo es**: es lo
+único que impide publicar dos veces el mismo reel. Se excluye con `publicar/*` y una negación, no
+con `publicar/` a secas — **git no entra en un directorio ignorado**, así que con la forma corta la
+excepción no habría tenido ningún efecto y el archivo habría seguido fuera sin avisar.
+
+### Lo que el hilo de Threads no hace
+
+⚠️ **`escribir_hilo()` no llama a `registrar_openai()`, y es a propósito.** Ese contador escribe
+`.costo_actual.json`, que es el estado del **tema en curso** del pipeline: esta herramienta corre
+una vez por semana y puede hacerlo con un lote en marcha, sumándole a otro tema un gasto que no es
+suyo. El coste real son ~$0.002 por hilo.
 
 ---
 

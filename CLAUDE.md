@@ -354,7 +354,9 @@ falta saber para orientarse:
 | **`herramientas/`**[`11_reporte.py`](herramientas/11_reporte.py) | Convierte `metricas.csv` en `reportes/ultimo.html`. Se corre después del 10 |
 | **`herramientas/`**[`12_recordatorio.py`](herramientas/12_recordatorio.py) | Recordatorio semanal por Telegram. Lo llama `cron`, no un `.sh` |
 | **`herramientas/`**[`13_youtube_api.py`](herramientas/13_youtube_api.py) | Métricas de YouTube por API (OAuth). La **curva de retención** no la exporta ningún CSV |
-| **`herramientas/`**[`14_meta_api.py`](herramientas/14_meta_api.py) | Instagram y Facebook por API: métricas **y publicación** del reel. Estrenado con `Historia07` |
+| **`herramientas/`**[`14_meta_api.py`](herramientas/14_meta_api.py) | Instagram y Facebook por API: métricas **y publicación** del reel, el carrusel y el álbum |
+| **`herramientas/`**[`15_threads_api.py`](herramientas/15_threads_api.py) | Threads: **otra API, otro host, otro token**. Escribe el hilo con GPT y lo publica |
+| **`herramientas/`**[`16_agenda.py`](herramientas/16_agenda.py) | **Lo único que `cron` llama para publicar.** Decide qué sale hoy y se lo pide a los dos anteriores |
 | **`desuso/`** | Código que **no ejecuta nadie**: `03_voice_generator_free.py`, `publisher.py`, `ink_filter.py`, `imagen_generator_source.py`. Sigue en git como referencia. Ver [§ Código en desuso](#código-en-desuso-está-en-git-no-lo-ejecuta-nadie) |
 | `requirements.txt` | `moviepy==1.0.3` fijado; ffmpeg va aparte (apt) |
 
@@ -402,7 +404,8 @@ queda el tema anterior — de ahí el sello de `estado.py` (trampa 1).
 | `videos_no_music/video_$PROYECTO.mp4` | Intermedio del paso 07. **No se borra nunca**: hoy son ~700 MB (P-07) |
 | `videos/video_$PROYECTO.mp4` | **El entregable.** Lo escribe el paso 08 |
 | `proyectos/$PROYECTO/` | Respaldo permanente por tema: mp3, srt, `calidad_guion.json`, `images_IA/`, `source_images/`, `social_posts/`, `carousel_slides/` |
-| `publicar/$PROYECTO/` | Paquete listo para programar (video por hardlink + srt + `descripcion.txt` + carrusel) + `calendario.csv` |
+| `publicar/$PROYECTO/` | Paquete listo para publicar (video por hardlink + srt + `descripcion.txt` + carrusel) + `calendario.csv` |
+| `publicar/publicado.csv` | ✅ **en git**, y es el único de `publicar/` que lo está. Qué salió, cuándo y en qué red. **No es regenerable**: es lo que impide publicar dos veces lo mismo y lo que lleva la rotación de extras. Se excluye la carpeta con `publicar/*` + negación, porque git no entra en un directorio ignorado |
 | `logs/` | `{PROYECTO}_{TEMA}.log` por tema + `failed.csv`, que sirve tal cual como `temas.csv` |
 | `metricas.csv` | ✅ **en git.** Una fila por `(id_plataforma, plataforma, fecha_snapshot)` |
 | `metricas_export/_normalizado/`, `_procesados/` | Trabajo interno del paso 10: los 5 formatos ya uniformados, y los crudos ya consumidos |
@@ -599,6 +602,43 @@ guarda todas las fotos.
   el id del **video**; el export de Facebook trae el del **post**, y son distintos. Cruzarlos metía
   45 filas fantasma.
 
+**[16_agenda.py](herramientas/16_agenda.py)** decide **qué** se publica hoy y se lo pide a quien
+sabe hacerlo. Es lo único que llama `cron` para publicar (`--reel` a las 12:00, `--extras` a las
+18:00).
+- **La separación es el punto:** los clientes de API saben publicar pero no saben cuándo. Sin este
+  archivo, la lógica de «qué toca hoy» estaría duplicada entre `14_meta_api.py` y
+  `15_threads_api.py`, que son dos APIs distintas y no se hablan.
+- ⚠️ **Las 12:00 del reel son un dato, no un gusto.** Todos los videos anteriores se publicaron a
+  mediodía y la hora mueve el alcance por sí sola; cambiarla mezcla dos condiciones en la misma
+  columna de `metricas.csv`. Está también en `hora_defecto` del paso 09.
+- ⚠️ **`temas_ya_usados()` mira TODAS las redes juntas, y ahí está la variedad.** Un tema gasta un
+  solo extra en toda su vida. Si cada red llevara su cuenta, las tres acabarían contando el mismo
+  tema en semanas distintas — lo contrario de lo que se busca.
+- ⚠️ Dos reglas que no son obvias y están congeladas en tests: **el reel no gasta el turno** (si lo
+  gastara, ningún tema tendría nunca carrusel: todos salen antes en video) y **un extra no adelanta
+  al reel de su propio tema** (`temas_pendientes_de_reel()`). Los temas fuera del calendario —los
+  lotes viejos— entran desde el primer día.
+- **Importa los clientes con `importlib`** porque sus nombres empiezan por dígito, igual que el
+  paso 12 con `11_reporte.py`. Si `15_threads_api.py` no existe, lo dice y sigue.
+- `saltar_no_aprobados` está en **False** a propósito: la tanda de agosto se generó antes de que la
+  puerta del paso 01 abortara y se publica tal cual, por decisión de operación. De los lotes
+  siguientes no puede llegar ninguno sin auditar.
+
+**[15_threads_api.py](herramientas/15_threads_api.py)** escribe y publica hilos de 3 mensajes con
+1-2 fotos reales. **Falta el token** ([P-21](TODO.md#p-21)); todo lo demás está probado.
+- ⚠️ **El token de la página de Facebook NO sirve.** Otro host (`graph.threads.net`), otra
+  autorización, otro token. Con el de Meta las llamadas fallan con *«Unsupported get request»*, que
+  no menciona el host.
+- ⚠️ **`escribir_hilo()` NO llama a `registrar_openai()`, y es a propósito.** Ese contador escribe
+  `.costo_actual.json`, que es el estado del tema EN CURSO: esta herramienta corre una vez por
+  semana y puede hacerlo con un lote en marcha, sumándole a otro tema un gasto que no es suyo.
+- El guion se lee de `calidad_guion.json`, no de `script.txt` — ese vive en la raíz y lo pisa el
+  tema siguiente. **El recorte a 500 caracteres lo garantiza `recortar()` en Python**, no el prompt.
+- **`--solo-texto` no exige token**: es el único modo que sirve para afinar el prompt antes de tener
+  la cuenta montada.
+- Los mensajes van **en serie**: cada uno responde al anterior y necesita su id ya publicado. Si uno
+  falla a mitad, los anteriores quedan publicados y se avisa — un hilo cortado es visible.
+
 **[12_recordatorio.py](herramientas/12_recordatorio.py)** es el recordatorio semanal por Telegram.
 Lo llama `cron` (no `run_all.sh`: no tiene nada que ver con generar videos).
 - **No es una alarma de calendario: mira el estado real del repo y por defecto calla si no hay nada
@@ -667,14 +707,21 @@ que forma parte del pipeline, no lo forma.
 ### Tests
 
 ```bash
-python -m unittest discover tests      # desde la raíz, 98 tests, ~0.1 s
+python -m unittest discover tests      # desde la raíz, 128 tests, ~0.2 s
 ```
 
 Solo `unittest` de la stdlib, sin dependencias nuevas y **sin red**. Cubren
 [herramientas/10_metricas.py](herramientas/10_metricas.py),
 [herramientas/11_reporte.py](herramientas/11_reporte.py),
-[pipeline/estado.py](pipeline/estado.py) y las funciones puras de los pasos
-**01**, **02** y **07** ([tests/test_pipeline.py](tests/test_pipeline.py)).
+[herramientas/16_agenda.py](herramientas/16_agenda.py) y el recorte de
+[15_threads_api.py](herramientas/15_threads_api.py)
+([tests/test_agenda.py](tests/test_agenda.py)), [pipeline/estado.py](pipeline/estado.py) y las
+funciones puras de los pasos **01**, **02** y **07**
+([tests/test_pipeline.py](tests/test_pipeline.py)).
+
+⚠️ **Los tests de la agenda apuntan `ag.RAIZ` a un temporal** con su propio `publicar/`. Sin eso
+leerían el de verdad, y `temas_ya_usados()` daría resultados distintos según lo que se hubiera
+publicado esa semana — un test que cambia de veredicto solo, que es peor que no tenerlo.
 
 ⚠️ **Los pasos trabajan al importarse, y aun así se prueban sin tocarlos.** Hacen `SystemExit` si
 falta `PROYECTO`, instancian clientes de API y llaman a `verificar_estado()`. No hace falta mover

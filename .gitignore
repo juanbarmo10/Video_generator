@@ -61,7 +61,13 @@ fonts/*.zip
 .claude/settings.local.json
 
 # Paquete de publicacion (videos con hardlink + textos, regenerable)
-publicar/
+publicar/*
+
+# ...menos el registro de lo que YA salió, que no es regenerable y es lo único
+# que impide publicar dos veces el mismo reel. Se excluye la carpeta con `/*` y
+# no con `/` porque git no entra en un directorio ignorado: con `publicar/` a
+# secas, esta línea no tendría ningún efecto.
+!publicar/publicado.csv
 
 # Exports crudos de las plataformas (ruido; el consolidado va en metricas.csv)
 metricas_export/
