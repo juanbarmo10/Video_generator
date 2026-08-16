@@ -232,7 +232,7 @@ De cada tema salen:
    | 2 | *Manage apps* → *Connect an app* | Nombre, descripción, categoría. Dueño: **individual**, no organización |
    | 3 | Junto al nombre de la app, cambia a **Sandbox** → *Create Sandbox* | Es lo que permite usarla **sin pasar revisión** |
    | 4 | *Sandbox settings* → **Target users** → *Add account* | Inicias sesión con **@curiosidad3s_historicas** y aceptas los términos |
-   | 5 | *Products* | Añadir **Login Kit** y **Display API** |
+   | 5 | *Products* | Añadir **Login Kit** y **Display API**. Nada más — ver el aviso de abajo |
    | 6 | Login Kit → *Redirect URI* | Una URL **https** tuya. Vale la del repositorio: `https://github.com/juanbarmo10/Video_generator` |
    | 7 | Display API → *Scopes* | `user.info.basic` y `video.list` |
    | 8 | *Credentials*, **en modo Sandbox** | Copiar **Client key** y **Client secret** |
@@ -251,6 +251,13 @@ De cada tema salen:
    que Threads: ser dueño de la app no basta, la cuenta del canal tiene que estar añadida
    explícitamente y aceptar los términos. Y ⚠️ **puede tardar hasta una hora en surtir efecto** —
    si falla justo después de añadirla, espera antes de tocar nada.
+
+   ⚠️ **No añadas «Content Posting API» aunque tiente.** Sirve para publicar videos por API, pero
+   **sin auditoría todo lo que publica sale en privado** (`SELF_ONLY` o solo amigos mutuos): sería
+   publicación automática que no ve nadie. Y el Sandbox tampoco cubre la publicación pública. A
+   cambio pediría el scope `video.publish` —subir contenido en tu nombre— para nada. Se puede
+   añadir a la misma app el día que compense pasar la auditoría (piden vídeo de demostración); solo
+   habría que volver a autorizar una vez, porque cambia el scope.
 
    ⚠️ **Las credenciales del Sandbox no son las de producción.** Cópialas con el selector puesto en
    *Sandbox*, o autorizarás contra una app que no tiene tu cuenta de prueba.
