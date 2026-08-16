@@ -229,7 +229,7 @@ De cada tema salen:
    | | Dónde | Qué |
    |---|---|---|
    | 1 | [developers.tiktok.com](https://developers.tiktok.com) → *Sign up* | Cuenta de desarrollador **con tu correo** |
-   | 2 | *Manage apps* → *Connect an app* | Nombre, descripción, categoría |
+   | 2 | *Manage apps* → *Connect an app* | Nombre, descripción, categoría. Dueño: **individual**, no organización |
    | 3 | Junto al nombre de la app, cambia a **Sandbox** → *Create Sandbox* | Es lo que permite usarla **sin pasar revisión** |
    | 4 | *Sandbox settings* → **Target users** → *Add account* | Inicias sesión con **@curiosidad3s_historicas** y aceptas los términos |
    | 5 | *Products* | Añadir **Login Kit** y **Display API** |
@@ -237,6 +237,11 @@ De cada tema salen:
    | 7 | Display API → *Scopes* | `user.info.basic` y `video.list` |
    | 8 | *Credentials*, **en modo Sandbox** | Copiar **Client key** y **Client secret** |
    | 9 | `.env` | `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI` (la del paso 6, **exacta**) |
+
+   ⚠️ **El dueño va como «individual», y se elige una sola vez.** Organización sirve para que
+   varias personas gestionen la app y para productos que piden verificación de empresa; aquí la app
+   solo lee métricas de tu propia cuenta. No se puede cambiar después, pero tampoco importa: si
+   algún día hiciera falta, se crea otra app y ya.
 
    ⚠️ **Sin el paso 3, TikTok exige revisión de la app antes de dejarte llamar a nada** — y esa
    revisión pide vídeo de demostración y tarda. El *Sandbox* existe justo para saltársela: se
