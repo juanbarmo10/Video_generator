@@ -54,6 +54,7 @@ CONFIG = {
     "temas": "temas.csv",
     "fallidos": "logs/failed.csv",
     "calendario": "publicar/calendario.csv",
+    "publicado": "publicar/publicado.csv",
     "metricas": "metricas.csv",
     "proyectos": "proyectos",
     "videos": "videos",
@@ -187,7 +188,14 @@ def guiones_sin_revisar() -> dict | None:
 
 
 def calendario_vencido(hoy: date) -> dict | None:
-    """Videos empaquetados cuya fecha de publicación ya pasó."""
+    """Videos cuya fecha pasó y que **siguen sin publicarse**.
+
+    ⚠️ Desde que la agenda publica sola, una fecha pasada ya no es un aviso: lo
+    normal es que esté publicada. Lo que importa es el cruce con
+    `publicar/publicado.csv` — si algo lleva días vencido Y sin salir, es que
+    `cron` no está corriendo o está fallando, y eso no se entera nadie porque el
+    error se queda en `logs/agenda.log`.
+    """
     filas = _filas_csv(CONFIG["calendario"])
     if not filas:
         return None
@@ -197,6 +205,8 @@ def calendario_vencido(hoy: date) -> dict | None:
     if not columna:
         return None
 
+    salidos = {(f.get("proyecto"), f.get("red"))
+               for f in _filas_csv(CONFIG["publicado"])}
     vencidos = []
     for fila in filas:
         crudo = (fila.get(columna) or "").strip()[:10]
@@ -204,16 +214,47 @@ def calendario_vencido(hoy: date) -> dict | None:
             cuando = datetime.strptime(crudo, "%Y-%m-%d").date()
         except ValueError:
             continue
-        if cuando < hoy:
+        proyecto = fila.get("proyecto")
+        falta = any((proyecto, red) not in salidos
+                    for red in ("instagram", "facebook"))
+        if cuando < hoy and falta:
             vencidos.append(fila)
 
     if not vencidos:
         return None
     return {
         "nivel": "revisar",
-        "texto": (f"<b>{len(vencidos)} videos con fecha ya pasada</b> en "
-                  f"publicar/calendario.csv"),
-        "accion": "Comprueba en Metricool que se subieron de verdad",
+        "texto": (f"<b>{len(vencidos)} video(s) vencidos y sin publicar</b> — "
+                  f"el más viejo, {vencidos[0].get('proyecto')} del "
+                  f"{vencidos[0].get(columna, '')[:10]}"),
+        "accion": "Mira logs/agenda.log: la agenda no está saliendo",
+    }
+
+
+def token_threads_caduca(hoy: date) -> dict | None:
+    """El token de Threads dura 60 días y **muere en silencio**.
+
+    ⚠️ Es el único de los tres que caduca: el de la página de Facebook no
+    caduca y el de YouTube se refresca solo. Si este muere, el hilo del sábado
+    deja de salir sin que nada avise, porque el fallo se queda en el log.
+    Renovarlo es un comando y solo funciona **mientras siga vivo**.
+    """
+    crudo = os.getenv("THREADS_TOKEN_CADUCA", "").strip()
+    if not crudo:
+        return None
+    try:
+        cuando = date.fromisoformat(crudo)
+    except ValueError:
+        return None
+    dias = (cuando - hoy).days
+    if dias > 14:
+        return None
+    return {
+        "nivel": "bloquea" if dias < 0 else "revisar",
+        "texto": (f"<b>El token de Threads {'caducó' if dias < 0 else 'caduca'} "
+                  f"el {crudo}</b>" + (f" (en {dias} días)" if dias >= 0 else "")),
+        "accion": ("Repite el alta entera: README, punto 7" if dias < 0 else
+                   "python herramientas/15_threads_api.py --diagnostico --escribir-env"),
     }
 
 
@@ -413,6 +454,7 @@ def main() -> None:
         temas_caidos(),
         guiones_sin_revisar(),
         calendario_vencido(hoy),
+        token_threads_caduca(hoy),
         metricas_viejas(hoy),
         temas_ya_usados(),
     ) if a]

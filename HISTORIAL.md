@@ -2358,6 +2358,35 @@ dejaría Instagram y Threads dependiendo igualmente de que la máquina esté enc
 complicación añadida de tener dos mecanismos distintos. La recuperación de arriba resuelve el
 problema real —no perder contenido— sin depender de ninguna plataforma.
 
+### Threads, y los tres errores del alta
+
+El hilo de `Historia01` salió el 15 ago: 3 mensajes encadenados, 2 con foto real, verificados
+leyendo `/conversation` de vuelta (raíz → `18130218628717038` → `17898240702580105`).
+
+⚠️ **Ninguno de los tres tropiezos del alta dice lo que pasa.** Quedan aquí porque el mensaje de
+error manda a buscar donde no es:
+
+| Síntoma | Qué era |
+|---|---|
+| `Invalid OAuth access token - Cannot parse access token` | El host del Explorador seguía en `facebook.com`. El token era **de Facebook**, válido allí y rechazado aquí |
+| `The user has not accepted the invite to test the app` (**1349245**) | En Threads el **dueño de la app también tiene que invitarse** como *Probador de Threads* y aceptar desde la app. En Facebook, siendo administradora ya tienes todo |
+| `Object with ID … does not exist` al leer | `THREADS_USER_ID` traía otro id. La API no protesta —manda el token— así que el diagnóstico lo compara contra `me` y lo corrige con `--escribir-env` |
+
+⚠️ **Y el que no dio ningún error: el token dura 1 hora.** Aquí no hay token de página del que
+heredar permanencia como en Facebook, así que el techo son **60 días** (`th_exchange_token`) y hay
+que renovarlo con `th_refresh_token` **mientras siga vivo**. Si caduca del todo, se repite el alta
+entera — los tres errores de arriba incluidos.
+
+Por eso el token caducado es lo único de esta tanda que llega al recordatorio del domingo: es el
+**único** de los tres que muere solo (el de la página de Facebook no caduca, el de YouTube se
+refresca), y si muere el hilo del sábado deja de salir sin que nada avise, porque el fallo se queda
+en `logs/agenda.log`. `token_threads_caduca()` avisa a 14 días y sube a 🔴 si ya pasó.
+
+De paso, `calendario_vencido()` dejó de mentir: desde que la agenda publica sola, **una fecha pasada
+ya no es un aviso** —lo normal es que esté publicada— así que ahora se cruza con `publicado.csv` y
+solo habla de lo que venció **y** no ha salido. Su consejo era «comprueba en Metricool que se
+subieron»; ahora es «mira `logs/agenda.log`, la agenda no está saliendo».
+
 ### Lo que el hilo de Threads no hace
 
 ⚠️ **`escribir_hilo()` no llama a `registrar_openai()`, y es a propósito.** Ese contador escribe

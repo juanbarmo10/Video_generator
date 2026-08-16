@@ -27,7 +27,7 @@ elegir temas, programar en Metricool y recoger métricas de las redes que aún n
 
 | | # | Pendiente | Gana |
 |---|---|---|---|
-| 🟠 | [P-21](#p-21) | Threads: el código está, **falta que saques el token** | alcance medido a mano |
+| 🟠 | [P-24](#p-24) | Threads no está en `metricas.csv` | la red con más alcance, a ciegas |
 | 🟡 | [P-20](#p-20) | Por qué menos gente para el scroll (el frame 0) | la única métrica en contra |
 | 🟡 | [P-09b](#p-09b) | Métricas por API: hechas 3 de 4 redes, falta TikTok | ~5 min/semana |
 | 🟡 | [P-11](#p-11) | Tests de los pasos 03-06 | red de seguridad |
@@ -43,52 +43,21 @@ elegir temas, programar en Metricool y recoger métricas de las redes que aún n
 
 ## 🟠 Lo que más trabajo manual quita
 
-<a id="p-21"></a>
-**P-21 · Threads: el código está escrito, falta el token.**
+<a id="p-24"></a>
+**P-24 · Threads publica, pero no medimos nada de él.**
 
-[15_threads_api.py](herramientas/15_threads_api.py) escribe el hilo con GPT a partir del guion y la
-investigación, lo recorta a los 500 caracteres por mensaje **en Python** y lo publica encadenado
-con 1-2 fotos reales del tema. [16_agenda.py](herramientas/16_agenda.py) ya le tiene reservado el
-sábado. Probado lo que se puede probar sin cuenta:
+[P-21](#p-21) está cerrado: el hilo de `Historia01` salió el 15 ago y la agenda lo emite los
+sábados. Lo que queda es que **la red que más alcance daba a mano sigue siendo la única a ciegas**:
+no está en `metricas.csv`, así que no sabemos si el hilo automático rinde como los que escribías tú.
 
-```bash
-python herramientas/15_threads_api.py --hilo Historia01 --solo-texto
-```
+El permiso ya está concedido (`threads_manage_insights`) y el token es el mismo, así que es leer
+`/{id}/insights` (`views`, `likes`, `replies`, `reposts`, `quotes`) y meterlo por el mismo camino
+que [14_meta_api.py](herramientas/14_meta_api.py) — `fusionar()` del paso 10 ya sabe hacerlo.
 
-**Lo único que falta es tuyo**, y es el mismo trámite que ya hiciste con Meta:
-
-| | Dónde | Qué |
-|---|---|---|
-| 1 | Panel de la app → *Casos de uso* | Añadir **Threads API** (la app ya existe, no hay que crearla) |
-| 2 | Permisos | `threads_basic`, `threads_content_publish`, `threads_manage_insights` |
-| 3 | Panel de la app → *Roles de la app* → **Probadores de Threads** | Añadir `@chistoricas3` |
-| 4 | App de Threads → ⚙️ → *Cuenta* → **Permisos de sitios web** → *Invitaciones* | **Aceptar** la invitación |
-| 5 | [Explorador](https://developers.facebook.com/tools/explorer/) | Cambiar el host a **`threads.net`** (arriba a la izquierda) y generar el token |
-| 6 | `.env` | `THREADS_ACCESS_TOKEN` y `THREADS_USER_ID` |
-
-⚠️ **Los pasos 3 y 4 son los que no se parecen a nada de Facebook** (15 ago). Ahí, siendo
-administradora, ya tienes todos los permisos sobre tus propios activos y no hace falta App Review.
-En Threads **el dueño de la app también tiene que invitarse a sí mismo y aceptar desde la app de
-Threads**. Sin eso, generar el token falla con `The user has not accepted the invite to test the
-app` (código **1349245**) — un mensaje que no dice dónde está la invitación ni que haya que crearla
-antes.
-
-⚠️ **El token de la página de Facebook NO sirve aquí, y el error no lo dice.** Threads es otra API
-de verdad: otro host (`graph.threads.net`), otra autorización y otro token. Uno de Meta —válido en
-`graph.facebook.com`— se rechaza con *«Invalid OAuth access token - Cannot parse access token»*.
-Los de Threads empiezan por `TH`, no por `EAA`.
-
-Después: `python herramientas/15_threads_api.py --diagnostico`, que detecta ese caso concreto.
-
-**La señal viene del uso real, no de una suposición:** publicando a mano, Threads daba bastante más
-alcance que el resto y arrastraba a Instagram. Sigue sin estar en `metricas.csv` porque nunca hubo
-export — `threads_manage_insights` es justo lo que lo resolvería, y por eso está en la lista de
-permisos aunque hoy no se use.
-
-⚠️ Lo que queda del **`publish_threads()` de `desuso/publisher.py` es la idea, no el código**:
-suponía que las imágenes se mandan como archivo, y Threads —igual que el carrusel de Instagram—
-solo acepta `image_url`. Ver el andamio de fotos en
-[HISTORIAL.md](HISTORIAL.md#-la-publicación-se-vuelve-automática-15-ago-2026).
+⚠️ **Antes hay que decidir qué es «un video» en Threads.** `metricas.csv` se indexa por
+`(id_plataforma, plataforma, fecha_snapshot)` y un hilo son **3 objetos**: o se suma la conversación
+entera y se guarda con el id de la raíz, o el mismo tema aparece tres veces y las medianas del
+informe mienten. Lo primero, casi seguro — pero es una decisión, no un detalle de implementación.
 
 Las otras dos redes, por coste de trámite:
 
@@ -280,6 +249,7 @@ con lo que se midió, está en [HISTORIAL.md](HISTORIAL.md).
 | <a id="p-10"></a>**P-10** | Publicar en Meta era manual | `--publicar PROYECTO` por subida reanudable. `Historia07` estrenado el 15 ago en las dos redes |
 | <a id="p-10b"></a>**P-10b** | Había que acordarse de correr el comando | [16_agenda.py](herramientas/16_agenda.py) lo dispara desde `cron`: reel diario a las 12:00, extra semanal a las 18:00 |
 | <a id="p-09"></a>**P-09** | ¿Se sigue usando el carrusel? | Resuelto por el uso: la agenda lo publica sola los martes en IG y los jueves como álbum en FB. El paso 06 se queda |
+| <a id="p-21"></a>**P-21** | Threads se publicaba a mano | [15_threads_api.py](herramientas/15_threads_api.py): hilo de 3 mensajes con 2 fotos reales, los sábados. Estrenado con `Historia01`. Falta medirlo: [P-24](#p-24) |
 | <a id="p-12"></a>**P-12** | `se_quedaron_pct` bajó en v2 | La curva de retención descartó gancho y cortes. Queda [P-20](#p-20), que es una pregunta distinta |
 | <a id="p-14"></a>**P-14** | `proyectos/T1/` anidado dejaba 78 de 147 filas sin `PROYECTO` | Glob a dos niveles en `indice_proyectos()`: 43 filas recuperadas |
 | <a id="p-15"></a>**P-15** | Los planos salían en pares de la misma imagen | `dispersar_planos()`: de 8 de 13 transiciones repetidas a **0 de 15-18** |

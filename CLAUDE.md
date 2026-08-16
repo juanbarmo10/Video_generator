@@ -634,7 +634,15 @@ sabe hacerlo. Es lo único que llama `cron` para publicar (`--reel` a las 12:00,
   siguientes no puede llegar ninguno sin auditar.
 
 **[15_threads_api.py](herramientas/15_threads_api.py)** escribe y publica hilos de 3 mensajes con
-1-2 fotos reales. **Falta el token** ([P-21](TODO.md#p-21)); todo lo demás está probado.
+1-2 fotos reales. Estrenado con `Historia01` el 15 ago.
+- ⚠️ **El token dura 1 hora y el techo son 60 días.** Aquí no hay token de página del que heredar
+  permanencia como en Facebook: `alargar_token()` (`th_exchange_token`) da 60 días y
+  `refrescar_token()` (`th_refresh_token`) los estira, pero **solo mientras siga vivo**. Si caduca
+  del todo, se repite el alta entera. `THREADS_TOKEN_CADUCA` en el `.env` guarda la fecha y el
+  recordatorio del paso 12 avisa a 14 días — es el único token de los tres que muere solo.
+- ⚠️ **`THREADS_USER_ID` no es el de Instagram ni el de la app**, y se teclea a mano. La API no
+  protesta si está mal (manda el token), así que `diagnostico()` lo compara contra `me` y lo corrige
+  con `--escribir-env`. Pasó el 15 ago.
 - ⚠️ **El token de la página de Facebook NO sirve, y el error no lo dice.** Otro host
   (`graph.threads.net`), otra autorización, otro token. Un token de Meta —perfectamente válido en
   `graph.facebook.com`— se rechaza aquí con **«Invalid OAuth access token - Cannot parse access
@@ -661,8 +669,13 @@ Lo llama `cron` (no `run_all.sh`: no tiene nada que ver con generar videos).
   que decir.** Sin avisos y sin `--siempre` no envía — un bot que escribe todos los lunes aunque no
   pase nada se acaba silenciando, y entonces tampoco avisa el día que importa.
 - Todo lo que comprueba son archivos que ya existen: `logs/failed.csv`, los
-  `proyectos/*/calidad_guion.json`, `publicar/calendario.csv`, la `fecha_snapshot` máxima de
-  `metricas.csv` y si los `PROYECTO` de `temas.csv` ya tienen video. Ninguna API salvo la de enviar.
+  `proyectos/*/calidad_guion.json`, `publicar/calendario.csv` **cruzado con `publicado.csv`**, la
+  `fecha_snapshot` máxima de `metricas.csv`, `THREADS_TOKEN_CADUCA` del `.env` y si los `PROYECTO`
+  de `temas.csv` ya tienen video. Ninguna API salvo la de enviar.
+- ⚠️ **`calendario_vencido()` cruza con `publicado.csv` desde que la agenda publica sola.** Una
+  fecha pasada ya no es un aviso —lo normal es que esté publicada—; lo que importa es lo que venció
+  **y** no salió, que significa que `cron` no está corriendo. Sin el cruce, avisaría cada semana de
+  todo lo ya publicado y se volvería ruido.
 - **Importa `11_reporte.py` con `importlib` en vez de recalcular** (el nombre empieza por dígito, no
   se puede `import` normal). A propósito: el informe ya descarta lo no comparable, y un resumen que
   rehiciera las cuentas por su cuenta mandaría cada lunes un "+2493 % en vistas por día" que solo

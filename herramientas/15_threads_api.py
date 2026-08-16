@@ -30,7 +30,7 @@ import importlib.util
 import json
 import os
 import time
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import requests
@@ -59,6 +59,9 @@ CONFIG = {
 
     "modelo": "gpt-4.1",
     "timeout": 30,
+    # Cuántos días antes de caducar se renueva el token. Con margen de sobra:
+    # `th_refresh_token` solo funciona mientras el token siga vivo.
+    "avisar_dias_antes": 10,
     # Cada mensaje del hilo hay que publicarlo antes de contestarle, y Threads
     # tarda un momento en darlo por bueno.
     "espera_publicacion": 3,
@@ -98,6 +101,40 @@ def _get(ruta: str, **params) -> dict:
 #   🩺  DIAGNÓSTICO
 # ═══════════════════════════════════════════════════════════════
 
+def alargar_token(token: str) -> tuple[str, str] | None:
+    """Cambia el token corto del Explorador por uno de 60 días.
+
+    ⚠️ **Es la misma trampa que en Meta, con otro nombre.** El token que da el
+    Explorador dura ~1 hora; aquí no hay token de página del que heredar
+    permanencia, así que 60 días es el máximo y **hay que renovarlo antes de que
+    caduque** con `th_refresh_token` (`refrescar_token()`). Si caduca del todo,
+    toca repetir el alta entera.
+
+    Devuelve `(token, fecha_de_caducidad)`.
+    """
+    secreto = os.getenv("META_APP_SECRET", "").strip()
+    if not secreto:
+        return None
+    return _canjear({"grant_type": "th_exchange_token",
+                     "client_secret": secreto, "access_token": token})
+
+
+def refrescar_token(token: str) -> tuple[str, str] | None:
+    """Estira 60 días más un token largo. Necesita que tenga >24 h de vida."""
+    return _canjear({"grant_type": "th_refresh_token", "access_token": token})
+
+
+def _canjear(params: dict) -> tuple[str, str] | None:
+    ruta = "refresh_access_token" if "refresh" in params["grant_type"] else "access_token"
+    r = requests.get(f"{CONFIG['graph']}/{ruta}", params=params,
+                     timeout=CONFIG["timeout"]).json()
+    if "error" in r:
+        print(f"   ⚠️  No se pudo alargar: {r['error'].get('message', '')[:120]}")
+        return None
+    caduca = (date.today() + timedelta(seconds=r.get("expires_in", 0))).isoformat()
+    return r["access_token"], caduca
+
+
 def _es_token_de_facebook(token: str) -> bool:
     """¿Este token es de la API de Meta en vez de la de Threads?
 
@@ -122,7 +159,7 @@ def _es_token_de_facebook(token: str) -> bool:
     return bool(d.get("data", {}).get("is_valid"))
 
 
-def diagnostico() -> None:
+def diagnostico(escribir: bool = False) -> None:
     _exigir_token()
     yo = _get("me", fields="id,username,threads_profile_picture_url")
     if "error" in yo:
@@ -139,9 +176,39 @@ def diagnostico() -> None:
                 "   no por `EAA`.")
         raise SystemExit(f"❌ {mensaje}")
     print(f"🧵 Cuenta: @{yo.get('username', '?')}  (id {yo.get('id')})")
-    if yo.get("id") != USER_ID:
-        print(f"   ⚠️  THREADS_USER_ID dice {USER_ID}, pero el token es de "
-              f"{yo.get('id')}. Corrige el .env o publicará en otra cuenta.")
+
+    # ⚠️ El id de la cuenta de Threads **no es** el de Instagram ni el de la app,
+    # y se teclea a mano: es fácil poner otro sin enterarse. La API no protesta
+    # —el token manda— así que se compara aquí. Pasó el 15 ago: el `.env` traía
+    # el id de la app y las lecturas fallaban con «Object does not exist».
+    real = yo.get("id", "")
+    if real and real != USER_ID:
+        print(f"   ⚠️  THREADS_USER_ID dice {USER_ID}, pero el token es de {real}.")
+        if escribir:
+            _meta().escribir_env({"THREADS_USER_ID": real})
+            globals()["USER_ID"] = real
+        else:
+            print("      Corrígelo, o repite con --escribir-env.")
+
+    # ⚠️ El token del Explorador dura ~1 hora. Aquí no hay token de página del
+    # que heredar permanencia como en Facebook: 60 días es el techo, y hay que
+    # renovarlo antes de que caduque o se repite el alta entera.
+    caduca = os.getenv("THREADS_TOKEN_CADUCA", "").strip()
+    dias = (date.fromisoformat(caduca) - date.today()).days if caduca else -1
+    if dias > CONFIG["avisar_dias_antes"]:
+        print(f"   🔑 Token largo, caduca el {caduca} (en {dias} días)")
+    elif escribir:
+        nuevo = (refrescar_token(TOKEN) if dias >= 0 else alargar_token(TOKEN))
+        if nuevo:
+            token, hasta = nuevo
+            _meta().escribir_env({"THREADS_ACCESS_TOKEN": token,
+                                  "THREADS_TOKEN_CADUCA": hasta})
+            globals()["TOKEN"] = token
+            print(f"   🔄 Token alargado hasta el {hasta} (60 días)")
+    else:
+        print(f"   ⚠️  {'Caduca en %d días' % dias if dias >= 0 else 'Token corto (~1 h)'}. "
+              f"Repite con --escribir-env para alargarlo a 60.")
+
     hilos = _get(f"{USER_ID}/threads", fields="id,text,timestamp", limit=3)
     if "error" in hilos:
         print(f"   ⚠️  No se pudieron leer los hilos: {hilos['error'].get('message')}")
@@ -377,6 +444,8 @@ def main() -> None:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--diagnostico", action="store_true",
                    help="Comprueba el token de Threads. Empieza por aquí")
+    p.add_argument("--escribir-env", action="store_true",
+                   help="Con --diagnostico: corrige THREADS_USER_ID en el .env")
     p.add_argument("--hilo", metavar="PROYECTO",
                    help="Escribe y publica el hilo de ese tema")
     p.add_argument("--solo-texto", action="store_true",
@@ -386,7 +455,7 @@ def main() -> None:
     args = p.parse_args()
 
     if args.diagnostico:
-        diagnostico()
+        diagnostico(escribir=args.escribir_env)
     elif args.hilo and args.solo_texto:
         # ⚠️ No pasa por `_exigir_token()`: es el único modo que sirve para
         # afinar el prompt antes de tener la cuenta de Threads montada.
