@@ -3,16 +3,22 @@
 """
 ╔══════════════════════════════════════════════════════════════╗
 ║         📱 GENERADOR DE CARRUSEL INSTAGRAM                   ║
-║         Lee 03_instagram.txt + imágenes → slides listos      ║
+║         Lee carrusel.txt + fotos reales → slides listos      ║
 ╚══════════════════════════════════════════════════════════════╝
 
-Carpetas necesarias:
-    - social_posts/03_instagram.txt  → texto del post
-    - post_images/                   → imágenes img_01.jpg, img_02.jpg...
-    - fonts/                         → misma fuente que video_generator
+Entradas (todas relativas a la RAÍZ del proyecto, no a pipeline/):
+    - social_posts/carrusel.txt  → texto, lo escribe el paso 02
+    - source_images/             → fotos reales, las baja el paso 05
+    - perfil/historia_profile.png → foto del slide final, con --profile
+    - fonts/                     → misma fuente que el paso 07
 
 Salida:
-    - carousel_slides/               → slides numerados listos para publicar
+    - carousel_slides/           → slides numerados, listos para publicar
+
+⚠️ El contrato con el paso 02 es el FORMATO de `carrusel.txt`: párrafos
+separados por una línea en blanco, sin etiquetas «Slide N». El primer párrafo
+es la portada, el último el CTA y los de en medio el cuerpo. Si cambia ese
+prompt, se rompe el parseo de aquí.
 """
 
 import os
@@ -75,68 +81,10 @@ CONFIG = {
 
 
 # ══════════════════════════════════════════════════════════════
-# 📄 PARSEO DEL ARCHIVO 03_instagram.txt
+# 📄 PARSEO DE carrusel.txt
 # ══════════════════════════════════════════════════════════════
 
-def parse_instagram_file(path: str) -> dict:
-    """
-    Extrae del archivo:
-    - hook: primera línea (portada)
-    - slides: párrafos intermedios
-    - cta: última línea con CTA
-    - hashtags: bloque de hashtags
-    """
-    with open(path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    # Quitar encabezado === INSTAGRAM ===
-    content = re.sub(r'===.*?===\n*', '', content).strip()
-
-    # Separar hashtags (bloque que empieza con #)
-    hashtag_match = re.search(r'\n(#\w+.*?)$', content, re.DOTALL)
-    hashtags = ""
-    if hashtag_match:
-        hashtags = hashtag_match.group(1).strip()
-        content = content[:hashtag_match.start()].strip()
-
-    # Dividir en párrafos no vacíos
-    paragraphs = [p.strip() for p in content.split("\n\n") if p.strip()]
-    paragraphs = [p for p in paragraphs if p]
-
-    # Limpiar indicadores de imagen tipo [IMAGEN: ...] o [SLIDE N: ...]
-    clean = []
-    for p in paragraphs:
-        # Quitar líneas de Imagen: ...
-        p_clean = re.sub(r'(?m)^Imagen:.*$', '', p)
-        # Si hay Texto: "..." extraer solo lo que está entre comillas
-        # Extraer texto entre comillas si existe "Texto: '...'"
-        texto_match = re.search(r'Texto:\s*[\u201c"\'«](.+?)[\u201d"\'»]', p_clean)
-        if texto_match:
-            p_clean = texto_match.group(1).strip()
-        else:
-            # Sin comillas — quitar el prefijo "Texto:" y lo que sigue en esa línea si es label
-            p_clean = re.sub(r'(?im)^Texto:\s*', '', p_clean)
-            p_clean = re.sub(r'\[(?:IMAGEN|SLIDE)[^\]]*\]', '', p_clean).strip()
-        if p_clean:
-            clean.append(p_clean)
-
-    hook = clean[0] if clean else ""
-    cta  = clean[-1] if len(clean) > 1 else ""
-    body = clean[1:-1] if len(clean) > 2 else []
-
-    print(f"📄 Archivo parseado:")
-    print(f"   Hook: {hook[:60]}...")
-    print(f"   Slides de contenido: {len(body)}")
-    print(f"   CTA: {cta[:60]}...")
-
-    return {
-        "hook": hook,
-        "body": body,
-        "cta": cta,
-        "hashtags": hashtags
-    }
-
-def parse_instagram_file(path: str) -> dict:
+def parse_carrusel(path: str) -> dict:
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
 
@@ -470,7 +418,7 @@ def generate_carousel(cfg: dict = CONFIG, profile_image: str = None, cover_image
     print("📱 Generando carrusel de Instagram...\n")
 
     # 1. Leer archivo instagram
-    post = parse_instagram_file(cfg["instagram_post"])
+    post = parse_carrusel(cfg["instagram_post"])
 
     # 2. Cargar imágenes
     images = load_images(cfg["images_dir"])

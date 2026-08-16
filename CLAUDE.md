@@ -357,6 +357,7 @@ falta saber para orientarse:
 | **`herramientas/`**[`14_meta_api.py`](herramientas/14_meta_api.py) | Instagram y Facebook por API: métricas **y publicación** del reel, el carrusel y el álbum |
 | **`herramientas/`**[`15_threads_api.py`](herramientas/15_threads_api.py) | Threads: **otra API, otro host, otro token**. Escribe el hilo con GPT y lo publica |
 | **`herramientas/`**[`16_agenda.py`](herramientas/16_agenda.py) | **Lo único que `cron` llama para publicar.** Decide qué sale hoy y se lo pide a los dos anteriores |
+| **`herramientas/`**[`17_tiktok_api.py`](herramientas/17_tiktok_api.py) | Métricas de TikTok. Cierra P-09b: era la última red que se tecleaba a mano |
 | **`desuso/`** | Código que **no ejecuta nadie**: `03_voice_generator_free.py`, `publisher.py`, `ink_filter.py`, `imagen_generator_source.py`. Sigue en git como referencia. Ver [§ Código en desuso](#código-en-desuso-está-en-git-no-lo-ejecuta-nadie) |
 | `requirements.txt` | `moviepy==1.0.3` fijado; ffmpeg va aparte (apt) |
 
@@ -674,6 +675,23 @@ sabe hacerlo. Es lo único que llama `cron` para publicar (`--reel` a las 12:00,
   ⚠️ **`/conversation` no devuelve la raíz**, así que se suma aparte. Contarla en los dos sitios
   duplicaría los «me gusta».
 
+**[17_tiktok_api.py](herramientas/17_tiktok_api.py)** baja las métricas de TikTok.
+- ⚠️ **`id_plataforma` es la URL completa, no el `id` numérico**, y es lo único delicado del
+  archivo. Las filas que ya hay vienen del export en CSV, que identifica cada video por su enlace;
+  la API devuelve el id pelado. Usarlo tal cual no fundiría nada: crearía una fila nueva por video
+  y cada uno quedaría contado dos veces — el mismo fallo que las 45 filas fantasma de Facebook. Se
+  reconstruye la URL con el `username`, y por eso `user.info.basic` no es opcional.
+  Tampoco vale `share_url` de la API: a veces devuelve un enlace corto (`tiktok.com/t/…`).
+- ⚠️ **No hay flujo automático como en YouTube**, y no es un descuido: TikTok exige un
+  `redirect_uri` **https y registrado**, así que el `run_local_server()` de Google (que levanta un
+  `http://localhost`) se rechaza. El código se pega a mano con `--codigo`, una sola vez.
+- **Los dos tokens caducan**: el de acceso a las 24 h y el de refresco a los 365 días.
+  `token_vivo()` renueva solo antes de cada uso. ⚠️ El refresco **puede devolver un
+  `refresh_token` distinto**; hay que guardar el nuevo o a los 365 días se pierde el acceso sin
+  que nada avise.
+- Si la fusión anuncia filas nuevas y **cero actualizadas**, el formato del id dejó de casar. El
+  propio comando lo dice en vez de dejarlo pasar.
+
 **[12_recordatorio.py](herramientas/12_recordatorio.py)** es el recordatorio semanal por Telegram.
 Lo llama `cron` (no `run_all.sh`: no tiene nada que ver con generar videos).
 - **No es una alarma de calendario: mira el estado real del repo y por defecto calla si no hay nada
@@ -747,7 +765,7 @@ que forma parte del pipeline, no lo forma.
 ### Tests
 
 ```bash
-python -m unittest discover tests      # desde la raíz, 139 tests, ~0.2 s
+python -m unittest discover tests      # desde la raíz, 166 tests, ~0.4 s
 ```
 
 Solo `unittest` de la stdlib, sin dependencias nuevas y **sin red**. Cubren
@@ -755,9 +773,10 @@ Solo `unittest` de la stdlib, sin dependencias nuevas y **sin red**. Cubren
 [herramientas/11_reporte.py](herramientas/11_reporte.py),
 [herramientas/16_agenda.py](herramientas/16_agenda.py) y el recorte de
 [15_threads_api.py](herramientas/15_threads_api.py)
-([tests/test_agenda.py](tests/test_agenda.py)), [pipeline/estado.py](pipeline/estado.py) y las
+([tests/test_agenda.py](tests/test_agenda.py)), [pipeline/estado.py](pipeline/estado.py), las
 funciones puras de los pasos **01**, **02** y **07**
-([tests/test_pipeline.py](tests/test_pipeline.py)).
+([tests/test_pipeline.py](tests/test_pipeline.py)) y las de los pasos **04**, **05** y **06**
+([tests/test_pasos_medios.py](tests/test_pasos_medios.py)).
 
 ⚠️ **Los tests de la agenda apuntan `ag.RAIZ` a un temporal** con su propio `publicar/`. Sin eso
 leerían el de verdad, y `temas_ya_usados()` daría resultados distintos según lo que se hubiera
@@ -804,20 +823,22 @@ archivos de la raíz debe llamar a `verificar_estado()` (trampa 1).
    fusiona en vez de reemplazar**: borra la carpeta destino a mano si vas a reintentar un tema.
 2. **Funciones duplicadas: gana la segunda definición de Python.** En `04_image_generator.py` hay dos
    `generate_image()` — la activa es la de fal.ai; la de Leonardo (líneas ~212-280) es código muerto. Igual
-   con `BASE_PROMPT` (gana el segundo) y con `parse_instagram_file()` en `06_carrusel_generator.py`.
-   Editar la primera copia no tiene ningún efecto.
-   ⚠️ La cabecera del paso 06 dice que lee `03_instagram.txt`, pero su `CONFIG` apunta a
-   `carrusel.txt`. **Manda el CONFIG**; el comentario es de antes de la reestructuración del paso 02.
+   con `BASE_PROMPT`, donde gana el segundo. Editar la primera copia no tiene ningún efecto.
+   ⚠️ El paso 06 tenía el mismo problema con `parse_instagram_file()`; **ya no**: se borró la
+   definición muerta y la viva se llama `parse_carrusel()`, que es lo que de verdad parsea. Un test
+   en [tests/test_pasos_medios.py](tests/test_pasos_medios.py) falla si vuelve a haber duplicados
+   en ese archivo.
 3. **A pesar del nombre del proyecto, las imágenes ya NO salen de Leonardo**, sino de fal.ai (Flux dev).
 4. El contexto del paso 04 depende de que GPT devuelva json con `personaje`, `epoca` y `estilo_visual`.
    Si falla, verás `⚠️ Contexto incompleto` en el log y las imágenes de ese tema saldrán sin anclaje
    (menos coherentes entre sí, pero el tema no aborta).
-5. **No todo lo que hay en `proyectos/` es un tema.** `proyectos/social_posts`,
-   `proyectos/carousel_slides` y `proyectos/source_images` son basura de corridas viejas con
-   `PROYECTO` vacío (ya no se pueden volver a crear: hay guardas en los pasos y en
-   `run_pipeline.sh`), y `proyectos/T1/` es el **archivo de la tanda anterior al pipeline**, con
-   otros 27 temas un nivel más abajo. Un `glob("proyectos/*")` te devuelve las tres cosas
-   mezcladas. Inventario y limpieza: P-07 y P-14 en [TODO.md](TODO.md).
+5. **`proyectos/` tiene DOS niveles, y eso sigue vivo.** Los temas del pipeline cuelgan directos
+   (`proyectos/Historia09/`), pero **`proyectos/T1/` es el archivo de la tanda anterior**, con otros
+   27 temas un nivel más abajo. Un `glob("proyectos/*")` los mezcla; por eso `indice_proyectos()`
+   del paso 10 busca a dos niveles (P-14).
+   Las carpetas sueltas de corridas con `PROYECTO` vacío (`proyectos/social_posts` y compañía) **ya
+   no están**: se borraron el 15 ago y no se pueden volver a crear, porque hay guardas en los pasos
+   y en `run_pipeline.sh`.
 6. **moviepy está clavado en 1.0.3** (API `from moviepy.editor import ...`). Actualizar a 2.x rompe el
    paso 07 completo. El paso 08 ya no depende de moviepy.
    ⚠️ En esa versión **`to_mask()` usa el canal ROJO por defecto (`canal=0`), no el alfa**. Cualquier

@@ -1712,6 +1712,12 @@ El requisito previo es barato y vale por sí solo: que el título viaje por
 historial de bugs sutiles. P-19 (partir el `DELAY` del paso 05 por fuente) da un tercio de esa
 ganancia tocando una constante.
 
+⚠️ **Esto está CERRADO, no aparcado** (decisión del 15 ago). Salió del TODO a propósito, porque una
+idea que suena bien y no está tachada vuelve a proponerse cada pocas semanas y hay que volver a
+medirla. Los números de arriba son la respuesta: **no se reabre sin cambiar de máquina.** Si algún
+día cambia, lo que hay que volver a medir es el `%` de CPU de un solo render — si baja de ~120 %,
+dos temas sí caben y entonces la conversación empieza otra vez.
+
 ---
 
 ## ✅ El generador aprende de los veredictos (15 ago 2026)
@@ -2416,6 +2422,41 @@ El informe gana su columna: Threads es **texto**, así que no hay duración y po
 retención, ni `se_quedaron_pct`, ni `tiempo_total_h`. `bloque_ranking()` dejó de escribir esas dos
 columnas a lo fijo y ahora las pide a `COLUMNAS_POR_PLATAFORMA`, que era el sitio donde ya estaba
 decidido.
+
+### Limpieza y recuperación de los lotes viejos (15 ago 2026)
+
+<a id="p-07-detalle"></a>
+**P-07 · 36 MB de basura, y una regla que habría destruido lo bueno.** Se fueron las carpetas de
+corridas con `PROYECTO` vacío (`proyectos/social_posts`, `carousel_slides`, `source_images` y sus
+gemelas en `T1/`), `images_IA_guidance` del generador de Leonardo, los zip de las fuentes —los
+`.ttf` ya están extraídos y son los que usa el código—, `logs/_.log`, `test_voz.mp3` y
+`videos_no_music/T1/video_.mp4`.
+
+⚠️ **La nota decía que los slides obsoletos estaban en los 16 `Mundial*` y estaban en `T1/`**, y
+además su receta era al revés de lo que tocaba: proponía borrar `slide_07_cta.jpg` por ser el
+sobrante. Comprobando las fechas, en 15 carpetas el obsoleto era efectivamente el `07`… **pero en
+`Internet01` y `Vikingos01` el `07` es el vigente y el sobrante es el `06`**, y `Douglas_Bader` no
+tiene duplicado ninguno. Un `rm` a bulto habría borrado el CTA bueno de dos respaldos. La regla que
+sí vale no mira el número sino la **fecha**: en cada carpeta hay dos corridas y sobra la vieja
+entera.
+
+<a id="p-08-detalle"></a>
+**P-08 · los 16 Mundial sí tenían texto.** La nota los daba por perdidos («no vale la pena
+regenerarlos»), pero el texto estaba entero en el formato anterior a la fusión del paso 02:
+`03_instagram.txt` (pie del reel + hashtags) y `04_facebook.txt` (descripción larga). Se
+reconstruyó `descripcion.txt` con el formato de hoy, y el parseo real de
+[14_meta_api.py](herramientas/14_meta_api.py) lo lee sin tocar nada.
+
+⚠️ **Se recuperó lo que existía; no se inventó lo que no.** El título de YouTube, los tags y el
+comentario a fijar **nunca se generaron** en aquella tanda: sus secciones quedan vacías y con el
+motivo escrito en el encabezado, en vez de pedírselos a un modelo. Un texto inventado hoy y
+guardado como si fuera de mayo ensucia el respaldo y nadie lo sabría después.
+
+Los `.srt` sí son recuperación literal: la fuente es el mp3 que se publicó, así que se rehacen con
+las **mismas dos funciones del paso 07** (`transcribe_words` + `exportar_srt`) y salen idénticos a
+los que habrían salido entonces. ⚠️ El paso 07 aborta al importarse si el sello de `.estado_actual`
+es de otro tema —y lo es—, así que el script de recuperación usa el mismo truco que los tests:
+importar desde un directorio temporal y trabajar con rutas absolutas.
 
 ### Lo que el hilo de Threads no hace
 

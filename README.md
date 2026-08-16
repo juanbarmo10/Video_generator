@@ -219,6 +219,38 @@ De cada tema salen:
    python herramientas/15_threads_api.py --diagnostico
    ```
 
+8. **Opcional: TikTok por API.** Es lo último que se teclea a mano
+   (`metricas_export/manual.csv`): alcance, segundos medios y % que vio completo. El trámite es el
+   más largo de los tres, así que hazlo cuando te sobre un rato.
+
+   | | Dónde | Qué |
+   |---|---|---|
+   | 1 | [developers.tiktok.com](https://developers.tiktok.com) → Manage apps | *Connect an app* → nombre y descripción |
+   | 2 | Panel de la app → *Products* | Añadir **Login Kit** y **Display API** |
+   | 3 | Login Kit → *Redirect URI* | Una URL **https** tuya. Vale la del repositorio: `https://github.com/juanbarmo10/Video_generator` |
+   | 4 | Display API → *Scopes* | Pedir `user.info.basic` y `video.list` |
+   | 5 | Panel → *Credentials* | Copiar **Client key** y **Client secret** |
+   | 6 | `.env` | `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI` (la misma del paso 3, **exacta**) |
+
+   ⚠️ **El `redirect_uri` tiene que ser `https` y estar registrado**, y por eso aquí no hay flujo
+   automático como en YouTube: `run_local_server()` levanta un `http://localhost` que TikTok
+   rechaza. El código llega a la barra del navegador y se pega a mano. Es una sola vez.
+
+   ⚠️ **`video.list` puede tardar en concederse.** Mientras no lo esté, autorizar funciona pero las
+   llamadas responden `scope_not_authorized`. No es un fallo del montaje.
+
+   Con eso hecho:
+
+   ```bash
+   python herramientas/17_tiktok_api.py --autorizar        # imprime el enlace
+   # autorizas en el navegador y acabas en tu redirect_uri con ?code=… en la barra
+   python herramientas/17_tiktok_api.py --codigo <code>    # una sola vez
+   python herramientas/17_tiktok_api.py --diagnostico
+   ```
+
+   El token de acceso dura 24 h y el de refresco 365 días; **se renueva solo** antes de cada uso y
+   se guarda en `credenciales/token_tiktok.json` (permisos `600`, en `.gitignore`).
+
 ⚠️ El `.env` lleva claves en texto plano y **es estado mutable del pipeline** (los scripts escriben
 ahí `PROYECTO`, `TEMA` y `TITULO_VIDEO`). No se commitea nunca. Lo mismo vale para
 `credenciales/`: el `client_secret*.json` y el `token_youtube.json` son secretos y están en
@@ -409,13 +441,14 @@ Esto es lo del lote **pasado**, no el que acabas de subir: los números necesita
 
 ### 5.1 Descargar
 
-**Cuatro de las cinco redes ya no hace falta descargarlas** si montaste las APIs (puntos 5, 6 y 7
-de *Antes de empezar*):
+**Ninguna de las cinco redes hace falta descargarla a mano** si montaste las APIs (puntos 5 a 8 de
+*Antes de empezar*):
 
 ```bash
 python herramientas/13_youtube_api.py --metricas     # YouTube
 python herramientas/14_meta_api.py --metricas        # Instagram + Facebook
 python herramientas/15_threads_api.py --metricas     # Threads
+python herramientas/17_tiktok_api.py --metricas      # TikTok
 ```
 
 ⚠️ **En Threads, cada hilo cuenta como UNA publicación**, no como tres. Las vistas son las de su
@@ -427,13 +460,13 @@ comentarios **descuentan nuestras propias respuestas encadenadas**: sin eso, cad
 mirar», la métrica de [P-20](TODO.md#p-20)) y `alcance` (únicos por video). Si las quieres, sigue
 bajando el zip de YouTube — la fusión no las pisa, así que se completan después.
 
-**Solo TikTok sigue siendo obligatoriamente manual.** Se suelta **tal cual se descarga** en
-`metricas_export/`, con el nombre empezando por la plataforma:
+**Los exports siguen valiendo**, y hacen falta para lo que ninguna API expone (arriba). Se sueltan
+**tal cual se descargan** en `metricas_export/`, con el nombre empezando por la plataforma:
 
 | Red | Dónde | Deja el archivo como |
 |---|---|---|
-| **YouTube** *(opcional, ver arriba)* | Studio → Estadísticas → **Modo avanzado** → Contenido → Exportar | `youtube_tanda1.zip` |
-| **TikTok** | `tiktok.com/tiktokstudio` → Analytics → Contenido → Descargar | `tiktok.zip` |
+| **YouTube** *(para las dos columnas de arriba)* | Studio → Estadísticas → **Modo avanzado** → Contenido → Exportar | `youtube_tanda1.zip` |
+| **TikTok** *(opcional, ver punto 8)* | `tiktok.com/tiktokstudio` → Analytics → Contenido → Descargar | `tiktok.zip` |
 | **Facebook** | Meta Business Suite → Insights → Contenido → Exportar | `facebook1.csv` |
 | **Facebook** | *(también el export desde Facebook)* | `facebook2.csv` |
 | **Instagram** | Meta Business Suite → Insights → Contenido → Exportar | `instagram.csv` |
