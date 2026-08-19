@@ -718,8 +718,26 @@ def publicar_instagram(video: Path, caption: str, dry_run: bool) -> str | None:
     return pub.get("id")
 
 
-def publicar_facebook(video: Path, descripcion: str, dry_run: bool) -> str | None:
-    """Reel de la página de Facebook, en tres fases (start → subida → finish)."""
+def publicar_facebook(video: Path, descripcion: str, dry_run: bool,
+                      titulo: str = "") -> str | None:
+    """Reel de la página de Facebook, en tres fases (start → subida → finish).
+
+    ⚠️ **`titulo` no es decorativo: es la única diferencia medible entre los
+    reels que Facebook distribuyó y los que no.** Del 15 al 18 ago los cuatro
+    reels publicados por aquí bajaron a un **alcance de 1-2 personas**, cuando
+    los seis anteriores —subidos a mano por Metricool— iban de 239 a 5.077. Se
+    compararon los objetos campo por campo (privacidad, miniaturas, renditions,
+    `copyright_check`, permalink sin sesión, `/feed`) y salieron **idénticos**
+    salvo en esto: los de Metricool llevan `title` y los nuestros no.
+
+    ⚠️ La correlación es perfecta y aun así **no prueba la causa**: «no lleva
+    título» y «lo publicó nuestra app» son la misma columna en esos datos. Esto
+    es la mitad barata del experimento — si el alcance vuelve, era el título; si
+    no vuelve, toca publicar uno a mano para saber si el problema es nuestro
+    camino o la página. Por eso `_verificar_titulo()` lo comprueba y lo dice en
+    el log en vez de darlo por hecho: sin eso, un `title` que Meta ignore en
+    silencio nos haría creer que el experimento se hizo cuando no se hizo.
+    """
     pg = os.getenv("FACEBOOK_PAGE_ID", "").strip()
     if not pg:
         print("   ❌ Falta FACEBOOK_PAGE_ID"); return None
@@ -741,14 +759,38 @@ def publicar_facebook(video: Path, descripcion: str, dry_run: bool) -> str | Non
         print("   🧪 --dry-run: subido, NO publicado (queda sin finalizar)")
         return "dry-run"
 
-    fin = requests.post(base, data={
-        "video_id": video_id, "upload_phase": "finish",
-        "video_state": "PUBLISHED", "description": descripcion,
-        "access_token": TOKEN}, timeout=CONFIG["timeout"]).json()
+    datos = {"video_id": video_id, "upload_phase": "finish",
+             "video_state": "PUBLISHED", "description": descripcion,
+             "access_token": TOKEN}
+    if titulo:
+        datos["title"] = titulo
+    fin = requests.post(base, data=datos, timeout=CONFIG["timeout"]).json()
     if "error" in fin:
         print(f"   ❌ {fin['error'].get('message')}")
         return None
+    _verificar_titulo(video_id, titulo)
     return video_id
+
+
+def _verificar_titulo(video_id: str, enviado: str) -> None:
+    """Relee el reel y dice si el `title` se quedó puesto.
+
+    Meta acepta campos que luego ignora sin devolver error, así que darlo por
+    puesto es justo lo que arruinaría el experimento: veríamos el alcance sin
+    recuperarse y concluiríamos «no era el título» sin haberlo llegado a poner.
+    """
+    if not enviado:
+        print("   ⚠️  Sin título: no encontré la sección TÍTULO en descripcion.txt")
+        return
+    d = _graph(video_id, tolerar_error=True, fields="title")
+    puesto = (d.get("title") or "").strip()
+    if puesto:
+        print(f"   🏷️  título puesto: «{puesto[:60]}»")
+    else:
+        print("   ⚠️  Mandé `title` y Facebook NO lo guardó — no lo acepta en "
+              "`video_reels`.\n"
+              "      El experimento del título queda sin hacer; toca la prueba "
+              "manual.")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -988,8 +1030,13 @@ def publicar(proyecto: str, redes: list[str], dry_run: bool) -> None:
         print(f"\n── {red} ──  {len(texto)} caracteres")
         print("   " + texto.split("\n")[0][:88])
 
-        fn = publicar_instagram if red == "instagram" else publicar_facebook
-        id_pub = fn(video, texto, dry_run)
+        if red == "instagram":
+            id_pub = publicar_instagram(video, texto, dry_run)
+        else:
+            # El título sale del mismo `descripcion.txt`, que es donde vive el
+            # que ya se acortó a 70 caracteres en el paso 02.
+            id_pub = publicar_facebook(video, texto, dry_run,
+                                       titulo=leer_seccion(desc, "TÍTULO"))
         if id_pub and not dry_run:
             anotar_publicado(proyecto, red, id_pub)
             print(f"   ✅ publicado · id {id_pub}")

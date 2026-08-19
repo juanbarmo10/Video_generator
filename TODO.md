@@ -32,6 +32,7 @@ solo quedan YouTube y TikTok, las dos cuyo trámite de publicación por API no c
 
 | | # | Pendiente | Gana |
 |---|---|---|---|
+| 🔴 | [P-31](#p-31) | Facebook no distribuye desde que publicamos por API | todo el alcance de una red |
 | 🔴 | [P-27](#p-27) | `Historia07` y `Historia08` se archivarán como `baseline` | que el lote no mienta |
 | 🔴 | [P-28](#p-28) | El informe compara `v2` mientras el paso 10 etiqueta `v3` | ver el lote nuevo |
 | 🟡 | [P-20](#p-20) | Por qué menos gente para el scroll (el frame 0) | la única métrica en contra |
@@ -51,6 +52,51 @@ primeras métricas de `Historia07`-`Historia08`.
 ---
 
 ## 🔴 Lo que miente en silencio
+
+<a id="p-31"></a>
+**P-31 · Facebook dejó de distribuir los reels el día que empezamos a publicar por API.**
+
+Medido el 18 ago. No es «rinden poco»: es **alcance 1-2 personas**.
+
+| fecha | vistas | alcance | seguidores | origen |
+|---|---:|---:|---:|---|
+| 09 ago | 322 | 275 | 116 | manual |
+| 11 ago | 1154 | 1001 | 119 | manual |
+| 13 ago | 988 | 843 | 123 | manual |
+| 14 ago | 289 | 239 | 127 | manual |
+| 16 ago | 9 | **2** | 128 | API |
+| 17 ago | 7 | **2** | 128 | API |
+| 18 ago | 2 | **1** | 128 | API |
+
+Los seguidores crecían solos y se congelaron el 15 ago, el día del cambio.
+
+**Descartado con datos, no por intuición:**
+
+| Hipótesis | Cómo se descartó |
+|---|---|
+| La app o el token | Instagram usa **los mismos** y su alcance es normal (105-261) |
+| El vídeo | Mismos 1080×1920, 4 renditions, 11 miniaturas, `copyright_check` sin match |
+| Visibilidad | `EVERYONE`, `is_hidden: false`, permalink **200 sin sesión**, en `/feed` |
+| El tipo de objeto | Los manuales también son reels (`/reel/<id>/`, `added_video`) |
+
+**Lo único que difiere:** los de Metricool llevan `title` y los nuestros no.
+⚠️ **Y eso no prueba la causa**: «sin título» y «publicado por nuestra app» son
+la misma columna en estos datos — no hay ni un manual sin título ni un
+automático con él.
+
+**Experimento, en dos pasos y por este orden:**
+1. ✅ *Hecho el 18 ago*: `publicar_facebook()` manda `title` y `_verificar_titulo()`
+   relee el objeto para confirmar que Meta lo guardó. **Se prueba solo con
+   `Historia11`** (el 19), porque a `Historia10` solo le falta Instagram.
+2. Si el alcance **no** vuelve: publicar uno a mano por Metricool a las 12:00. Si
+   ese sí alcanza, el culpable es nuestro camino; si tampoco, la página tiene un
+   problema que empezó el 15 ago y llevamos días culpando a la API por
+   coincidencia. **Este segundo paso es el que puede decir que mirábamos mal.**
+
+Queda una tercera vía sin usar: **ponerle `title` a los 4 reels ya muertos** y ver
+si alguno revive. Es lectura independiente y no cuesta nada, pero toca contenido
+ya publicado, así que se decide aparte.
+
 
 <a id="p-27"></a>
 **P-27 · `Historia07` y `Historia08` van a entrar como `baseline`, y son `v2`.**

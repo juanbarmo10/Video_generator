@@ -310,14 +310,31 @@ LIMITE_DESCRIPCION_LARGA = 1999
 LIMITE_TITULO = 70
 
 
+def _es_hashtag(token: str) -> bool:
+    """`#historia` sí; `#1` no.
+
+    Un hashtag de verdad lleva al menos una letra. La distinción no es un
+    capricho: sin ella, una frase como «le pusieron el #1 del ranking» perdería
+    su final al pelar la cola del párrafo.
+    """
+    return token.startswith("#") and any(c.isalpha() for c in token[1:])
+
+
 def separar_hashtags(texto: str) -> tuple[str, str]:
-    """Parte la descripción general en (cuerpo, hashtags).
+    """Parte una descripción en (cuerpo, hashtags).
 
-    El prompt pide los hashtags en la última línea, pero el modelo a veces los
-    reparte en dos. Se recorren las líneas desde el final y se toman como
-    hashtags todas las que solo contienen tokens que empiezan por '#'.
+    El prompt los pide en la última línea, pero el modelo hace otras dos cosas:
+    repartirlos en varias líneas y —esto es lo que salía caro— **pegarlos al
+    final del último párrafo, en la misma línea que la prosa**. Así que se
+    recorren las líneas desde el final tomando las que son solo hashtags, y
+    después se pela la cola de la última línea que quede con texto.
 
-    Si no hay ninguna, devuelve (texto, "") — el archivo sale sin sección de
+    ⚠️ **Sin lo segundo, `Historia07` se publicó en Facebook con 24 hashtags**:
+    los 12 que el modelo dejó pegados a la última frase, más los 12 del bloque
+    que `escribir_descripcion()` añade debajo. Doce ya rozan lo que Meta trata
+    como spam; veinticuatro no rozan nada.
+
+    Si no hay ninguno, devuelve (texto, "") — el archivo sale sin sección de
     hashtags en vez de romperse.
     """
     lineas = texto.strip().split("\n")
@@ -327,14 +344,29 @@ def separar_hashtags(texto: str) -> tuple[str, str]:
         tokens = lineas[i].split()
         if not tokens:                       # línea en blanco: sigue mirando
             continue
-        if all(t.startswith("#") for t in tokens):
+        if all(_es_hashtag(t) for t in tokens):
             corte = i
         else:
             break
 
-    cuerpo = "\n".join(lineas[:corte]).strip()
-    hashtags = " ".join(" ".join(lineas[corte:]).split())
-    return cuerpo, hashtags
+    sueltos = " ".join(" ".join(lineas[corte:]).split()).split()
+
+    # La cola pegada a la prosa: «…en las aguas de Vigo? #Naval #Galeón»
+    cuerpo_lineas = lineas[:corte]
+    pegados: list[str] = []
+    for i in range(len(cuerpo_lineas) - 1, -1, -1):
+        tokens = cuerpo_lineas[i].split()
+        if not tokens:
+            continue
+        # `> 1` para no vaciar la línea: una que fuera solo hashtags ya la
+        # habría cogido el bucle de arriba.
+        while len(tokens) > 1 and _es_hashtag(tokens[-1]):
+            pegados.insert(0, tokens.pop())
+        cuerpo_lineas[i] = " ".join(tokens)
+        break
+
+    cuerpo = "\n".join(cuerpo_lineas).strip()
+    return cuerpo, " ".join(pegados + sueltos)
 
 
 def _cortar_en_frase(texto: str, espacio: int) -> str:
@@ -509,14 +541,22 @@ def escribir_descripcion(ruta: str, general: str, detallada: dict) -> None:
     if len(titulo) > LIMITE_TITULO:
         print(f"⚠️  El título mide {len(titulo)}/{LIMITE_TITULO} caracteres "
               f"— YouTube lo cortará en la búsqueda")
+
+    # ⚠️ La descripción larga pasa TAMBIÉN por `separar_hashtags()`, y no es
+    # simetría gratuita: si el modelo le dejó hashtags pegados al final y aquí
+    # se le añade el bloque de abajo, el texto sale con los dos juegos. Es lo
+    # que le pasó a `Historia07` en Facebook (24 hashtags).
+    larga_cuerpo, hashtags_largos = separar_hashtags(detallada.get("descripcion", ""))
     if not hashtags:
-        print("⚠️  La descripción general vino sin hashtags — revísala a mano")
+        hashtags = hashtags_largos
+    if not hashtags:
+        print("⚠️  Ni la descripción general ni la larga traían hashtags "
+              "— revísalas a mano")
 
     # Los hashtags van repetidos bajo CADA descripción y sin encabezado propio,
     # para poder seleccionar descripción + hashtags de una pasada y pegarlos
     # juntos con la que se vaya a usar ese día.
-    larga = recortar_a_limite(detallada.get("descripcion", ""), hashtags,
-                              LIMITE_DESCRIPCION_LARGA)
+    larga = recortar_a_limite(larga_cuerpo, hashtags, LIMITE_DESCRIPCION_LARGA)
     bloque_largo = f"{larga}\n\n{hashtags}" if hashtags else larga
     if len(bloque_largo) > LIMITE_DESCRIPCION_LARGA:
         print(f"⚠️  La descripción larga + hashtags mide {len(bloque_largo)} "

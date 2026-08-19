@@ -201,9 +201,15 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
   duplicación por descuido.
   Siguen siendo **dos llamadas distintas** a GPT (`generar_descripcion_general()` y
   `generar_descripcion_detallada()`); la fusión ocurre al escribir, en `escribir_descripcion()`.
-  Los hashtags se separan del pie con `separar_hashtags()`, en Python: recorre las líneas desde el
-  final y toma las que solo tienen tokens que empiezan por `#`. Si no hay, avisa y deja la sección
-  vacía en vez de romperse.
+  Los hashtags se separan con `separar_hashtags()`, en Python, y **se le pasan las DOS
+  descripciones, no solo el pie**. Recorre las líneas desde el final tomando las que son solo
+  hashtags y después **pela la cola de la última línea con prosa**.
+  ⚠️ Las dos mitades salen de un fallo real: `Historia07` se publicó en Facebook con **24
+  hashtags** porque el modelo dejó 12 pegados a la última frase —en la misma línea, así que el
+  barrido por líneas no los veía— y `escribir_descripcion()` le añadió debajo su bloque de 12.
+  Doce ya rozan lo que Meta trata como spam. ⚠️ `_es_hashtag()` exige **al menos una letra**:
+  sin eso, «le pusieron el #1 del ranking» perdía el final de la frase. Si no hay ninguno en
+  ninguna de las dos, avisa y deja la sección vacía en vez de romperse.
   **`LIMITE_DESCRIPCION_LARGA = 1999`** es un tope duro del bloque *descripción larga + hashtags*.
   El prompt pide ≤1700 chars para que casi nunca haga falta recortar, pero **el que garantiza el
   límite es `recortar_a_limite()`, en Python** — a un LLM no se le pide que cuente caracteres.
@@ -600,6 +606,17 @@ guarda todas las fotos.
   mayúsculas hacía que una sección se tragara las siguientes: el pie de Instagram salía con los tags
   de YouTube pegados. Cada red lleva la suya: Instagram *DESCRIPCIÓN GENERAL*, Facebook *DESCRIPCIÓN
   LARGA*.
+- ⚠️ **El reel de Facebook se publica CON `title`, y eso es un experimento en curso, no un
+  adorno.** Del 15 al 18 ago los cuatro reels publicados por API cayeron a un **alcance de 1-2
+  personas** (los seis anteriores, subidos a mano por Metricool, iban de 239 a 5.077). Comparados
+  campo por campo —privacidad, `is_hidden`, miniaturas, renditions, `copyright_check`, permalink
+  sin sesión, `/feed`— los objetos salen **idénticos** salvo en que los de Metricool llevan `title`.
+  ⚠️ **La correlación es perfecta y no prueba nada**: «sin título» y «publicado por nuestra app»
+  son la misma columna. Instagram, que usa la MISMA app y el MISMO token, tiene alcance normal
+  (105-261), así que la app y el token están descartados. `_verificar_titulo()` relee el objeto y
+  avisa si Meta ignoró el campo — dar por puesto un `title` que no se guardó dejaría el
+  experimento sin hacer creyendo que se hizo. Si el alcance no vuelve, el siguiente paso es
+  publicar uno a mano: distingue «nuestro camino» de «la página está penalizada».
 - ⚠️ **El id que hay que guardar en `metricas.csv` es `post_id`, no `id`.** `me/video_reels` devuelve
   el id del **video**; el export de Facebook trae el del **post**, y son distintos. Cruzarlos metía
   45 filas fantasma.

@@ -275,9 +275,47 @@ class SepararHashtags(unittest.TestCase):
         self.assertEqual(tags.strip(), "")
 
     def test_una_almohadilla_dentro_de_una_frase_no_cuenta(self):
-        """Solo son hashtags las líneas donde TODOS los tokens llevan '#'."""
+        """`#1` no es un hashtag: un hashtag de verdad lleva alguna letra."""
         cuerpo, _ = p02.separar_hashtags("Le pusieron el #1 del ranking mundial.")
         self.assertIn("ranking", cuerpo)
+        self.assertTrue(cuerpo.endswith("mundial."))
+
+    def test_los_pegados_al_final_del_parrafo_tambien_se_separan(self):
+        """El caso real de `Historia07`, que salió a Facebook con 24 hashtags.
+
+        El modelo los dejó en la MISMA línea que la última frase, así que el
+        barrido por líneas no los veía; después `escribir_descripcion()` añadía
+        su bloque debajo y el texto se publicaba con los dos juegos.
+        """
+        cuerpo, tags = p02.separar_hashtags(
+            "¿Qué otros secretos siguen sumergidos en las aguas de Vigo? "
+            "#HistoriaNaval #Galeón #España")
+        self.assertTrue(cuerpo.endswith("aguas de Vigo?"), cuerpo)
+        self.assertNotIn("#", cuerpo)
+        self.assertEqual(tags.split(), ["#HistoriaNaval", "#Galeón", "#España"])
+
+    def test_pegados_y_bloque_se_juntan_en_orden(self):
+        cuerpo, tags = p02.separar_hashtags("Final. #uno #dos\n\n#tres")
+        self.assertEqual(cuerpo, "Final.")
+        self.assertEqual(tags.split(), ["#uno", "#dos", "#tres"])
+
+    def test_la_descripcion_larga_no_duplica_los_hashtags(self):
+        """`escribir_descripcion()` pasa la larga por `separar_hashtags()`.
+
+        Sin eso, una larga que ya traía hashtags pegados recibía encima el
+        bloque de la general: 12 + 12 = 24, que es spam declarado en Meta.
+        """
+        import tempfile, os
+        general = "Pie del reel.\n\n#historia #curiosidades"
+        detallada = {"titulo": "Un título", "tags": ["a", "b"],
+                     "descripcion": "Párrafo largo. #historia #curiosidades",
+                     "comentario_fijado": "¿Tú qué opinas?"}
+        destino = os.path.join(tempfile.mkdtemp(), "descripcion.txt")
+        p02.escribir_descripcion(destino, general, detallada)
+        with open(destino, encoding="utf-8") as fh:
+            escrito = fh.read()
+        self.assertEqual(escrito.count("#historia"), 2)   # una por descripción
+        self.assertNotIn("Párrafo largo. #historia", escrito)
 
 
 class LimitesDeTexto(unittest.TestCase):
