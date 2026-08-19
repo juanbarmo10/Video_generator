@@ -84,18 +84,42 @@ Los seguidores crecían solos y se congelaron el 15 ago, el día del cambio.
 la misma columna en estos datos — no hay ni un manual sin título ni un
 automático con él.
 
-**Experimento, en dos pasos y por este orden:**
-1. ✅ *Hecho el 18 ago*: `publicar_facebook()` manda `title` y `_verificar_titulo()`
-   relee el objeto para confirmar que Meta lo guardó. **Se prueba solo con
-   `Historia11`** (el 19), porque a `Historia10` solo le falta Instagram.
-2. Si el alcance **no** vuelve: publicar uno a mano por Metricool a las 12:00. Si
-   ese sí alcanza, el culpable es nuestro camino; si tampoco, la página tiene un
-   problema que empezó el 15 ago y llevamos días culpando a la API por
-   coincidencia. **Este segundo paso es el que puede decir que mirábamos mal.**
+### Lo que se probó el 18 ago, y por qué cambia la hipótesis
 
-Queda una tercera vía sin usar: **ponerle `title` a los 4 reels ya muertos** y ver
-si alguno revive. Es lectura independiente y no cuesta nada, pero toca contenido
-ya publicado, así que se decide aparte.
+Se intentó ponerle `title` al reel de `Historia09` (35 h, alcance estancado en 2,
+el más fresco de los muertos y sin la anomalía de hashtags de `Historia07`).
+
+⚠️ **Facebook respondió `{"success": true}` y NO guardó el título.** Releído
+después: sigue en `None`. O sea que **`title` no se puede poner en un objeto de
+`video_reels`** — ni al crearlo ni después. Es exactamente el fallo silencioso
+para el que se escribió `_verificar_titulo()`, y salió a la primera.
+
+**Eso hunde la hipótesis del título como causa** y deja una mucho mejor, porque
+si el campo no es escribible aquí, los manuales **no se hicieron por aquí**:
+
+| | `post_views` (vistas que vienen del post del muro) |
+|---|---|
+| manual | 136 · 275 · 56 · 314 |
+| API | 0 · 1 · 1 · 1 |
+
+Los manuales sacaban **un tercio de sus vistas del muro**; los nuestros, ninguna.
+Sumado a que llevan `title` —campo que sí admite `/videos` y no `/video_reels`—
+la lectura es que **Metricool los subía por `/videos`**, creando un post de vídeo
+de verdad que Facebook además enseña como reel, mientras que `/video_reels` crea
+un reel puro que nunca llega al muro ni, por tanto, a los seguidores.
+
+**El título era un marcador del camino de subida, no la causa.**
+
+**Siguiente experimento (a decidir):** publicar `Historia11` por **`/videos`** en
+vez de `/video_reels`. Es el cambio que se sigue de todo lo medido, pero no es
+gratis: hay que ver si un 9:16 subido por ahí sigue apareciendo como reel o se
+queda como vídeo de muro, que es otro formato. Por eso no se ha hecho solo.
+
+**Control deliberado:** los otros **3 reels muertos se quedan sin tocar**, y el de
+`Historia09` conserva su intento fallido (no se le puso nada, así que sigue siendo
+comparable). Si mañana `Historia11` revive por `/videos`, los cuatro muertos son
+la línea de base contra la que medirlo — y entonces se decide si se borran y se
+vuelven a subir.
 
 
 <a id="p-27"></a>

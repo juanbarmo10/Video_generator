@@ -606,17 +606,19 @@ guarda todas las fotos.
   mayúsculas hacía que una sección se tragara las siguientes: el pie de Instagram salía con los tags
   de YouTube pegados. Cada red lleva la suya: Instagram *DESCRIPCIÓN GENERAL*, Facebook *DESCRIPCIÓN
   LARGA*.
-- ⚠️ **El reel de Facebook se publica CON `title`, y eso es un experimento en curso, no un
-  adorno.** Del 15 al 18 ago los cuatro reels publicados por API cayeron a un **alcance de 1-2
-  personas** (los seis anteriores, subidos a mano por Metricool, iban de 239 a 5.077). Comparados
-  campo por campo —privacidad, `is_hidden`, miniaturas, renditions, `copyright_check`, permalink
-  sin sesión, `/feed`— los objetos salen **idénticos** salvo en que los de Metricool llevan `title`.
-  ⚠️ **La correlación es perfecta y no prueba nada**: «sin título» y «publicado por nuestra app»
-  son la misma columna. Instagram, que usa la MISMA app y el MISMO token, tiene alcance normal
-  (105-261), así que la app y el token están descartados. `_verificar_titulo()` relee el objeto y
-  avisa si Meta ignoró el campo — dar por puesto un `title` que no se guardó dejaría el
-  experimento sin hacer creyendo que se hizo. Si el alcance no vuelve, el siguiente paso es
-  publicar uno a mano: distingue «nuestro camino» de «la página está penalizada».
+- ⚠️ **Desde el 15 ago los reels publicados por API tienen alcance de 1-2 personas**, cuando los
+  subidos a mano por Metricool iban de 239 a 5.077. Comparados campo por campo —privacidad,
+  `is_hidden`, miniaturas, renditions, `copyright_check`, permalink sin sesión, `/feed`— los
+  objetos salen **idénticos** salvo en que los de Metricool llevan `title`. Instagram, con la
+  MISMA app y el MISMO token, tiene alcance normal (105-261): la app y el token están descartados.
+  ⚠️ **Probado el 18 ago: `title` NO se puede poner en `video_reels`.** Meta contesta
+  `{"success": true}` y no lo guarda; `_verificar_titulo()` lo comprueba releyendo el objeto,
+  porque darlo por puesto habría dejado el experimento sin hacer creyendo que se hizo.
+  ⚠️ **Y ahí está la pista buena**: si el campo no es escribible aquí, los de Metricool no se
+  hicieron aquí — `title` lo admite `/videos`, no `/video_reels`. Encaja con `post_views` (vistas
+  llegadas del post del muro): **136-314** en los de Metricool contra **0-1** en los nuestros.
+  `/video_reels` crea un reel que nunca aterriza en el muro, así que no llega a los seguidores.
+  El siguiente paso es probar `/videos`, y está en P-31 de [TODO.md](TODO.md).
 - ⚠️ **El id que hay que guardar en `metricas.csv` es `post_id`, no `id`.** `me/video_reels` devuelve
   el id del **video**; el export de Facebook trae el del **post**, y son distintos. Cruzarlos metía
   45 filas fantasma.

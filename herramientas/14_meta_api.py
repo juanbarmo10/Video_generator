@@ -722,13 +722,19 @@ def publicar_facebook(video: Path, descripcion: str, dry_run: bool,
                       titulo: str = "") -> str | None:
     """Reel de la página de Facebook, en tres fases (start → subida → finish).
 
-    ⚠️ **`titulo` no es decorativo: es la única diferencia medible entre los
-    reels que Facebook distribuyó y los que no.** Del 15 al 18 ago los cuatro
-    reels publicados por aquí bajaron a un **alcance de 1-2 personas**, cuando
-    los seis anteriores —subidos a mano por Metricool— iban de 239 a 5.077. Se
-    compararon los objetos campo por campo (privacidad, miniaturas, renditions,
-    `copyright_check`, permalink sin sesión, `/feed`) y salieron **idénticos**
-    salvo en esto: los de Metricool llevan `title` y los nuestros no.
+    ⚠️ **Se manda `titulo` y Facebook lo IGNORA: `video_reels` no admite ese
+    campo.** Probado el 18 ago sobre un reel ya publicado — la API respondió
+    `{"success": true}` y al releer el objeto el título seguía en `None`. Se
+    sigue mandando porque no cuesta nada y delataría un cambio de Meta, pero
+    **no cuentes con él**.
+
+    ⚠️ **Lo que eso reveló vale más que el campo.** Los reels de Metricool SÍ
+    llevan `title`, y si aquí no se puede poner, es que **no se hicieron por
+    aquí**: `title` lo admite `/videos`, no `/video_reels`. Encaja con la otra
+    medida — `post_views` (vistas que llegan del post del muro) es 136-314 en
+    los de Metricool y **0-1** en los nuestros. O sea que `/video_reels` crea un
+    reel que nunca aterriza en el muro, y por tanto no llega a los seguidores.
+    El título era el marcador del camino de subida, no la causa. Ver P-31.
 
     ⚠️ La correlación es perfecta y aun así **no prueba la causa**: «no lleva
     título» y «lo publicó nuestra app» son la misma columna en esos datos. Esto
@@ -787,10 +793,10 @@ def _verificar_titulo(video_id: str, enviado: str) -> None:
     if puesto:
         print(f"   🏷️  título puesto: «{puesto[:60]}»")
     else:
-        print("   ⚠️  Mandé `title` y Facebook NO lo guardó — no lo acepta en "
-              "`video_reels`.\n"
-              "      El experimento del título queda sin hacer; toca la prueba "
-              "manual.")
+        # Esperado desde el 18 ago: `video_reels` no guarda el campo. Se deja la
+        # nota en una línea, no como alarma — un aviso que salta todos los días
+        # por algo ya sabido enseña a ignorar el log entero.
+        print("   ℹ️  Facebook ignoró el `title` (esperado en video_reels)")
 
 
 # ══════════════════════════════════════════════════════════════
