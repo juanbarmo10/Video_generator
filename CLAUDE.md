@@ -481,6 +481,15 @@ trae cada red.
   regla es asimétrica: **nunca degrada** un lote con nombre, pero **sí promueve** desde `baseline`
   (un video que entró sin emparejar y luego reconoce su `PROYECTO` sube a su lote de verdad).
   Un video pertenece a la tanda que lo produjo, no a la que esté cargada hoy.
+  ⚠️ **Pero `lotes_ya_asignados()` solo protege lo que YA tiene fila**, y eso dejaba un agujero por
+  el otro lado: un video de una tanda cerrada al que se le ve la **primera** métrica *después* de
+  que `temas.csv` pasara de página entraba como `baseline`. Estuvo a punto de pasar con
+  `Historia07` y `Historia08`, que son `v2`. Por eso existe **`lotes_historicos`** en el `CONFIG` y
+  **`lote_de()`**, que decide en este orden: historia → tanda en curso → baseline. La pertenencia a
+  una tanda es historia, y la historia no puede vivir en un archivo que se reescribe cada semana.
+  **Los cinco sitios que calculaban el lote a mano (pasos 10, 13, 14, 15 y 17) llaman ahora a
+  `lote_de()`**; si añades otro cliente de métricas, llama a esa y no repitas la fórmula.
+  ⚠️ **Al cerrar una tanda, añádela a `lotes_historicos` Y sube `lote_nuevo`.**
   ⚠️ **Sube `lote_nuevo` en el `CONFIG` al cargar un `temas.csv` con cambios de pipeline detrás**,
   o dos tandas distintas comparten nombre y dejan de distinguirse. Hoy:
   `v2-mas-cortes` (Historia01-08) y `v3-guion-y-dispersion` (Historia09-15).
@@ -528,6 +537,14 @@ trae cada red.
 en `reportes/` (fechado + `ultimo.html`, nombre fijo para adjuntarlo sin adivinar). Solo stdlib y
 CSS incrustado. `reportes/` está en `.gitignore`: es derivado y `metricas.csv`, que sí está en git,
 guarda todas las fotos.
+- ⚠️ **`lote_nuevo` y `lote_baseline` NO se tocan aquí: `sincronizar_lotes()` los lee del paso 10
+  al arrancar.** Tenerlos duplicados fue un fallo silencioso real — el paso 10 etiquetaba
+  `v3-guion-y-dispersion` y aquí seguía `v2-mas-cortes`, así que el lote nuevo **desaparecía del
+  veredicto** sin salir en ningún sitio, ni como nuevo ni como baseline, y el informe comparaba la
+  tanda anterior con toda naturalidad. Los valores del `CONFIG` son solo respaldo por si el paso 10
+  no se puede importar. `avisar_lotes_huerfanos()` canta además cualquier lote que quede fuera de
+  la comparación **con la n al lado**, que es lo que distingue «26 filas de una tanda ya cerrada»
+  de «se me perdió la de esta semana».
 - **`COLUMNAS_POR_PLATAFORMA` es explícito**, igual que `FUENTES` en el paso 10: cada red muestra
   solo lo que exporta. TikTok no da `alcance`; ni YouTube ni TikTok dan `guardados`; `ctr_pct` es
   solo de YouTube. Una tabla común sería un mar de celdas vacías.

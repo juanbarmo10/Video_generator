@@ -37,6 +37,7 @@ Tres ideas de diseño, que son las que lo hacen útil:
 # ═══════════════════════════════════════════════════════════════════════
 
 import csv
+import importlib.util
 import html
 import statistics
 import sys
@@ -47,9 +48,14 @@ CONFIG = {
     "metricas": "metricas.csv",
     "dir_reportes": "reportes",
 
-    # Lote nuevo vs. referencia. Son los mismos nombres que escribe el paso 10;
-    # si allí cambian, aquí también.
-    "lote_nuevo": "v2-mas-cortes",
+    # ⚠️ **No se tocan a mano: los lee del paso 10 al arrancar** (ver
+    # `sincronizar_lotes()`). Tenerlos duplicados fue un fallo silencioso real:
+    # el paso 10 etiquetaba `v3-guion-y-dispersion` y aquí seguía puesto
+    # `v2-mas-cortes`, así que el lote nuevo **desaparecía del veredicto** sin
+    # salir en ningún sitio —ni como nuevo ni como baseline— y el informe
+    # comparaba la tanda anterior con toda naturalidad. Quedan aquí solo como
+    # valor de respaldo por si el paso 10 no se puede importar.
+    "lote_nuevo": "v3-guion-y-dispersion",
     "lote_baseline": "baseline",
 
     # Debajo de esta n, la comparación se marca como no concluyente. No la
@@ -762,14 +768,61 @@ def construir_html(filas: list[dict], hoy: date) -> str:
 #   MAIN
 # ═══════════════════════════════════════════════════════════════════════
 
+def sincronizar_lotes() -> None:
+    """Toma `lote_nuevo` y `lote_baseline` del paso 10, que es quien etiqueta.
+
+    Un nombre de lote es un contrato entre quien escribe `metricas.csv` y quien
+    lo lee. Mantenerlo en dos sitios significaba que se podían desincronizar, y
+    se desincronizaron: nada falla, el informe sale, se lee bien y compara la
+    tanda equivocada. Ahora el paso 10 manda y aquí solo se copia.
+    """
+    ruta = Path(__file__).resolve().parent / "10_metricas.py"
+    if not ruta.exists():
+        return
+    try:
+        spec = importlib.util.spec_from_file_location("met10", ruta)
+        met = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(met)
+    except Exception as exc:                      # noqa: BLE001
+        print(f"  ⚠️  No pude leer los lotes del paso 10 ({type(exc).__name__}); "
+              f"uso los de respaldo")
+        return
+    for clave in ("lote_nuevo", "lote_baseline"):
+        if met.CONFIG.get(clave) and met.CONFIG[clave] != CONFIG[clave]:
+            print(f"  🔄 {clave}: '{CONFIG[clave]}' → '{met.CONFIG[clave]}' "
+                  f"(según el paso 10)")
+            CONFIG[clave] = met.CONFIG[clave]
+
+
+def avisar_lotes_huerfanos(filas: list[dict]) -> None:
+    """Un lote que no es ni el nuevo ni el baseline no sale en el veredicto.
+
+    Puede ser legítimo —una tanda anterior que ya cumplió— pero también puede
+    ser el lote nuevo mal nombrado. Se dice en voz alta con la n al lado, que es
+    lo que distingue «26 filas de v2 que ya no comparo» de «se me perdió la
+    tanda de esta semana».
+    """
+    conocidos = {CONFIG["lote_nuevo"], CONFIG["lote_baseline"], ""}
+    otros = {}
+    for f in filas:
+        lote = (f.get("lote") or "").strip()
+        if lote not in conocidos:
+            otros[lote] = otros.get(lote, 0) + 1
+    for lote, n in sorted(otros.items(), key=lambda kv: -kv[1]):
+        print(f"  ⚠️  '{lote}' ({n} filas) no entra en la comparación: no es ni "
+              f"'{CONFIG['lote_nuevo']}' ni '{CONFIG['lote_baseline']}'")
+
+
 def main() -> None:
     print("═" * 62)
     print("📊 Informe de métricas")
     print("═" * 62)
 
+    sincronizar_lotes()
     hoy = date.today()
     filas = leer_metricas(CONFIG["metricas"])
     print(f"  ✓ {len(filas)} filas leídas de {CONFIG['metricas']}")
+    avisar_lotes_huerfanos(filas)
 
     calcular_derivadas(filas, hoy)
     print(f"  ✓ derivadas calculadas: {', '.join(DERIVADAS)}")
@@ -789,7 +842,8 @@ def main() -> None:
     estable.write_text(html_final, encoding="utf-8")
 
     print("─" * 62)
-    print("  v2-mas-cortes vs baseline — solo métricas comparables:")
+    print(f"  {CONFIG['lote_nuevo']} vs {CONFIG['lote_baseline']} "
+          f"— solo métricas comparables:")
     for plataforma in sorted(COLUMNAS_POR_PLATAFORMA):
         validas = [c for c in (comparar_lotes(filas, plataforma, campo)
                                for campo in COLUMNAS_POR_PLATAFORMA[plataforma])

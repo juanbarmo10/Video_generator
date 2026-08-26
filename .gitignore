@@ -69,6 +69,11 @@ publicar/*
 # secas, esta línea no tendría ningún efecto.
 !publicar/publicado.csv
 
+# El calendario lo genera el paso 09, pero deja de ser regenerable en cuanto se
+# reprograma a mano: el 25 ago se movieron 8 filas para resubir a Facebook por
+# `/videos`, y eso no lo reconstruye nadie. Si se pierde, no se resuben.
+!publicar/calendario.csv
+
 # Exports crudos de las plataformas (ruido; el consolidado va en metricas.csv)
 metricas_export/
 

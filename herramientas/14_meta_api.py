@@ -503,7 +503,6 @@ def guardar_en_metricas(dry_run: bool = False) -> None:
         raise SystemExit("❌ Nada que guardar.")
 
     indice = met.indice_proyectos(cfg10)
-    nuevos = met.proyectos_del_lote_nuevo(cfg10)
     temas = met.temas_por_proyecto(cfg10)
     for f in filas:
         f["_texto"], f["_id"] = f["titulo"], f["id_plataforma"]
@@ -514,8 +513,7 @@ def guardar_en_metricas(dry_run: bool = False) -> None:
         for i, f in enumerate(suyas):
             proyecto = asignado.get(i, "")
             f["PROYECTO"] = proyecto
-            f["lote"] = (cfg10["lote_nuevo"] if proyecto in nuevos
-                         else cfg10["lote_baseline"])
+            f["lote"] = met.lote_de(proyecto, cfg10)
             f["tema"] = temas.get(proyecto, "")
 
     for f in filas:

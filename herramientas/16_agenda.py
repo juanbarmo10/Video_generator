@@ -117,7 +117,12 @@ def pendientes(hoy: str) -> list[dict]:
             continue
         if any(not ya_salio(f["proyecto"], red) for red in CONFIG["redes_reel"]):
             vivas.append(f)
-    return vivas
+    # ⚠️ **Por fecha, no por orden del archivo.** Decía «el más antiguo» y
+    # devolvía «el primero del CSV»: coincidían solo mientras nadie reordenara
+    # el calendario. Al reprogramar las resubidas de Facebook (25 ago) una fila
+    # quedó al final con fecha anterior, y el atraso se habría recuperado en el
+    # orden equivocado sin que nada avisara.
+    return sorted(vivas, key=lambda f: f.get("fecha", ""))
 
 
 #%% ═══════════════════════════════════════════════════════════════

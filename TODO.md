@@ -36,8 +36,6 @@ solo quedan YouTube y TikTok, las dos cuyo trámite de publicación por API no c
 | | # | Pendiente | Gana |
 |---|---|---|---|
 | 🔴 | [P-31](#p-31) | Facebook no distribuye desde que publicamos por API | todo el alcance de una red |
-| 🔴 | [P-27](#p-27) | `Historia07` y `Historia08` se archivarán como `baseline` | que el lote no mienta |
-| 🔴 | [P-28](#p-28) | El informe compara `v2` mientras el paso 10 etiqueta `v3` | ver el lote nuevo |
 | 🟡 | [P-32](#p-32) | Los carruseles nunca alcanzaron a nadie: ¿se quitan? | 2 días de semana |
 | 🟡 | [P-20](#p-20) | Por qué menos gente para el scroll (el frame 0) | la única métrica en contra |
 | 🟡 | [P-26](#p-26) | TikTok: 3 columnas que ninguna API pública da | ~5 min/semana |
@@ -47,11 +45,10 @@ solo quedan YouTube y TikTok, las dos cuyo trámite de publicación por API no c
 | 🔵 | [P-17](#p-17) | Afinar el recordatorio con unas semanas de uso | ruido |
 | ⚪ | [P-29](#p-29) | 880 MB de intermedios y de una prueba | espacio en disco |
 
-⚠️ **P-27 y P-28 muerden solos, sin que nadie toque nada.** Los dos salen de la
-revisión del 16 ago y los dos fallan **en silencio**: no rompen nada, producen un
-informe que se lee perfectamente y dice algo que no es. Son media hora entre los
-dos y conviene hacerlos **antes del domingo que viene**, que es cuando entran las
-primeras métricas de `Historia07`-`Historia08`.
+✅ **P-27 y P-28 cerrados el 25 ago**, justo antes de recoger las métricas de la
+semana — que es cuando habrían mordido. El aviso nuevo del informe saltó a la
+primera y avisó de que las **26 filas de `v2-mas-cortes` se caían del veredicto**
+en silencio.
 
 ---
 
@@ -136,10 +133,36 @@ manda `title` (que `/video_reels` no admitía) y devuelve el **`post_id`**, con 
 que de paso cierra [P-30](#p-30) para los nuevos. Se vuelve atrás cambiando el
 `CONFIG` a `"video_reels"`.
 
-**La prueba se hace sola:** `Historia15` es el último del calendario y sale
-**mañana a las 12:00** por el camino nuevo, a la hora canónica y con **ocho
-controles muertos detrás**. No hace falta publicar nada a mano.
-Si revive, se decide si borrar los ocho y volver a subirlos.
+**La prueba se hace sola:** `Historia15` sale **el 26 a las 12:00** por el camino
+nuevo, a la hora canónica. No hace falta publicar nada a mano.
+
+### Los ocho muertos: borrados y en cola para resubir (25 ago)
+
+Decisión de operación: no se dan por perdidos. Los 8 reels se **borraron de
+Facebook** (verificando cada borrado releyendo el objeto, no fiándose del
+`success`) y sus proyectos vuelven al calendario para que la agenda los resuba
+por `/videos`, uno al día:
+
+| | |
+|---|---|
+| Evidencia previa | [`evidencia/p31_reels_video_reels.json`](evidencia/p31_reels_video_reels.json) — alcance, `post_views`, duración y descripción de los 8, **antes** de borrarlos |
+| `publicado.csv` | fuera las 8 filas de `facebook` (las de `instagram` se quedan: esas sí funcionaron) |
+| Calendario | `Historia07`→27 ago … `Historia14`→3 sep, **después** de `Historia15` |
+
+⚠️ **El orden no es casual: la resubida empieza el 27, un día después del
+veredicto de `Historia15`.** Si el 26 no revive, hay tiempo de parar antes de
+gastar ocho publicaciones más por el camino equivocado — basta con borrar esas
+filas del calendario.
+
+⚠️ **Facebook nunca verá esos 8 videos en `metricas.csv`**, porque los borramos
+antes de la primera consolidación. Su único registro es el JSON de evidencia, y
+está bien así: meterlos habría hundido las medianas del lote con ocho `alcance 2`
+de un camino de publicación que ya no usamos.
+
+⚠️ **Riesgo asumido:** resubir el mismo vídeo que ya estuvo publicado puede leerse
+como contenido repetido. Se borró antes de resubir precisamente para que no haya
+dos copias vivas, pero si Meta lo marca, se vería en la resubida de `Historia07`
+el 27 y habría que parar.
 
 <a id="p-32"></a>
 **P-32 · Instagram NO tiene el problema — y los carruseles nunca funcionaron.**
@@ -174,44 +197,7 @@ menos tiene un techo de 22.024 ([P-25](#p-25)). El paso 06 seguiría existiendo
 para el archivo.
 
 
-<a id="p-27"></a>
-**P-27 · `Historia07` y `Historia08` van a entrar como `baseline`, y son `v2`.**
-
-El `lote` de una fila lo decide `proyectos_del_lote_nuevo()`, que lee
-**`temas.csv`** — y `temas.csv` ya solo tiene `Historia09`-`Historia15`. Los dos
-únicos videos de `v2-mas-cortes` que **todavía no tienen ninguna fila** en
-`metricas.csv` son justo `Historia07` (publicado el 15 ago) y `Historia08` (hoy).
-Cuando lleguen sus métricas:
-
-| | |
-|---|---|
-| ¿Está en `temas.csv`? | No → no es del lote nuevo |
-| ¿Lo protege `lotes_ya_asignados()`? | **No**: solo protege lo que ya tiene fila, y no la tienen |
-| Resultado | `lote = baseline` — dos videos de `v2` contados como grupo de control |
-
-⚠️ **Es el mismo fallo del 15 ago visto por el otro lado.** El mecanismo pegajoso
-se hizo para que cargar una tanda nueva no degradara la anterior, y funciona: lo
-que **no** cubre es un video de un lote viejo al que se le ve la primera métrica
-*después* de que `temas.csv` haya pasado de página. La pertenencia a una tanda es
-historia, y la historia no puede vivir en un archivo que se reescribe cada semana.
-
-**El arreglo, en el `CONFIG` del paso 10:** un mapa explícito e histórico
-(`"lotes_historicos": {"v2-mas-cortes": ["Historia01", …, "Historia08"]}`) que se
-consulte **antes** que `temas.csv`. `temas.csv` se queda para lo que sí sabe: cuál
-es el lote *en curso*.
-
-✅ **Es recuperable, y por eso no es urgente-urgente:** `lotes_ya_asignados()` es
-asimétrica y **sí promueve** desde `baseline`, así que corregir el mapa y volver a
-correr el paso 10 los sube a `v2` aunque ya hayan entrado mal. Lo que no se
-recupera es un informe que ya leíste creyéndotelo.
-
-<a id="p-28"></a>
-**P-28 · El informe compara `v2-mas-cortes`; el paso 10 etiqueta `v3-guion-y-dispersion`.**
-
-Son **dos `CONFIG` distintos que nadie sincroniza**:
-
-| Archivo | `lote_nuevo` |
-|---|---|
+---|
 | [10_metricas.py](herramientas/10_metricas.py) | `v3-guion-y-dispersion` ← con lo que se **etiqueta** |
 | [11_reporte.py](herramientas/11_reporte.py) | `v2-mas-cortes` ← con lo que se **compara** |
 
@@ -438,6 +424,8 @@ con lo que se midió, está en [HISTORIAL.md](HISTORIAL.md).
 | <a id="p-07"></a>**P-07** | Basura de corridas viejas | **36 MB borrados.** ⚠️ Los slides obsoletos no estaban donde decía la nota, y su receta habría borrado el CTA bueno de dos respaldos: [HISTORIAL](HISTORIAL.md#limpieza-y-recuperación-de-los-lotes-viejos-15-ago-2026) |
 | <a id="p-08"></a>**P-08** | Los 16 Mundial sin `descripcion.txt` ni `.srt` | Recuperados: el texto estaba en el formato viejo (`03_instagram.txt` + `04_facebook.txt`) y los `.srt` se rehacen desde el mp3 con el mismo whisper del paso 07. ⚠️ Se dio por cerrado el 15 ago **estando a medias** (10 de 16): el script vivía en un temporal y se lo llevó la limpieza del sistema sin que nada avisara. Ahora es [herramientas/18_rehacer_srt.py](herramientas/18_rehacer_srt.py), con `--listar` para no volver a creerse un «ya está» |
 | <a id="p-09b"></a>**P-09b** | Métricas a mano en las 5 redes | Las cinco por API: YouTube, Meta, Threads y TikTok. ⚠️ De TikTok quedan 3 columnas que **ninguna API pública expone**: [P-26](#p-26) |
+| <a id="p-27"></a>**P-27** | Un video de una tanda cerrada entraba como `baseline` | `lotes_historicos` en el `CONFIG` del paso 10, y `lote_de()` lo consulta **antes** que `temas.csv`. La pertenencia a una tanda es historia; `temas.csv` solo sabe cuál es la tanda en curso |
+| <a id="p-28"></a>**P-28** | El informe comparaba `v2` mientras el paso 10 etiquetaba `v3` | `sincronizar_lotes()` los lee del paso 10 al arrancar, y `avisar_lotes_huerfanos()` canta cualquier lote que se quede fuera del veredicto, con la n al lado |
 | <a id="p-11"></a>**P-11** | Tests solo de los pasos 01, 02 y 07 | +27 sobre los pasos **04, 05 y 06** ([tests/test_pasos_medios.py](tests/test_pasos_medios.py)), **166** en total |
 | <a id="p-12"></a>**P-12** | `se_quedaron_pct` bajó en v2 | La curva de retención descartó gancho y cortes. Queda [P-20](#p-20), que es una pregunta distinta |
 | <a id="p-14"></a>**P-14** | `proyectos/T1/` anidado dejaba 78 de 147 filas sin `PROYECTO` | Glob a dos niveles en `indice_proyectos()`: 43 filas recuperadas |

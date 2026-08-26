@@ -91,6 +91,20 @@ CONFIG = {
     # en baseline contaminaría justo el grupo contra el que se compara. Sigue
     # marcado como v2 porque el lote es pegajoso, no porque esté aquí.
     "lote_nuevo_extra": ["Test01"],
+
+    # ⚠️ **La pertenencia a una tanda es HISTORIA, y la historia no puede vivir
+    # en un archivo que se reescribe cada semana.** `temas.csv` dice cuál es el
+    # lote EN CURSO; este mapa dice a cuál perteneció cada video ya hecho, y se
+    # consulta ANTES. Sin él, un video de una tanda vieja al que se le ve la
+    # primera métrica *después* de que `temas.csv` pasara de página entra como
+    # `baseline` — pasó con `Historia07` y `Historia08`, que son v2 y estuvieron
+    # a punto de contarse como grupo de control. `lotes_ya_asignados()` no lo
+    # cubre: ese protege lo que YA tiene fila, y estos no la tenían.
+    # Al cerrar una tanda, añádela aquí y sube `lote_nuevo`.
+    "lotes_historicos": {
+        "v2-mas-cortes": [f"Historia0{n}" for n in range(1, 9)] + ["Test01"],
+        "v3-guion-y-dispersion": [f"Historia{n:02d}" for n in range(9, 16)],
+    },
 }
 
 # Columnas de metricas.csv. `fecha_snapshot` es la clave del asunto: un export
@@ -910,6 +924,29 @@ def proyectos_del_lote_nuevo(cfg: dict) -> set[str]:
     return nuevos
 
 
+def lote_de(proyecto: str, cfg: dict) -> str:
+    """El lote al que pertenece un PROYECTO, mirando primero la historia.
+
+    El orden importa y es lo único que hay que entender aquí:
+    1. `lotes_historicos` — a qué tanda perteneció de verdad. Manda siempre.
+    2. `temas.csv` + `lote_nuevo_extra` — la tanda EN CURSO.
+    3. `baseline` — todo lo demás, con PROYECTO reconocido o sin él.
+
+    ⚠️ Sin el paso 1, `temas.csv` decidía solo, y como se reescribe cada semana
+    un video de una tanda cerrada entraba como `baseline` la primera vez que se
+    le veía una métrica. Un video pertenece a la tanda que lo produjo, no a la
+    que esté cargada hoy.
+    """
+    if not proyecto:
+        return cfg["lote_baseline"]
+    for lote, miembros in (cfg.get("lotes_historicos") or {}).items():
+        if proyecto in miembros:
+            return lote
+    if proyecto in proyectos_del_lote_nuevo(cfg):
+        return cfg["lote_nuevo"]
+    return cfg["lote_baseline"]
+
+
 # ══════════════════════════════════════════════════════════════
 # 💾  ESCRITURA
 # ══════════════════════════════════════════════════════════════
@@ -1135,7 +1172,7 @@ def main() -> None:
             limpia = {c: v for c, v in fila.items() if not c.startswith("_")}
             limpia.update({
                 "PROYECTO": proyecto,
-                "lote": cfg["lote_nuevo"] if proyecto in nuevos else cfg["lote_baseline"],
+                "lote": lote_de(proyecto, cfg),
                 "tema": temas.get(proyecto, ""),
                 "titulo": " ".join(fila["_texto"].split())[:90],
                 "id_plataforma": fila["_id"],

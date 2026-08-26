@@ -434,7 +434,6 @@ def guardar_en_metricas(cred, dry_run: bool = False) -> None:
 
     # Emparejar con los PROYECTO, con la misma lógica que el paso 10.
     indice = met.indice_proyectos(cfg10)
-    nuevos = met.proyectos_del_lote_nuevo(cfg10)
     temas = met.temas_por_proyecto(cfg10)
     # `asignar_uno_a_uno()` trabaja con los campos internos del paso 10.
     for f in filas:
@@ -444,7 +443,7 @@ def guardar_en_metricas(cred, dry_run: bool = False) -> None:
     for i, f in enumerate(filas):
         proyecto = asignado.get(i, "")
         f["PROYECTO"] = proyecto
-        f["lote"] = cfg10["lote_nuevo"] if proyecto in nuevos else cfg10["lote_baseline"]
+        f["lote"] = met.lote_de(proyecto, cfg10)
         f["tema"] = temas.get(proyecto, "")
         for interno in ("_texto", "_id"):
             f.pop(interno, None)

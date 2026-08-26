@@ -254,3 +254,24 @@ class TestRecorteHilo(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class OrdenDeRecuperacion(AgendaFalsa):
+    """`pendientes()` devuelve **por fecha**, no por orden del archivo.
+
+    Congela el fallo del 25 ago: al reprogramar las resubidas de Facebook, una
+    fila quedó al final del CSV con fecha anterior a las de arriba. El código
+    prometía «el más antiguo» en su docstring y entregaba «el primero del
+    archivo», así que el atraso se habría recuperado al revés en silencio.
+    """
+
+    # La fila más antigua va la ÚLTIMA del archivo, que es justo el caso real.
+    CAL = [
+        ("2026-08-28", "12:00", "Historia08", "no"),
+        ("2026-08-27", "12:00", "Historia07", "no"),
+    ]
+
+    def test_devuelve_el_mas_antiguo_aunque_este_al_final_del_csv(self):
+        self.anotar()
+        cola = ag.pendientes("2026-08-29")
+        self.assertEqual([f["proyecto"] for f in cola],
+                         ["Historia07", "Historia08"])
