@@ -36,6 +36,7 @@ solo quedan YouTube y TikTok, las dos cuyo trámite de publicación por API no c
 | | # | Pendiente | Gana |
 |---|---|---|---|
 | 🔴 | [P-31](#p-31) | Facebook no distribuye desde que publicamos por API | todo el alcance de una red |
+| 🟡 | [P-33](#p-33) | El informe compara 2 lotes y ya hay 3: falta `v3` vs `v2` | la pregunta real |
 | 🟡 | [P-32](#p-32) | Los carruseles nunca alcanzaron a nadie: ¿se quitan? | 2 días de semana |
 | 🟡 | [P-20](#p-20) | Por qué menos gente para el scroll (el frame 0) | la única métrica en contra |
 | 🟡 | [P-26](#p-26) | TikTok: 3 columnas que ninguna API pública da | ~5 min/semana |
@@ -358,6 +359,25 @@ Dos ajustes que **solo se deciden con uso**, no ahora:
   ver si sigue teniendo sentido.
 - **¿Adjuntar `reportes/ultimo.html`?** Se dejó fuera: pesa 51 KB y Telegram lo manda como archivo.
   Si nunca lo abres desde el móvil, mejor las 3-4 cifras en el mensaje (ya lo hace).
+
+---
+
+<a id="p-33"></a>
+**P-33 · El informe solo sabe comparar DOS lotes, y ya hay tres.**
+
+Al consolidar el 25 ago saltó el aviso nuevo: **`v2-mas-cortes` (54 filas) se
+queda fuera del veredicto**. No es un fallo —es una tanda cerrada y el aviso hace
+justo lo que debe— pero deja ver el límite: `comparar_lotes()` contrasta
+`lote_nuevo` contra `lote_baseline` y no hay sitio para un tercero.
+
+⚠️ **Y el tercero es el que interesa.** `v3` contra `baseline` mide «pipeline
+nuevo contra los videos de antes de todo esto»; lo que de verdad se quiere saber
+es **`v3` contra `v2`**: si el guionista `gpt-5.4`, el crítico de Opus y los
+planos dispersados mejoraron algo sobre la tanda anterior. Hoy esa comparación
+no se puede leer en ninguna parte.
+
+De momento se ve a mano; el arreglo es que `comparar_lotes()` acepte qué dos
+lotes contrastar y que el informe saque las dos tablas.
 
 ---
 
