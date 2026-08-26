@@ -618,7 +618,20 @@ guarda todas las fotos.
   hicieron aquí — `title` lo admite `/videos`, no `/video_reels`. Encaja con `post_views` (vistas
   llegadas del post del muro): **136-314** en los de Metricool contra **0-1** en los nuestros.
   `/video_reels` crea un reel que nunca aterriza en el muro, así que no llega a los seguidores.
-  El siguiente paso es probar `/videos`, y está en P-31 de [TODO.md](TODO.md).
+  ⚠️ **Confirmado con la semana entera (25 ago): los 8 reels publicados por API dieron alcance
+  `2`, los ocho.** No 1, no 3: exactamente 2 ocho veces, contra una mediana de **544** (n=45) de
+  los subidos a mano. Ocho veces el mismo número no es una penalización de ranking —eso daría
+  dispersión— sino un interruptor apagado. Por eso `CONFIG["endpoint_facebook"]` vale **`"videos"`**
+  desde el 25 ago: `publicar_facebook_videos()` sube en una sola llamada multipart, manda `title`
+  (que `/video_reels` no admite) y devuelve el **`post_id`**, no el id del vídeo. Ponlo en
+  `"video_reels"` solo para volver atrás.
+- ⚠️ **Instagram NO tiene este problema, y conviene saberlo antes de tocar nada ahí.** Medido
+  contra el histórico entero: reels por API mediana **146** (n=8) contra **127** (n=45) de los
+  manuales — van *mejor* que la línea de base. La impresión de que también cayó viene de
+  compararlos con los tres manuales grandes de justo antes del cambio (2.984, 1.159, 1.064).
+  ⚠️ Y **los carruseles llevan muertos desde siempre**: los cinco manuales de mayo dieron **2 de
+  alcance cada uno**, los de API dan 1-7. No es una regresión del API. Ver P-32 de
+  [TODO.md](TODO.md).
 - ⚠️ **El id que hay que guardar en `metricas.csv` es `post_id`, no `id`.** `me/video_reels` devuelve
   el id del **video**; el export de Facebook trae el del **post**, y son distintos. Cruzarlos metía
   45 filas fantasma.

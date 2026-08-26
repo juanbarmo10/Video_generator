@@ -9,10 +9,13 @@
 
 ## Dónde vamos
 
-**Estado a 16 ago 2026.** Dos lotes completos y el pipeline **sin intervención humana de punta a
-punta** — y desde hoy eso ya no es una afirmación de diseño: a las 12:00 `cron` publicó
-`Historia08` en Instagram y Facebook **sin que nadie tocara nada**, y lo anotó en
-`publicado.csv`. Es la primera. Lo que queda por ver está en [P-22](#p-22).
+**Estado a 25 ago 2026.** El pipeline lleva **diez días publicando solo**: 8 reels,
+6 extras y tres fallos de Instagram de los que la agenda se recuperó ella sola al
+día siguiente. La automatización funciona.
+
+⚠️ **Pero Facebook no distribuye nada desde el 15 ago** ([P-31](#p-31)) y **el
+calendario se agota mañana con `Historia15`**: hace falta generar el lote
+siguiente.
 
 | | `v2-mas-cortes` (Historia01-08) | `v3-guion-y-dispersion` (Historia09-15) |
 |---|---|---|
@@ -35,6 +38,7 @@ solo quedan YouTube y TikTok, las dos cuyo trámite de publicación por API no c
 | 🔴 | [P-31](#p-31) | Facebook no distribuye desde que publicamos por API | todo el alcance de una red |
 | 🔴 | [P-27](#p-27) | `Historia07` y `Historia08` se archivarán como `baseline` | que el lote no mienta |
 | 🔴 | [P-28](#p-28) | El informe compara `v2` mientras el paso 10 etiqueta `v3` | ver el lote nuevo |
+| 🟡 | [P-32](#p-32) | Los carruseles nunca alcanzaron a nadie: ¿se quitan? | 2 días de semana |
 | 🟡 | [P-20](#p-20) | Por qué menos gente para el scroll (el frame 0) | la única métrica en contra |
 | 🟡 | [P-26](#p-26) | TikTok: 3 columnas que ninguna API pública da | ~5 min/semana |
 | 🔵 | [P-22](#p-22) | Vigilar la primera semana de publicación automática | confianza |
@@ -110,16 +114,64 @@ un reel puro que nunca llega al muro ni, por tanto, a los seguidores.
 
 **El título era un marcador del camino de subida, no la causa.**
 
-**Siguiente experimento (a decidir):** publicar `Historia11` por **`/videos`** en
-vez de `/video_reels`. Es el cambio que se sigue de todo lo medido, pero no es
-gratis: hay que ver si un 9:16 subido por ahí sigue apareciendo como reel o se
-queda como vídeo de muro, que es otro formato. Por eso no se ha hecho solo.
+### La semana completa (25 ago): ya no hay duda
 
-**Control deliberado:** los otros **3 reels muertos se quedan sin tocar**, y el de
-`Historia09` conserva su intento fallido (no se le puso nada, así que sigue siendo
-comparable). Si mañana `Historia11` revive por `/videos`, los cuatro muertos son
-la línea de base contra la que medirlo — y entonces se decide si se borran y se
-vuelven a subir.
+Se dejó correr ocho publicaciones. Comparado contra **todo** el histórico, no
+contra los cuatro anteriores:
+
+| grupo | n | mediana | mín | máx |
+|---|---:|---:|---:|---:|
+| facebook manual | 45 | **544** | 4 | 5.079 |
+| facebook por API | 8 | **2** | 2 | 2 |
+
+⚠️ **Los ocho dieron exactamente 2. No 1, no 3: dos, ocho veces.** Eso no es una
+penalización de ranking —eso daría dispersión— sino **un interruptor apagado**.
+Junto con `post_views` (0-1 nuestros contra 57-2.599 los manuales), el mecanismo
+es que `/video_reels` crea un reel que **nunca aterriza en el muro**, así que no
+llega a los 128 seguidores, que son la semilla de toda la distribución.
+
+**✅ Hecho el 25 ago:** `CONFIG["endpoint_facebook"] = "videos"`.
+`publicar_facebook_videos()` sube por `/videos` en una sola llamada multipart,
+manda `title` (que `/video_reels` no admitía) y devuelve el **`post_id`**, con lo
+que de paso cierra [P-30](#p-30) para los nuevos. Se vuelve atrás cambiando el
+`CONFIG` a `"video_reels"`.
+
+**La prueba se hace sola:** `Historia15` es el último del calendario y sale
+**mañana a las 12:00** por el camino nuevo, a la hora canónica y con **ocho
+controles muertos detrás**. No hace falta publicar nada a mano.
+Si revive, se decide si borrar los ocho y volver a subirlos.
+
+<a id="p-32"></a>
+**P-32 · Instagram NO tiene el problema — y los carruseles nunca funcionaron.**
+
+Esto sale de medir contra el histórico entero en vez de contra las últimas
+semanas, y **corrige dos impresiones equivocadas** (una del usuario y otra mía):
+
+| grupo | n | mediana | mín | máx |
+|---|---:|---:|---:|---:|
+| reel instagram manual | 45 | 127 | 14 | 2.984 |
+| reel instagram por API | 8 | **146** | 80 | 272 |
+| carrusel instagram manual | 5 | **2** | 2 | 2 |
+| carrusel instagram por API | 3 | **5** | 1 | 7 |
+
+⚠️ **Los reels de Instagram por API van MEJOR que la línea de base**, no peor. La
+sensación de «también cayó» viene de compararlos con los tres manuales grandes
+que cayeron justo antes del cambio (2.984, 1.159, 1.064); la mediana real de 45
+manuales es 127. **No hay nada que arreglar en Instagram, y el esfuerzo que se
+ponga ahí es esfuerzo tirado.**
+
+⚠️ **Los carruseles llevan muertos desde siempre**: los cinco manuales de mayo
+dieron **2 de alcance cada uno**. No es una regresión del API — de hecho los de
+API van algo mejor (mediana 5). El álbum de Facebook de `Historia04` sacó **0
+reacciones y 1 clic**.
+
+**La decisión que toca, y es de producto, no de código:** la agenda gasta dos de
+los tres días de extras (martes carrusel de IG, jueves álbum de FB) en un formato
+que **nunca ha alcanzado a nadie en esta cuenta**. O se le busca una razón para
+seguir, o se quitan esas dos entradas de `dias_extra` en
+[16_agenda.py](herramientas/16_agenda.py) y se deja el hilo de Threads, que al
+menos tiene un techo de 22.024 ([P-25](#p-25)). El paso 06 seguiría existiendo
+para el archivo.
 
 
 <a id="p-27"></a>

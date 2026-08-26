@@ -55,6 +55,18 @@ CONFIG = {
     # Subir una imagen va por multipart y tarda más que una llamada normal;
     # con 30 s se cortaban carruseles de 6 slides a media subida.
     "timeout_subida": 120,
+
+    # ⚠️ **Por dónde sube el reel de Facebook, y no es un detalle de estilo.**
+    # Con "video_reels" los 8 reels publicados del 15 al 25 ago dieron alcance
+    # **exactamente 2, los ocho**, contra una mediana de 544 (n=45) de los
+    # subidos a mano. Ocho veces el mismo número no es una penalización de
+    # ranking —eso daría dispersión— sino un interruptor apagado: `/video_reels`
+    # crea un reel que **nunca aterriza en el muro** (`post_views` 0-1 frente a
+    # 57-2599), así que no llega a los seguidores, que son la semilla de toda la
+    # distribución. `/videos` sí crea un post de vídeo de verdad y además admite
+    # `title`, que es el campo que llevan los de Metricool y aquí no se podía
+    # poner. Déjalo en "video_reels" solo para volver atrás. Ver P-31.
+    "endpoint_facebook": "videos",
 }
 
 TOKEN = os.getenv("META_ACCESS_TOKEN", "").strip()
@@ -778,6 +790,52 @@ def publicar_facebook(video: Path, descripcion: str, dry_run: bool,
     return video_id
 
 
+def publicar_facebook_videos(video: Path, descripcion: str, titulo: str,
+                             dry_run: bool) -> str | None:
+    """Sube el reel por `/videos` en vez de `/video_reels`.
+
+    Una sola llamada multipart: para 20 MB no hace falta el protocolo por
+    trozos, y menos piezas es menos que se rompa de madrugada sin nadie mirando.
+
+    Devuelve el **`post_id`**, no el id del vídeo (P-30): es el que trae el
+    export de Facebook y el que casa con `metricas.csv`. `/videos` los da los
+    dos, así que aquí sí se puede hacer bien de entrada.
+    """
+    pg = os.getenv("FACEBOOK_PAGE_ID", "").strip()
+    if not pg:
+        print("   ❌ Falta FACEBOOK_PAGE_ID"); return None
+
+    if dry_run:
+        print("   🧪 --dry-run: no se sube nada por /videos")
+        return "dry-run"
+
+    datos = {"description": descripcion, "access_token": TOKEN}
+    if titulo:
+        datos["title"] = titulo
+    with video.open("rb") as fh:
+        r = requests.post(f"{CONFIG['graph']}/{CONFIG['api']}/{pg}/videos",
+                          data=datos, files={"source": fh},
+                          timeout=CONFIG["timeout_subida"]).json()
+    if "error" in r:
+        print(f"   ❌ {r['error'].get('message')}")
+        return None
+
+    vid = r.get("id")
+    print(f"   ✅ video subido ({video.stat().st_size / 1e6:.1f} MB) · id {vid}")
+    _verificar_titulo(vid, titulo)
+
+    # El post del muro tarda un instante en existir; si no llega, se guarda el
+    # id del vídeo y se avisa, en vez de fingir que tenemos el bueno.
+    d = _graph(vid, tolerar_error=True, fields="post_id,permalink_url")
+    post = d.get("post_id")
+    if post:
+        print(f"   🔗 post del muro {post} · {d.get('permalink_url','')}")
+        return post
+    print("   ⚠️  Sin `post_id` todavía: guardo el id del vídeo. "
+          "Ojo al cruzar con metricas.csv (P-30)")
+    return vid
+
+
 def _verificar_titulo(video_id: str, enviado: str) -> None:
     """Relee el reel y dice si el `title` se quedó puesto.
 
@@ -1041,8 +1099,11 @@ def publicar(proyecto: str, redes: list[str], dry_run: bool) -> None:
         else:
             # El título sale del mismo `descripcion.txt`, que es donde vive el
             # que ya se acortó a 70 caracteres en el paso 02.
-            id_pub = publicar_facebook(video, texto, dry_run,
-                                       titulo=leer_seccion(desc, "TÍTULO"))
+            titulo = leer_seccion(desc, "TÍTULO")
+            if CONFIG["endpoint_facebook"] == "videos":
+                id_pub = publicar_facebook_videos(video, texto, titulo, dry_run)
+            else:
+                id_pub = publicar_facebook(video, texto, dry_run, titulo=titulo)
         if id_pub and not dry_run:
             anotar_publicado(proyecto, red, id_pub)
             print(f"   ✅ publicado · id {id_pub}")
