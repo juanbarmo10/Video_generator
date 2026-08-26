@@ -45,7 +45,16 @@ rep = cargar("11_reporte.py")
 met = cargar("10_metricas.py")
 
 
-def fila(plataforma="youtube", lote="v2-mas-cortes", edad=4, **campos):
+def fila(plataforma="youtube", lote=None, edad=4, **campos):
+    """⚠️ `lote` sale del `CONFIG` vivo, nunca de un nombre escrito a mano.
+
+    Estos tests llevaban `"v2-mas-cortes"` fijo y se cayeron los diez de golpe
+    el 25 ago, al sincronizar el informe con el paso 10 y pasar el lote nuevo a
+    `v3`. No probaban nada sobre ese nombre: lo usaban solo como «el lote que se
+    compara». Fijarlo hacía que **rodar de tanda rompiera los tests**, que es
+    justo cuando más falta hace que sigan funcionando.
+    """
+    lote = rep.CONFIG["lote_nuevo"] if lote is None else lote
     base = {"plataforma": plataforma, "lote": lote, "edad_dias": edad}
     base.update(campos)
     return base
@@ -79,7 +88,7 @@ class Comparabilidad(unittest.TestCase):
     """Qué se publica como veredicto y qué se aparta con el motivo escrito."""
 
     def comparar(self, campo, tipo_filas, edad_nuevo=4, edad_base=66):
-        filas = ([fila(lote="v2-mas-cortes", edad=edad_nuevo, **{campo: v})
+        filas = ([fila(lote=rep.CONFIG["lote_nuevo"], edad=edad_nuevo, **{campo: v})
                   for v in tipo_filas[0]]
                  + [fila(lote="baseline", edad=edad_base, **{campo: v})
                     for v in tipo_filas[1]])
@@ -115,13 +124,13 @@ class Comparabilidad(unittest.TestCase):
         self.assertTrue(r["comparable"], r["motivo"])
 
     def test_sin_datos_en_un_lote_devuelve_none(self):
-        filas = [fila(lote="v2-mas-cortes", vistas=100)]
+        filas = [fila(lote=rep.CONFIG["lote_nuevo"], vistas=100)]
         self.assertIsNone(rep.comparar_lotes(filas, "youtube", "vistas"))
 
     def test_no_mezcla_plataformas(self):
         """Cada red se compara consigo misma: un video de TikTok no puede entrar
         en el baseline de YouTube."""
-        filas = [fila("youtube", "v2-mas-cortes", vistas_24h=300),
+        filas = [fila("youtube", rep.CONFIG["lote_nuevo"], vistas_24h=300),
                  fila("tiktok", "baseline", vistas_24h=10),
                  fila("youtube", "baseline", vistas_24h=100)]
         r = rep.comparar_lotes(filas, "youtube", "vistas_24h")
@@ -133,14 +142,14 @@ class SignoYFiabilidad(unittest.TestCase):
     """El signo es justo lo que nadie revisa y lo que da la vuelta al veredicto."""
 
     def test_subida_es_mejora_y_el_porcentaje_sale_positivo(self):
-        filas = [fila(lote="v2-mas-cortes", vistas_24h=v) for v in (200, 200)] \
+        filas = [fila(lote=rep.CONFIG["lote_nuevo"], vistas_24h=v) for v in (200, 200)] \
               + [fila(lote="baseline", vistas_24h=v) for v in (100, 100)]
         r = rep.comparar_lotes(filas, "youtube", "vistas_24h")
         self.assertAlmostEqual(r["cambio_pct"], 100.0)
         self.assertTrue(r["mejora"])
 
     def test_bajada_no_es_mejora_y_el_porcentaje_sale_negativo(self):
-        filas = [fila(lote="v2-mas-cortes", se_quedaron_pct=v) for v in (40, 40)] \
+        filas = [fila(lote=rep.CONFIG["lote_nuevo"], se_quedaron_pct=v) for v in (40, 40)] \
               + [fila(lote="baseline", se_quedaron_pct=v) for v in (50, 50)]
         r = rep.comparar_lotes(filas, "youtube", "se_quedaron_pct")
         self.assertAlmostEqual(r["cambio_pct"], -20.0)
@@ -152,7 +161,7 @@ class SignoYFiabilidad(unittest.TestCase):
         el porcentaje debe seguir diciendo la verdad y solo cambiar `mejora`."""
         rep.MENOS_ES_MEJOR.add("se_quedaron_pct")
         try:
-            filas = [fila(lote="v2-mas-cortes", se_quedaron_pct=40)] * 2 \
+            filas = [fila(lote=rep.CONFIG["lote_nuevo"], se_quedaron_pct=40)] * 2 \
                   + [fila(lote="baseline", se_quedaron_pct=50)] * 2
             r = rep.comparar_lotes(filas, "youtube", "se_quedaron_pct")
             self.assertAlmostEqual(r["cambio_pct"], -20.0)
@@ -165,11 +174,11 @@ class SignoYFiabilidad(unittest.TestCase):
         baseline tenga 40 videos. Es exactamente el caso al que llegó el informe
         cuando el lote se degradó solo."""
         n_min = rep.CONFIG["n_minimo_fiable"]
-        filas = [fila(lote="v2-mas-cortes", vistas_24h=300)] \
+        filas = [fila(lote=rep.CONFIG["lote_nuevo"], vistas_24h=300)] \
               + [fila(lote="baseline", vistas_24h=100)] * (n_min + 10)
         self.assertFalse(rep.comparar_lotes(filas, "youtube", "vistas_24h")["fiable"])
 
-        filas = [fila(lote="v2-mas-cortes", vistas_24h=300)] * n_min \
+        filas = [fila(lote=rep.CONFIG["lote_nuevo"], vistas_24h=300)] * n_min \
               + [fila(lote="baseline", vistas_24h=100)] * n_min
         self.assertTrue(rep.comparar_lotes(filas, "youtube", "vistas_24h")["fiable"])
 
