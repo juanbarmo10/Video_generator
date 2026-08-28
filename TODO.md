@@ -137,6 +137,46 @@ que de paso cierra [P-30](#p-30) para los nuevos. Se vuelve atrás cambiando el
 **La prueba se hace sola:** `Historia15` sale **el 26 a las 12:00** por el camino
 nuevo, a la hora canónica. No hace falta publicar nada a mano.
 
+### `/videos` tampoco: el endpoint NO era la causa (27 ago)
+
+| publicado por | n | alcance |
+|---|---:|---|
+| `/video_reels` | 8 | 2 · 2 · 2 · 2 · 2 · 2 · 2 · 2 |
+| **`/videos`** (con `title`) | 2 | **2 · 0** |
+
+✅ **El cambio hizo lo que prometía**: los dos nuevos llevan `title` puesto, cosa
+que `/video_reels` rechazaba. O sea que la lectura del campo era correcta —
+Metricool subía por ahí— y aun así **el alcance no se movió**.
+
+⚠️ **Dos caminos de subida distintos dan el mismo resultado, así que el camino no
+es la causa.** Lo que queda en común ya no es un endpoint: es *esta app
+publicando en esta página*. Y eso choca con que Instagram, con la misma app y el
+mismo token, siga en su mediana de siempre.
+
+**Lo que dice la API de la página, y no sirve:** `is_published: true`,
+`is_permanently_closed: false`, `promotion_eligible: true`, sin restricciones
+legibles, 127 seguidores. `talking_about_count: 0`. Nada acusable por aquí.
+
+⏸️ **Resubidas aparcadas** (fecha `2099-01-01` en el calendario). Quedaban 7 y
+publicarlas ahora sería meterlas en un canal que sabemos muerto, y gastar el
+único cartucho de «subirlas por primera vez» que le queda a cada una.
+
+### 🔴 Lo único que falta por probar, y no es código
+
+**Publicar UN vídeo a mano** —desde Metricool o desde el propio Facebook— a las
+12:00. Es el experimento que separa los dos mundos que quedan, y llevo
+recomendándolo desde el 18 ago sin que se haya hecho:
+
+| Si el manual alcanza ~300 | Si el manual alcanza ~2 |
+|---|---|
+| El problema es **publicar por API en esta página** | La **página está frenada** desde el 15 ago |
+| Salida: Facebook vuelve a Metricool; el resto sigue automático | Ningún cambio de código lo arregla. Toca *Meta Business Suite → Estado de la cuenta* y apelar |
+
+⚠️ **Hasta que eso se haga, cualquier cambio de código es adivinar.** Ya se
+descartaron con datos la app, el token, el vídeo, la visibilidad, el tipo de
+objeto, el título y el endpoint. No queda ninguna hipótesis que el código pueda
+tocar.
+
 ### Los ocho muertos: borrados y en cola para resubir (25 ago)
 
 Decisión de operación: no se dan por perdidos. Los 8 reels se **borraron de

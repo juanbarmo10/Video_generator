@@ -356,11 +356,31 @@ def main() -> None:
     if args.estado:
         estado(hoy)
     elif args.reel:
-        publicar_reel(hoy, dry_run=args.dry_run)
+        _sin_reventar(publicar_reel, hoy, args.dry_run)
     elif args.extras:
-        publicar_extra(hoy, dry_run=args.dry_run)
+        _sin_reventar(publicar_extra, hoy, args.dry_run)
     else:
         p.print_help()
+
+
+def _sin_reventar(fn, hoy: str, dry_run: bool) -> None:
+    """Deja que un fallo de red muera con una línea, no con un traceback.
+
+    ⚠️ Esto corre bajo `cron` y su salida acaba en `logs/agenda.log`. El 27 ago
+    una caída de DNS a mitad de `subir_foto_staging()` soltó 20 líneas de
+    traceback ahí dentro; el fallo era transitorio y la recuperación ya estaba
+    resuelta —lo que no salió hoy vuelve a estar pendiente mañana— pero el log
+    quedó ilegible justo el día que había que leerlo.
+
+    Se traga solo lo que es de red. Un `SystemExit` (falta el token, no existe
+    el vídeo) sigue saliendo entero: eso no se arregla esperando a mañana.
+    """
+    import requests
+    try:
+        fn(hoy, dry_run=dry_run)
+    except requests.exceptions.RequestException as exc:
+        print(f"🌐 Falló la red ({type(exc).__name__}). No se publicó nada; "
+              f"mañana vuelve a intentarlo solo.")
 
 
 if __name__ == "__main__":
