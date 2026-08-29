@@ -19,7 +19,21 @@ página a quien tenga un rol en ella, y solo tiene un administrador: diez
 publicaciones con **alcance 2**, contra **1.039** del mismo vídeo por Metricool
 ([P-31](#p-31) en Resueltos). Se sube a mano, como YouTube y TikTok.
 
-⚠️ **El calendario está agotado**: hace falta generar el lote siguiente.
+**Lote `v4-hashtags-limpios` en marcha (29 ago):** 10 temas pedidos, **9
+completados y aprobados**, 1 abortado. Coste **$2.32** más el control de calidad
+del abortado (~$0.09); mediana **$0.254** por tema. Se publica del 30 ago al 7 sep.
+
+Verificado sobre los 9: **0 títulos** fuera de los 70 caracteres y **0
+descripciones con hashtags duplicados** — la primera corrida real del arreglo del
+paso 02, que es lo que sacó a `Historia07` con 24.
+
+⚠️ **`Historia20` (maratón olímpico de 1904) abortó tras 3 intentos**, y el motivo
+merece leerse antes de volver a proponerlo: es una historia famosísima pero se
+cuenta entera con cifras precisas —dosis de estricnina, 32 grados, 3 h 28 min— y
+el crítico las marca una por una. En el tercer intento además cazó algo real: el
+guion decía que Hicks «llegó primero» cuando Lorz cruzó antes y fue descalificado.
+**Un tema cuyo gancho son los datos exactos es mal candidato**, aunque la anécdota
+sea buenísima.
 
 **Facebook, al 28 ago:** `Historia13` publicado por Metricool (1.039 de alcance,
 el que cerró el diagnóstico) y `Historia07`, `Historia14` y `Historia15` ya

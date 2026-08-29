@@ -69,9 +69,11 @@ publicar/*
 # secas, esta línea no tendría ningún efecto.
 !publicar/publicado.csv
 
-# El calendario lo genera el paso 09, pero deja de ser regenerable en cuanto se
-# reprograma a mano: el 25 ago se movieron 8 filas para resubir a Facebook por
-# `/videos`, y eso no lo reconstruye nadie. Si se pierde, no se resuben.
+# El calendario lo genera el paso 09 en cada lote, pero deja de ser regenerable
+# en cuanto se reprograma a mano (pasó el 25 ago, para resubir a Facebook). Se
+# guarda porque una fila movida a mano no la reconstruye nadie.
+# ⚠️ El paso 09 lo REESCRIBE entero: lo que se anote a mano ahí se pierde en el
+# lote siguiente. Lo que tenga que sobrevivir va en TODO.md, no aquí.
 !publicar/calendario.csv
 
 # Exports crudos de las plataformas (ruido; el consolidado va en metricas.csv)
