@@ -83,7 +83,15 @@ CONFIG = {
     #   v2-mas-cortes        Historia01-08 — más cortes, −14 LUFS, gancho sin spoiler
     #   v3-guion-y-dispersion Historia09-15 — guionista gpt-5.4, crítico Opus 5,
     #                        planos dispersados (P-15), títulos acortados (P-03)
-    "lote_nuevo":     "v3-guion-y-dispersion",
+    #   v4-hashtags-limpios  Historia16+ — el pipeline del VÍDEO no cambia desde
+    #                        v3; lo que cambia es el texto (`separar_hashtags()`
+    #                        ya no deja el bloque duplicado: Historia07 salió con
+    #                        24) y **cómo se publica**: Facebook pasa a Metricool
+    #                        a mano (P-31), Instagram sigue por API.
+    #   ⚠️ Para preguntas sobre el VÍDEO, v3 y v4 se pueden mirar juntos: los
+    #   pasos 01, 04, 07 y 08 son idénticos. Se separan porque la condición de
+    #   publicación no es la misma, y eso sí mueve el alcance.
+    "lote_nuevo":     "v4-hashtags-limpios",
     "lote_baseline":  "baseline",
 
     # Proyectos del lote EN CURSO que NO están en temas.csv. Test01 (Zidane) fue

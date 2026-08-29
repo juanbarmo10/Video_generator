@@ -21,10 +21,14 @@ publicaciones con **alcance 2**, contra **1.039** del mismo vídeo por Metricool
 
 ⚠️ **El calendario está agotado**: hace falta generar el lote siguiente.
 
-⚠️ **Quedan 8 vídeos por subir a Facebook a mano**: `Historia08`-`Historia12` y
-`Historia14` nunca llegaron a publicarse allí, y `Historia07` y `Historia15`
-están publicados pero muertos (hay que borrarlos y resubirlos). `Historia13` ya
-salió por Metricool el 28 y es el que demostró el diagnóstico.
+**Facebook, al 28 ago:** `Historia13` publicado por Metricool (1.039 de alcance,
+el que cerró el diagnóstico) y `Historia07`, `Historia14` y `Historia15` ya
+programados por ahí.
+
+⚠️ **Quedan 5 por subir a mano, sin prisa**: `Historia08`, `Historia09`,
+`Historia10`, `Historia11` y `Historia12`. Se publican a lo largo del mes.
+No los toca ningún automatismo — Facebook está fuera de `redes_reel`— así que
+esta lista **es el único sitio donde consta que faltan**.
 
 | | `v2-mas-cortes` (Historia01-08) | `v3-guion-y-dispersion` (Historia09-15) |
 |---|---|---|
