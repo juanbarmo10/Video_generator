@@ -9,13 +9,22 @@
 
 ## Dónde vamos
 
-**Estado a 25 ago 2026.** El pipeline lleva **diez días publicando solo**: 8 reels,
-6 extras y tres fallos de Instagram de los que la agenda se recuperó ella sola al
-día siguiente. La automatización funciona.
+**Estado a 28 ago 2026.** Dos semanas publicando solo. La automatización funciona
+y se recuperó ella sola de tres fallos de subida de Instagram y de una caída de
+DNS.
 
-⚠️ **Pero Facebook no distribuye nada desde el 15 ago** ([P-31](#p-31)) y **el
-calendario se agota mañana con `Historia15`**: hace falta generar el lote
-siguiente.
+**Facebook sale de la automatización, por decisión.** No por un fallo del código
+—publicaba bien— sino porque esta app de Meta solo enseña lo que publica en la
+página a quien tenga un rol en ella, y solo tiene un administrador: diez
+publicaciones con **alcance 2**, contra **1.039** del mismo vídeo por Metricool
+([P-31](#p-31) en Resueltos). Se sube a mano, como YouTube y TikTok.
+
+⚠️ **El calendario está agotado**: hace falta generar el lote siguiente.
+
+⚠️ **Quedan 8 vídeos por subir a Facebook a mano**: `Historia08`-`Historia12` y
+`Historia14` nunca llegaron a publicarse allí, y `Historia07` y `Historia15`
+están publicados pero muertos (hay que borrarlos y resubirlos). `Historia13` ya
+salió por Metricool el 28 y es el que demostró el diagnóstico.
 
 | | `v2-mas-cortes` (Historia01-08) | `v3-guion-y-dispersion` (Historia09-15) |
 |---|---|---|
@@ -29,13 +38,12 @@ Verificado sobre los 7: **0 transiciones repetidas** de 15-18 y **0 títulos** f
 **aborta el tema** en vez de avisar, y lo que queda por hacer se mide por si **reduce intervención
 humana**, no por si mejora un número.
 
-**Tu semana son ahora dos cosas** (~20 min): elegir los temas y correr los cuatro comandos de
-métricas. Generar, empaquetar y publicar en Instagram, Facebook y Threads va solo; de subir a mano
-solo quedan YouTube y TikTok, las dos cuyo trámite de publicación por API no compensa.
+**Tu semana son ahora tres cosas** (~30 min): elegir los temas, correr los cuatro comandos de
+métricas y subir por Metricool. Generar, empaquetar y publicar en Instagram y Threads va solo; a
+mano quedan YouTube, TikTok y —desde el 28 ago— Facebook.
 
 | | # | Pendiente | Gana |
 |---|---|---|---|
-| 🔴 | [P-31](#p-31) | Pasar la app a Live/Advanced y devolver Facebook a la agenda | recuperar una red |
 | 🟡 | [P-33](#p-33) | El informe compara 2 lotes y ya hay 3: falta `v3` vs `v2` | la pregunta real |
 | 🟡 | [P-32](#p-32) | Los carruseles nunca alcanzaron a nadie: ¿se quitan? | 2 días de semana |
 | 🟡 | [P-20](#p-20) | Por qué menos gente para el scroll (el frame 0) | la única métrica en contra |
@@ -53,204 +61,12 @@ en silencio.
 
 ---
 
-## 🔴 Lo que miente en silencio
-
-<a id="p-31"></a>
-**P-31 · Facebook dejó de distribuir los reels el día que empezamos a publicar por API.**
-
-Medido el 18 ago. No es «rinden poco»: es **alcance 1-2 personas**.
-
-| fecha | vistas | alcance | seguidores | origen |
-|---|---:|---:|---:|---|
-| 09 ago | 322 | 275 | 116 | manual |
-| 11 ago | 1154 | 1001 | 119 | manual |
-| 13 ago | 988 | 843 | 123 | manual |
-| 14 ago | 289 | 239 | 127 | manual |
-| 16 ago | 9 | **2** | 128 | API |
-| 17 ago | 7 | **2** | 128 | API |
-| 18 ago | 2 | **1** | 128 | API |
-
-Los seguidores crecían solos y se congelaron el 15 ago, el día del cambio.
-
-**Descartado con datos, no por intuición:**
-
-| Hipótesis | Cómo se descartó |
-|---|---|
-| La app o el token | Instagram usa **los mismos** y su alcance es normal (105-261) |
-| El vídeo | Mismos 1080×1920, 4 renditions, 11 miniaturas, `copyright_check` sin match |
-| Visibilidad | `EVERYONE`, `is_hidden: false`, permalink **200 sin sesión**, en `/feed` |
-| El tipo de objeto | Los manuales también son reels (`/reel/<id>/`, `added_video`) |
-
-**Lo único que difiere:** los de Metricool llevan `title` y los nuestros no.
-⚠️ **Y eso no prueba la causa**: «sin título» y «publicado por nuestra app» son
-la misma columna en estos datos — no hay ni un manual sin título ni un
-automático con él.
-
-### Lo que se probó el 18 ago, y por qué cambia la hipótesis
-
-Se intentó ponerle `title` al reel de `Historia09` (35 h, alcance estancado en 2,
-el más fresco de los muertos y sin la anomalía de hashtags de `Historia07`).
-
-⚠️ **Facebook respondió `{"success": true}` y NO guardó el título.** Releído
-después: sigue en `None`. O sea que **`title` no se puede poner en un objeto de
-`video_reels`** — ni al crearlo ni después. Es exactamente el fallo silencioso
-para el que se escribió `_verificar_titulo()`, y salió a la primera.
-
-**Eso hunde la hipótesis del título como causa** y deja una mucho mejor, porque
-si el campo no es escribible aquí, los manuales **no se hicieron por aquí**:
-
-| | `post_views` (vistas que vienen del post del muro) |
-|---|---|
-| manual | 136 · 275 · 56 · 314 |
-| API | 0 · 1 · 1 · 1 |
-
-Los manuales sacaban **un tercio de sus vistas del muro**; los nuestros, ninguna.
-Sumado a que llevan `title` —campo que sí admite `/videos` y no `/video_reels`—
-la lectura es que **Metricool los subía por `/videos`**, creando un post de vídeo
-de verdad que Facebook además enseña como reel, mientras que `/video_reels` crea
-un reel puro que nunca llega al muro ni, por tanto, a los seguidores.
-
-**El título era un marcador del camino de subida, no la causa.**
-
-### La semana completa (25 ago): ya no hay duda
-
-Se dejó correr ocho publicaciones. Comparado contra **todo** el histórico, no
-contra los cuatro anteriores:
-
-| grupo | n | mediana | mín | máx |
-|---|---:|---:|---:|---:|
-| facebook manual | 45 | **544** | 4 | 5.079 |
-| facebook por API | 8 | **2** | 2 | 2 |
-
-⚠️ **Los ocho dieron exactamente 2. No 1, no 3: dos, ocho veces.** Eso no es una
-penalización de ranking —eso daría dispersión— sino **un interruptor apagado**.
-Junto con `post_views` (0-1 nuestros contra 57-2.599 los manuales), el mecanismo
-es que `/video_reels` crea un reel que **nunca aterriza en el muro**, así que no
-llega a los 128 seguidores, que son la semilla de toda la distribución.
-
-**✅ Hecho el 25 ago:** `CONFIG["endpoint_facebook"] = "videos"`.
-`publicar_facebook_videos()` sube por `/videos` en una sola llamada multipart,
-manda `title` (que `/video_reels` no admitía) y devuelve el **`post_id`**, con lo
-que de paso cierra [P-30](#p-30) para los nuevos. Se vuelve atrás cambiando el
-`CONFIG` a `"video_reels"`.
-
-**La prueba se hace sola:** `Historia15` sale **el 26 a las 12:00** por el camino
-nuevo, a la hora canónica. No hace falta publicar nada a mano.
-
-### `/videos` tampoco: el endpoint NO era la causa (27 ago)
-
-| publicado por | n | alcance |
-|---|---:|---|
-| `/video_reels` | 8 | 2 · 2 · 2 · 2 · 2 · 2 · 2 · 2 |
-| **`/videos`** (con `title`) | 2 | **2 · 0** |
-
-✅ **El cambio hizo lo que prometía**: los dos nuevos llevan `title` puesto, cosa
-que `/video_reels` rechazaba. O sea que la lectura del campo era correcta —
-Metricool subía por ahí— y aun así **el alcance no se movió**.
-
-⚠️ **Dos caminos de subida distintos dan el mismo resultado, así que el camino no
-es la causa.** Lo que queda en común ya no es un endpoint: es *esta app
-publicando en esta página*. Y eso choca con que Instagram, con la misma app y el
-mismo token, siga en su mediana de siempre.
-
-**Lo que dice la API de la página, y no sirve:** `is_published: true`,
-`is_permanently_closed: false`, `promotion_eligible: true`, sin restricciones
-legibles, 127 seguidores. `talking_about_count: 0`. Nada acusable por aquí.
-
-⏸️ **Resubidas aparcadas** (fecha `2099-01-01` en el calendario). Quedaban 7 y
-publicarlas ahora sería meterlas en un canal que sabemos muerto, y gastar el
-único cartucho de «subirlas por primera vez» que le queda a cada una.
-
-### ✅ RESUELTO el 28 ago: es la app, no la página
-
-Se publicó uno a mano por Metricool. El resultado no deja lugar a dudas:
-
-| fecha | vistas | alcance | `post_views` | origen |
-|---|---:|---:|---:|---|
-| **28 ago** | **1.149** | **1.039** | **415** | **Metricool** |
-| 27 ago | 2 | 2 | 0 | nuestra app |
-| 26 ago | 3 | 2 | 0 | nuestra app |
-
-**La página está sana.** Lo que está limitado es lo que publica *nuestra app*.
-
-**La causa, y encaja con todo lo medido:** `/{app-id}/roles` devuelve **un solo
-administrador**, y una app de Meta en modo **Desarrollo** (o con **Standard
-Access** en `pages_manage_posts`) solo muestra lo que publica en una página **a
-quien tenga un rol en esa app**. El público autorizado es literalmente una
-persona. Eso explica el «exactamente 2» diez veces seguidas —un número fijo, no
-una distribución—, por qué daba igual el endpoint, y por qué Instagram nunca se
-vio afectado.
-
-**Qué hacer, en este orden:**
-
-1. **Comprobar en el App Dashboard** (30 segundos): arriba dice *Desarrollo* o
-   *Live*; y en *Revisión de la app → Permisos y funciones*, si
-   `pages_manage_posts` tiene **Standard** o **Advanced Access**.
-2. **Pasar la app a Live.** Puede bastar con eso.
-3. Si sigue en Standard, **pedir Advanced Access** para `pages_manage_posts`
-   (lleva verificación de negocio y tarda días).
-4. **Mientras tanto, Facebook se publica a mano por Metricool.**
-
-⏸️ **Facebook está fuera de `redes_reel`** en [16_agenda.py](herramientas/16_agenda.py)
-desde el 28 ago. Instagram sigue automático. Se vuelve a añadir cuando la app
-esté en Live con Advanced Access — **y se comprueba con UNA publicación antes de
-volver a confiar en ella**.
-
-⚠️ **Los 10 publicados por API siguen vivos y muertos** (`Historia07`-`Historia15`
-menos los que no salieron). Como ahora sabemos que se recuperan, lo que toca es
-borrarlos y volver a subirlos **por Metricool**, no por API. Las 7 resubidas
-aparcadas en el calendario (`2099-01-01`) valen igual: son la lista de lo que
-hay que subir a mano.
-
-### Lo que se probó antes de llegar aquí
-
-**Publicar UN vídeo a mano** —desde Metricool o desde el propio Facebook— a las
-12:00. Es el experimento que separa los dos mundos que quedan, y llevo
-recomendándolo desde el 18 ago sin que se haya hecho:
-
-| Si el manual alcanza ~300 | Si el manual alcanza ~2 |
-|---|---|
-| El problema es **publicar por API en esta página** | La **página está frenada** desde el 15 ago |
-| Salida: Facebook vuelve a Metricool; el resto sigue automático | Ningún cambio de código lo arregla. Toca *Meta Business Suite → Estado de la cuenta* y apelar |
-
-⚠️ **Hasta que eso se haga, cualquier cambio de código es adivinar.** Ya se
-descartaron con datos la app, el token, el vídeo, la visibilidad, el tipo de
-objeto, el título y el endpoint. No queda ninguna hipótesis que el código pueda
-tocar.
-
-### Los ocho muertos: borrados y en cola para resubir (25 ago)
-
-Decisión de operación: no se dan por perdidos. Los 8 reels se **borraron de
-Facebook** (verificando cada borrado releyendo el objeto, no fiándose del
-`success`) y sus proyectos vuelven al calendario para que la agenda los resuba
-por `/videos`, uno al día:
-
-| | |
-|---|---|
-| Evidencia previa | [`evidencia/p31_reels_video_reels.json`](evidencia/p31_reels_video_reels.json) — alcance, `post_views`, duración y descripción de los 8, **antes** de borrarlos |
-| `publicado.csv` | fuera las 8 filas de `facebook` (las de `instagram` se quedan: esas sí funcionaron) |
-| Calendario | `Historia07`→27 ago … `Historia14`→3 sep, **después** de `Historia15` |
-
-⚠️ **El orden no es casual: la resubida empieza el 27, un día después del
-veredicto de `Historia15`.** Si el 26 no revive, hay tiempo de parar antes de
-gastar ocho publicaciones más por el camino equivocado — basta con borrar esas
-filas del calendario.
-
-⚠️ **Facebook nunca verá esos 8 videos en `metricas.csv`**, porque los borramos
-antes de la primera consolidación. Su único registro es el JSON de evidencia, y
-está bien así: meterlos habría hundido las medianas del lote con ocho `alcance 2`
-de un camino de publicación que ya no usamos.
-
-⚠️ **Riesgo asumido:** resubir el mismo vídeo que ya estuvo publicado puede leerse
-como contenido repetido. Se borró antes de resubir precisamente para que no haya
-dos copias vivas, pero si Meta lo marca, se vería en la resubida de `Historia07`
-el 27 y habría que parar.
+## 🟡 Producto y datos
 
 <a id="p-32"></a>
-**P-32 · Instagram NO tiene el problema — y los carruseles nunca funcionaron.**
+**P-32 · Los carruseles nunca alcanzaron a nadie. ¿Se quitan?**
 
-Esto sale de medir contra el histórico entero en vez de contra las últimas
-semanas, y **corrige dos impresiones equivocadas** (una del usuario y otra mía):
+Medido contra el histórico entero, no contra las últimas semanas:
 
 | grupo | n | mediana | mín | máx |
 |---|---:|---:|---:|---:|
@@ -259,46 +75,26 @@ semanas, y **corrige dos impresiones equivocadas** (una del usuario y otra mía)
 | carrusel instagram manual | 5 | **2** | 2 | 2 |
 | carrusel instagram por API | 3 | **5** | 1 | 7 |
 
-⚠️ **Los reels de Instagram por API van MEJOR que la línea de base**, no peor. La
-sensación de «también cayó» viene de compararlos con los tres manuales grandes
-que cayeron justo antes del cambio (2.984, 1.159, 1.064); la mediana real de 45
-manuales es 127. **No hay nada que arreglar en Instagram, y el esfuerzo que se
-ponga ahí es esfuerzo tirado.**
+⚠️ **Los reels de Instagram por API van MEJOR que la línea de base**, no peor —
+la impresión contraria venía de compararlos con los tres manuales grandes de
+justo antes del cambio (2.984, 1.159, 1.064). **No hay nada que arreglar en
+Instagram, y el esfuerzo que se ponga ahí es esfuerzo tirado.**
 
 ⚠️ **Los carruseles llevan muertos desde siempre**: los cinco manuales de mayo
 dieron **2 de alcance cada uno**. No es una regresión del API — de hecho los de
-API van algo mejor (mediana 5). El álbum de Facebook de `Historia04` sacó **0
-reacciones y 1 clic**.
+API van algo mejor. El álbum de Facebook de `Historia04` sacó **0 reacciones y 1
+clic**.
 
-**La decisión que toca, y es de producto, no de código:** la agenda gasta dos de
-los tres días de extras (martes carrusel de IG, jueves álbum de FB) en un formato
-que **nunca ha alcanzado a nadie en esta cuenta**. O se le busca una razón para
-seguir, o se quitan esas dos entradas de `dias_extra` en
+**La decisión es de producto, no de código:** la agenda gasta dos de los tres
+días de extras (martes carrusel de IG, jueves álbum de FB) en un formato que
+nunca ha alcanzado a nadie en esta cuenta. O se le busca una razón para seguir, o
+se quitan esas dos entradas de `dias_extra` en
 [16_agenda.py](herramientas/16_agenda.py) y se deja el hilo de Threads, que al
 menos tiene un techo de 22.024 ([P-25](#p-25)). El paso 06 seguiría existiendo
 para el archivo.
+⚠️ El álbum de Facebook, además, **ya no tiene sentido**: lo publica la misma app
+restringida de [P-31](#p-31), así que su público son 2 personas pase lo que pase.
 
-
----|
-| [10_metricas.py](herramientas/10_metricas.py) | `v3-guion-y-dispersion` ← con lo que se **etiqueta** |
-| [11_reporte.py](herramientas/11_reporte.py) | `v2-mas-cortes` ← con lo que se **compara** |
-
-Hoy no se nota porque `Historia09`-`Historia15` aún no tienen ni una fila (empiezan
-a publicarse mañana). En cuanto la tengan, sus métricas entrarán a `metricas.csv`
-como `v3` y el informe **no las mirará**: no son `lote_nuevo` para él, tampoco son
-`baseline`, así que **desaparecen del veredicto sin aparecer en ningún sitio**. El
-informe seguirá comparando `v2` contra `baseline` y diciéndolo con toda claridad,
-que es lo que lo hace difícil de pillar.
-
-**Dos arreglos posibles, y el segundo es el bueno:**
-1. Acordarse de subir `lote_nuevo` a mano en los dos archivos. Es lo que ya falló.
-2. Que `11_reporte.py` **lea el `lote_nuevo` del paso 10** en vez de tener el suyo,
-   y que avise si encuentra en `metricas.csv` algún `lote` que no sea ni el nuevo
-   ni el baseline. Un lote huérfano es siempre un error; que lo diga él.
-
----
-
-## 🟡 Producto y datos
 
 <a id="p-20"></a>
 **P-20 · Menos gente para el scroll, y no se sabe por qué.**
@@ -485,23 +281,6 @@ se borran los de los lotes ya medidos y se quedan solo los de la tanda en curso.
 Ya hecho en esta revisión: **−38 MB** de `muestras_p15/` (las dos muestras de
 [P-15](#p-15), que está cerrado y documentado) y de los `__pycache__`.
 
-<a id="p-30"></a>
-**P-30 · `publicado.csv` guarda el `video_id` de Facebook; `metricas.csv`, el `post_id`.**
-
-`publicar_facebook()` devuelve el `video_id` de `me/video_reels` y eso es lo que
-acaba en `publicar/publicado.csv`. Pero la parte de métricas del mismo archivo ya
-hace lo correcto —`v.get("post_id") or v["id"]`, con su aviso al lado— porque el
-export de Facebook trae el del **post**. Son dos ids distintos del mismo reel.
-
-**No rompe nada hoy**: quien se apoya en `publicado.csv` (`ya_salio()` de la
-agenda, `calendario_vencido()` del recordatorio) empareja por `proyecto` + `red`,
-no por id, así que la protección contra publicar dos veces sigue intacta. Lo que
-se pierde es poder **cruzar las dos tablas**: dado un reel en `metricas.csv`, no
-hay forma de llegar a su fila de `publicado.csv`, ni al revés.
-
-Arreglo: leer el `post_id` en la fase `finish` (o pedirlo después con
-`fields=post_id`) y guardar ese. Un `id_video` extra al lado no sobra.
-
 ---
 
 ## Resueltos
@@ -525,6 +304,8 @@ con lo que se midió, está en [HISTORIAL.md](HISTORIAL.md).
 | <a id="p-07"></a>**P-07** | Basura de corridas viejas | **36 MB borrados.** ⚠️ Los slides obsoletos no estaban donde decía la nota, y su receta habría borrado el CTA bueno de dos respaldos: [HISTORIAL](HISTORIAL.md#limpieza-y-recuperación-de-los-lotes-viejos-15-ago-2026) |
 | <a id="p-08"></a>**P-08** | Los 16 Mundial sin `descripcion.txt` ni `.srt` | Recuperados: el texto estaba en el formato viejo (`03_instagram.txt` + `04_facebook.txt`) y los `.srt` se rehacen desde el mp3 con el mismo whisper del paso 07. ⚠️ Se dio por cerrado el 15 ago **estando a medias** (10 de 16): el script vivía en un temporal y se lo llevó la limpieza del sistema sin que nada avisara. Ahora es [herramientas/18_rehacer_srt.py](herramientas/18_rehacer_srt.py), con `--listar` para no volver a creerse un «ya está» |
 | <a id="p-09b"></a>**P-09b** | Métricas a mano en las 5 redes | Las cinco por API: YouTube, Meta, Threads y TikTok. ⚠️ De TikTok quedan 3 columnas que **ninguna API pública expone**: [P-26](#p-26) |
+| <a id="p-31"></a>**P-31** | Facebook dio **alcance 2** en las 10 publicaciones por API, del 15 al 27 ago | **No era el código: era la app.** `/{app-id}/roles` tiene **un solo administrador**, y una app en Desarrollo/Standard Access solo enseña lo que publica en una página a quien tenga rol en ella. Metricool sacó **1.039** el 28 en la misma página. ⚠️ Se persiguieron el `title` y el endpoint (`/videos` vs `/video_reels`) antes de dar con esto: los dos eran **marcadores** de que Metricool publicaba por otra vía, no la causa. **Decisión: Facebook a mano por Metricool** ([README §4.1.b](README.md)) |
+| <a id="p-30"></a>**P-30** | `publicado.csv` guardaba el `video_id` de Facebook y `metricas.csv` el `post_id` | Se cerró de paso al pasar a `/videos`, que devuelve los dos. Ya no aplica: Facebook no pasa por la agenda |
 | <a id="p-27"></a>**P-27** | Un video de una tanda cerrada entraba como `baseline` | `lotes_historicos` en el `CONFIG` del paso 10, y `lote_de()` lo consulta **antes** que `temas.csv`. La pertenencia a una tanda es historia; `temas.csv` solo sabe cuál es la tanda en curso |
 | <a id="p-28"></a>**P-28** | El informe comparaba `v2` mientras el paso 10 etiquetaba `v3` | `sincronizar_lotes()` los lee del paso 10 al arrancar, y `avisar_lotes_huerfanos()` canta cualquier lote que se quede fuera del veredicto, con la n al lado |
 | <a id="p-11"></a>**P-11** | Tests solo de los pasos 01, 02 y 07 | +27 sobre los pasos **04, 05 y 06** ([tests/test_pasos_medios.py](tests/test_pasos_medios.py)), **166** en total |

@@ -49,7 +49,8 @@ CONFIG = {
     },
 
     # Las redes del reel diario.
-    # ⚠️ **Facebook está FUERA desde el 28 ago, y no por un fallo del código.**
+    # ⚠️ **Facebook NO está aquí, y es una decisión, no un olvido ni un apaño
+    # temporal: se publica a mano por Metricool.**
     # Todo lo que publica esta app en la página llega a **2 personas**, mientras
     # que el mismo vídeo subido por Metricool el 28 alcanzó **1.039**. La página
     # está sana; lo que está limitado es nuestra app: tiene **un solo rol**
@@ -58,8 +59,11 @@ CONFIG = {
     # publica en una página. Eso explica el «exactamente 2» diez veces seguidas,
     # que ninguna penalización de ranking produciría.
     # Instagram no está afectado y sigue automático.
-    # Se vuelve a poner "facebook" aquí cuando la app esté en **Live** con
-    # **Advanced Access** para `pages_manage_posts`. Ver P-31.
+    # ⚠️ **Añadir "facebook" aquí sin arreglar antes la app publica a 2
+    # personas.** Haría falta pasarla a **Live** con **Advanced Access** para
+    # `pages_manage_posts` (verificación de negocio, días de trámite) y
+    # comprobarlo con UNA publicación antes de volver a confiar — que es
+    # exactamente lo que no se hizo el 15 ago y costó diez vídeos. Ver P-31.
     "redes_reel": ["instagram"],
 
     # ⚠️ Los temas que NO pasaron el control de calidad del paso 01 se publican

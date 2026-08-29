@@ -7,8 +7,8 @@ cada uno con su texto, sus subtítulos y su carrusel.
 **Coste real: ~$0.29 y ~9 minutos por video.** Un lote de 7 son unos $2 y poco más de una hora.
 
 ```
-temas.csv  →  bash run_all.sh  →  publicar/<PROYECTO>/  →  cron + 16_agenda.py  (IG, FB, Threads)
-              (8 pasos + paquete)              └──────→  Metricool a mano    (YouTube + TikTok)
+temas.csv  →  bash run_all.sh  →  publicar/<PROYECTO>/  →  cron + 16_agenda.py  (IG + Threads)
+              (8 pasos + paquete)              └──────→  Metricool a mano    (YouTube, TikTok, FB)
                                                           ↓
         reportes/ultimo.html  ←  metricas.csv  ←  python herramientas/10_metricas.py
         (11_reporte.py)
@@ -391,13 +391,13 @@ reponerlos en la tanda siguiente.
 
 ## 4 · Publicar
 
-### 4.1 Instagram, Facebook y Threads: no hay que hacer nada
+### 4.1 Instagram y Threads: no hay que hacer nada
 
 **Lo publica `cron`.** Solo hay que haber corrido el paso 3, que deja el paquete y el calendario.
 
 | Cuándo | Qué sale | Dónde |
 |---|---|---|
-| todos los días, **12:00** | el reel del calendario | Instagram + Facebook |
+| todos los días, **12:00** | el reel del calendario | Instagram |
 | martes 18:00 | el carrusel del paso 06 | Instagram |
 | jueves 18:00 | las mismas slides como álbum | Facebook |
 | sábado 18:00 | un hilo de 3 mensajes con 1-2 fotos reales | Threads |
@@ -457,6 +457,21 @@ Si vas a estar mucho tiempo sin encender, hay dos caminos y ninguno es gratis:
 ⚠️ **Y ojo con la hora si publicas atrasado**: un video que sale a las 20:00 en vez de a las 12:00
 ya no es comparable con el resto. Si se acumula, lo honesto es anotarlo o darle su propio `lote`.
 
+### 4.1.b Facebook: a mano, en Metricool
+
+⚠️ **Facebook se publica a mano, y no es porque falte código: el código funciona y publicaba
+igual.** El problema es que **esta app de Meta solo enseña lo que publica en la página a quien
+tenga un rol en ella**, y solo tiene un administrador. Medido: diez publicaciones por API dieron
+**alcance 2** (siempre 2, nunca otra cifra), y el mismo vídeo subido por Metricool el 28 ago
+alcanzó **1.039**. La página está sana; la app está en modo restringido.
+
+Sube el `.mp4` por Metricool con la sección *DESCRIPCIÓN LARGA* y sus hashtags, igual que
+YouTube. La hora sigue siendo **las 12:00**: es una condición de medida, no un gusto.
+
+⚠️ **No vuelvas a meter `"facebook"` en `redes_reel` sin arreglar antes la app** (pasarla a
+*Live* con *Advanced Access* para `pages_manage_posts`) **y sin comprobarlo con UNA publicación**.
+Confiar en que funcionaría costó diez vídeos entre el 15 y el 27 de agosto.
+
 ### 4.2 YouTube y TikTok: a mano, en Metricool
 
 Por cada tema, abres `publicar/<PROYECTO>/` (la carpeta se llama como el `PROYECTO` del CSV,
@@ -471,7 +486,8 @@ Por cada tema, abres `publicar/<PROYECTO>/` (la carpeta se llama como el `PROYEC
 4. Dejas el *COMENTARIO A FIJAR* programado o lo pones a mano al publicar.
 
 ⚠️ **Subir a YouTube por API exige el permiso `youtube.upload`, que es restringido**: hace falta
-pasar la verificación de Google con dominio propio. Por eso las dos que quedan a mano son estas.
+pasar la verificación de Google con dominio propio. Por eso se quedan a mano — y desde el 28 ago
+Facebook las acompaña, por el motivo distinto del punto 4.1.b.
 
 ## 5 · Recoger las métricas de la semana anterior (~15 min)
 

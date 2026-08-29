@@ -594,6 +594,9 @@ guarda todas las fotos.
 
 **[14_meta_api.py](herramientas/14_meta_api.py)** hace dos cosas con Instagram y Facebook:
 `--metricas` las lee y `--publicar PROYECTO` sube el reel a las dos.
+⚠️ **Pero la agenda ya no le pide Facebook: desde el 28 ago `redes_reel` es solo Instagram.**
+El código de publicar en Facebook funciona y se conserva —`--publicar` sigue haciéndolo si se lo
+pides—; lo que no sirve es el resultado. Ver abajo y P-31.
 - **Un solo token de PÁGINA para las dos redes**, y el orden en que se saca es lo único delicado:
   token de **usuario** → alargado a 60 días (`fb_exchange_token` + `META_APP_ID`/`META_APP_SECRET`)
   → `me/accounts` → token de página, que **ya no caduca**.
@@ -642,6 +645,19 @@ guarda todas las fotos.
   desde el 25 ago: `publicar_facebook_videos()` sube en una sola llamada multipart, manda `title`
   (que `/video_reels` no admite) y devuelve el **`post_id`**, no el id del vídeo. Ponlo en
   `"video_reels"` solo para volver atrás.
+- ⚠️ **RESUELTO el 28 ago, y no era el endpoint: era la app.** Un vídeo subido a mano por
+  Metricool ese día alcanzó **1.039** en la misma página donde los nuestros daban 2. O sea que la
+  página está sana. `GET /{app-id}/roles` devuelve **un solo administrador**, y una app de Meta en
+  modo **Desarrollo** —o con **Standard Access** en `pages_manage_posts`— solo enseña lo que
+  publica en una página **a quien tenga un rol en ella**. El público autorizado era una persona.
+  Eso explica el «exactamente 2» diez veces seguidas (un número fijo, no una distribución), que
+  diera igual `/video_reels` o `/videos`, y que Instagram nunca se viera afectado.
+  ⚠️ **El `title` y el endpoint eran marcadores de que Metricool publicaba por otra vía, no la
+  causa.** Se persiguieron los dos antes de dar con esto; queda escrito para que nadie repita el
+  camino. Lo que discriminó no fue nada del objeto publicado, sino **quién lo publicaba**.
+  **Decisión de operación: Facebook se publica a mano por Metricool.** Para devolverlo a la
+  agenda haría falta pasar la app a *Live* con *Advanced Access* y **comprobarlo con UNA
+  publicación** antes de confiar.
 - ⚠️ **Instagram NO tiene este problema, y conviene saberlo antes de tocar nada ahí.** Medido
   contra el histórico entero: reels por API mediana **146** (n=8) contra **127** (n=45) de los
   manuales — van *mejor* que la línea de base. La impresión de que también cayó viene de
