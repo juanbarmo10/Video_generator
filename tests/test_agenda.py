@@ -182,10 +182,23 @@ class TestRecuperacion(AgendaFalsa):
                          ["Historia09", "Historia03"])
 
     def test_una_red_a_medias_sigue_pendiente(self):
-        """Si Instagram salió y Facebook falló, la fila vuelve mañana: dentro,
-        `publicar()` se salta la red que ya está."""
-        self.anotar(("2026-08-16", "Historia08", "instagram", "1"))
-        self.assertEqual(ag.pendientes("2026-08-20")[0]["proyecto"], "Historia08")
+        """Si una red salió y la otra falló, la fila vuelve mañana: dentro,
+        `publicar()` se salta la red que ya está.
+
+        ⚠️ Fija sus DOS redes en vez de leer `CONFIG["redes_reel"]`. Lo que
+        prueba es la regla —«a medias sigue pendiente»—, no cuántas redes haya
+        configuradas hoy; y el 28 ago Facebook salió del reel automático
+        (P-31), lo que dejó la lista en una sola red y tumbó este test sin que
+        la regla hubiera cambiado.
+        """
+        previas = ag.CONFIG["redes_reel"]
+        ag.CONFIG["redes_reel"] = ["instagram", "facebook"]
+        try:
+            self.anotar(("2026-08-16", "Historia08", "instagram", "1"))
+            self.assertEqual(ag.pendientes("2026-08-20")[0]["proyecto"],
+                             "Historia08")
+        finally:
+            ag.CONFIG["redes_reel"] = previas
 
     def test_extra_perdido_se_recupera_el_mismo_semana(self):
         """Martes apagado: el carrusel sale el miércoles, no la semana que viene."""

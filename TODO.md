@@ -35,7 +35,7 @@ solo quedan YouTube y TikTok, las dos cuyo trámite de publicación por API no c
 
 | | # | Pendiente | Gana |
 |---|---|---|---|
-| 🔴 | [P-31](#p-31) | Facebook no distribuye desde que publicamos por API | todo el alcance de una red |
+| 🔴 | [P-31](#p-31) | Pasar la app a Live/Advanced y devolver Facebook a la agenda | recuperar una red |
 | 🟡 | [P-33](#p-33) | El informe compara 2 lotes y ya hay 3: falta `v3` vs `v2` | la pregunta real |
 | 🟡 | [P-32](#p-32) | Los carruseles nunca alcanzaron a nadie: ¿se quitan? | 2 días de semana |
 | 🟡 | [P-20](#p-20) | Por qué menos gente para el scroll (el frame 0) | la única métrica en contra |
@@ -161,7 +161,48 @@ legibles, 127 seguidores. `talking_about_count: 0`. Nada acusable por aquí.
 publicarlas ahora sería meterlas en un canal que sabemos muerto, y gastar el
 único cartucho de «subirlas por primera vez» que le queda a cada una.
 
-### 🔴 Lo único que falta por probar, y no es código
+### ✅ RESUELTO el 28 ago: es la app, no la página
+
+Se publicó uno a mano por Metricool. El resultado no deja lugar a dudas:
+
+| fecha | vistas | alcance | `post_views` | origen |
+|---|---:|---:|---:|---|
+| **28 ago** | **1.149** | **1.039** | **415** | **Metricool** |
+| 27 ago | 2 | 2 | 0 | nuestra app |
+| 26 ago | 3 | 2 | 0 | nuestra app |
+
+**La página está sana.** Lo que está limitado es lo que publica *nuestra app*.
+
+**La causa, y encaja con todo lo medido:** `/{app-id}/roles` devuelve **un solo
+administrador**, y una app de Meta en modo **Desarrollo** (o con **Standard
+Access** en `pages_manage_posts`) solo muestra lo que publica en una página **a
+quien tenga un rol en esa app**. El público autorizado es literalmente una
+persona. Eso explica el «exactamente 2» diez veces seguidas —un número fijo, no
+una distribución—, por qué daba igual el endpoint, y por qué Instagram nunca se
+vio afectado.
+
+**Qué hacer, en este orden:**
+
+1. **Comprobar en el App Dashboard** (30 segundos): arriba dice *Desarrollo* o
+   *Live*; y en *Revisión de la app → Permisos y funciones*, si
+   `pages_manage_posts` tiene **Standard** o **Advanced Access**.
+2. **Pasar la app a Live.** Puede bastar con eso.
+3. Si sigue en Standard, **pedir Advanced Access** para `pages_manage_posts`
+   (lleva verificación de negocio y tarda días).
+4. **Mientras tanto, Facebook se publica a mano por Metricool.**
+
+⏸️ **Facebook está fuera de `redes_reel`** en [16_agenda.py](herramientas/16_agenda.py)
+desde el 28 ago. Instagram sigue automático. Se vuelve a añadir cuando la app
+esté en Live con Advanced Access — **y se comprueba con UNA publicación antes de
+volver a confiar en ella**.
+
+⚠️ **Los 10 publicados por API siguen vivos y muertos** (`Historia07`-`Historia15`
+menos los que no salieron). Como ahora sabemos que se recuperan, lo que toca es
+borrarlos y volver a subirlos **por Metricool**, no por API. Las 7 resubidas
+aparcadas en el calendario (`2099-01-01`) valen igual: son la lista de lo que
+hay que subir a mano.
+
+### Lo que se probó antes de llegar aquí
 
 **Publicar UN vídeo a mano** —desde Metricool o desde el propio Facebook— a las
 12:00. Es el experimento que separa los dos mundos que quedan, y llevo
