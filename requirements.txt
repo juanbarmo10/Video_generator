@@ -25,6 +25,11 @@ ddgs>=6.0
 # Binario externo requerido (no se instala con pip):
 #   ffmpeg / ffprobe  →  sudo apt install ffmpeg
 
+# Figuras de métricas (herramientas/19_figuras.py) — opcional.
+# Solo hace falta para los PNG; el informe HTML del paso 11 es stdlib pura y
+# sigue funcionando sin esto.
+matplotlib>=3.8
+
 # Métricas de YouTube por API (herramientas/13_youtube_api.py) — opcional.
 # Solo hacen falta si usas la API en vez de descargar los CSV a mano.
 google-api-python-client

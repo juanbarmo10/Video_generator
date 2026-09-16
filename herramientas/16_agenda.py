@@ -42,14 +42,26 @@ CONFIG = {
 
     # Qué extra sale cada día de la semana (lunes = 0). Repartidos para que la
     # página no tenga tres publicaciones el mismo día y luego cuatro días muda.
+    # ⚠️ **El álbum de Facebook salió el 15 sep.** Lo publicaba la misma app
+    # restringida de P-31, así que su público eran 2 personas pase lo que pase:
+    # el de `Historia04` sacó 0 reacciones y 1 clic. No es que rindiera poco, es
+    # que no llegaba a nadie. El carrusel de Instagram se queda por decisión del
+    # dueño aunque su alcance medido sea 1-7 (P-32).
     "dias_extra": {
         1: "instagram_carrusel",   # martes
-        3: "facebook_album",       # jueves
         5: "threads",              # sábado
     },
 
     # Las redes del reel diario.
-    # ⚠️ **Facebook NO está aquí, y es una decisión, no un olvido ni un apaño
+    # ⚠️ **Está VACÍA a propósito: desde el 15 sep el reel no lo publica nadie
+    # automáticamente.** Instagram salió por decisión del dueño (se sube a mano)
+    # y Facebook ya había salido el 28 ago por el motivo de abajo. Con la lista
+    # vacía, `pendientes()` no devuelve nunca nada y `--reel` no hace más que
+    # decirlo; el calendario sigue sirviendo como **lista de lo que hay que
+    # subir a mano**, que es lo que enseña `--estado`.
+    # Los extras (carrusel y Threads) SÍ siguen automáticos.
+    #
+    # ⚠️ **Facebook tampoco está, y es una decisión, no un olvido ni un apaño
     # temporal: se publica a mano por Metricool.**
     # Todo lo que publica esta app en la página llega a **2 personas**, mientras
     # que el mismo vídeo subido por Metricool el 28 alcanzó **1.039**. La página
@@ -64,7 +76,7 @@ CONFIG = {
     # `pages_manage_posts` (verificación de negocio, días de trámite) y
     # comprobarlo con UNA publicación antes de volver a confiar — que es
     # exactamente lo que no se hizo el 15 ago y costó diez vídeos. Ver P-31.
-    "redes_reel": ["instagram"],
+    "redes_reel": [],
 
     # ⚠️ Los temas que NO pasaron el control de calidad del paso 01 se publican
     # igual, por decisión de operación: la tanda de agosto se generó ANTES de que
@@ -79,6 +91,12 @@ CONFIG = {
 }
 
 RAIZ = Path(__file__).resolve().parent.parent
+
+# Las redes en las que un reel PUEDE haber salido, se publiquen hoy solas o a
+# mano. `CONFIG["redes_reel"]` dice qué automatiza la agenda; esto dice qué
+# cuenta como reel al leer el registro, y no cambia porque se apague un
+# automatismo.
+REDES_DE_REEL = ("instagram", "facebook")
 
 
 #%% ═══════════════════════════════════════════════════════════════
@@ -213,6 +231,16 @@ def publicar_reel(hoy: str, dry_run: bool) -> bool:
     uno al día es justamente lo que evita que compitan entre ellos, así que el
     calendario se recupera a un video por día en vez de vaciarse en una tarde.
     """
+    if not CONFIG["redes_reel"]:
+        # ⚠️ Sin esto diría «nada pendiente», que es verdad y engaña: suena a
+        # calendario vacío cuando lo que pasa es que el reel se subió a mano.
+        # Este mensaje corre bajo cron todos los días y acaba en agenda.log.
+        pend = [f for f in calendario() if f.get("fecha", "") <= hoy]
+        print(f"🗓️  {hoy}: el reel se publica a mano (`redes_reel` vacía).\n"
+              f"   {len(pend)} en el calendario con fecha ya pasada. "
+              f"Qué falta: `--estado`.")
+        return False
+
     cola = pendientes(hoy)
     if not cola:
         hay_calendario = bool(calendario())
@@ -316,21 +344,43 @@ def estado(hoy: str) -> None:
     cal = calendario()
     futuros = [f for f in cal if f.get("fecha", "") > hoy]
     atrasados = pendientes(hoy)
-    print(f"📹 Reels: {len(atrasados)} pendiente(s), {len(futuros)} programado(s)")
+
+    if not CONFIG["redes_reel"]:
+        # En modo manual el calendario deja de ser una agenda y pasa a ser una
+        # LISTA DE TAREAS: nadie lo va a ejecutar, así que lo único útil es
+        # decir qué toca subir y qué viene.
+        toca = [f for f in cal if f.get("fecha", "") <= hoy]
+        print(f"✋ El reel se publica A MANO. El calendario es tu lista:\n")
+        print(f"📹 {len(toca)} con fecha ya pasada · {len(futuros)} por venir")
+        for f in toca[-8:]:
+            print(f"   · {f['fecha']}  {f['proyecto']:<12} {f.get('titulo_youtube','')[:44]}")
+        if len(toca) > 8:
+            print(f"     … y {len(toca) - 8} más arriba")
+        for f in futuros[:4]:
+            print(f"   ⏳ {f['fecha']}  {f['proyecto']}")
+        if cal and not futuros:
+            print("   ⚠️  El calendario se agotó: genera el lote siguiente")
+        print()
+    else:
+        print(f"📹 Reels: {len(atrasados)} pendiente(s), {len(futuros)} programado(s)")
     for f in atrasados:
         dias = (datetime.strptime(hoy, "%Y-%m-%d").date()
                 - datetime.strptime(f["fecha"], "%Y-%m-%d").date()).days
         print(f"   ⏰ {f['fecha']}  {f['proyecto']:<12} atrasado {dias} día(s)")
-    for f in futuros[:4]:
+    for f in (futuros[:4] if CONFIG["redes_reel"] else []):
         marca = "⚠️ " if (f.get("revisar_a_mano") or "").upper().startswith("SÍ") else "  "
         print(f"   {marca} {f['fecha']} {f['hora']}  {f['proyecto']}")
-    if len(futuros) > 4:
-        print(f"      … y {len(futuros) - 4} más")
-    if cal and not futuros and not atrasados:
-        print("   ⚠️  El calendario se agotó: genera el paquete del lote siguiente")
+    if CONFIG["redes_reel"]:
+        if len(futuros) > 4:
+            print(f"      … y {len(futuros) - 4} más")
+        if cal and not futuros and not atrasados:
+            print("   ⚠️  El calendario se agotó: genera el paquete del lote siguiente")
 
     hechos = publicado()
-    reels = {f["proyecto"] for f in hechos if f["red"] in CONFIG["redes_reel"]}
+    # ⚠️ Contra `REDES_DE_REEL`, no contra `redes_reel`. La segunda dice qué se
+    # publica AUTOMÁTICAMENTE hoy, y está vacía en modo manual: contar con ella
+    # daba «0 reels publicados» con 18 en el registro.
+    reels = {f["proyecto"] for f in hechos if f["red"] in REDES_DE_REEL}
     print(f"\n✅ Publicado: {len(reels)} reel(s), "
           f"{len(temas_ya_usados())} extra(s)")
 

@@ -46,11 +46,25 @@ class AgendaFalsa(unittest.TestCase):
         ("2026-08-17", "12:00", "Historia09", "SÍ — el guion no pasó el control"),
     ]
 
+    # ⚠️ **El escenario lo fija el test, NO el `CONFIG` vivo.**
+    # Tres veces se cayeron tests por cambiar configuración sin tocar ninguna
+    # regla: al sacar Facebook de `redes_reel` (28 ago), al vaciarla del todo y
+    # al quitar `facebook_album` de los extras (15 sep). Lo que estos tests
+    # prueban es **la lógica de recuperación y rotación**, que no cambió ni una
+    # vez. Un test que se cae cuando el dueño decide dónde publicar es un test
+    # que mide lo que no debe.
+    REDES_REEL = ["instagram", "facebook"]
+    DIAS_EXTRA = {1: "instagram_carrusel", 3: "facebook_album", 5: "threads"}
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.raiz = Path(self.tmp.name)
         self._raiz_real = ag.RAIZ
         ag.RAIZ = self.raiz
+
+        self._cfg_real = {k: ag.CONFIG[k] for k in ("redes_reel", "dias_extra")}
+        ag.CONFIG["redes_reel"] = list(self.REDES_REEL)
+        ag.CONFIG["dias_extra"] = dict(self.DIAS_EXTRA)
 
         pub = self.raiz / "publicar"
         for tema in ("Historia01", "Historia02", "Historia03",
@@ -67,6 +81,7 @@ class AgendaFalsa(unittest.TestCase):
 
     def tearDown(self):
         ag.RAIZ = self._raiz_real
+        ag.CONFIG.update(self._cfg_real)
         self.tmp.cleanup()
 
     def anotar(self, *filas):
@@ -191,14 +206,8 @@ class TestRecuperacion(AgendaFalsa):
         (P-31), lo que dejó la lista en una sola red y tumbó este test sin que
         la regla hubiera cambiado.
         """
-        previas = ag.CONFIG["redes_reel"]
-        ag.CONFIG["redes_reel"] = ["instagram", "facebook"]
-        try:
-            self.anotar(("2026-08-16", "Historia08", "instagram", "1"))
-            self.assertEqual(ag.pendientes("2026-08-20")[0]["proyecto"],
-                             "Historia08")
-        finally:
-            ag.CONFIG["redes_reel"] = previas
+        self.anotar(("2026-08-16", "Historia08", "instagram", "1"))
+        self.assertEqual(ag.pendientes("2026-08-20")[0]["proyecto"], "Historia08")
 
     def test_extra_perdido_se_recupera_el_mismo_semana(self):
         """Martes apagado: el carrusel sale el miércoles, no la semana que viene."""

@@ -9,17 +9,31 @@
 
 ## Dónde vamos
 
-**Estado a 28 ago 2026.** Dos semanas publicando solo. La automatización funciona
-y se recuperó ella sola de tres fallos de subida de Instagram y de una caída de
-DNS.
+**Estado a 15 sep 2026.** El lote `v4` salió entero y la automatización aguantó:
+se recuperó sola de tres fallos de subida de Instagram y de una caída de DNS.
 
-**Facebook sale de la automatización, por decisión.** No por un fallo del código
+**Pero el reel ya no lo publica nadie solo**, y por dos motivos distintos que no
+hay que mezclar. Facebook (28 ago) salió porque **la app está restringida**;
+Instagram (15 sep) sale **por decisión del dueño**.
+
+**Facebook salió de la automatización por la app, no por el contenido.** No por un fallo del código
 —publicaba bien— sino porque esta app de Meta solo enseña lo que publica en la
 página a quien tenga un rol en ella, y solo tiene un administrador: diez
 publicaciones con **alcance 2**, contra **1.039** del mismo vídeo por Metricool
 ([P-31](#p-31) en Resueltos). Se sube a mano, como YouTube y TikTok.
 
-**Lote `v4-hashtags-limpios` en marcha (29 ago):** 10 temas pedidos, **9
+Siguen automáticos **el carrusel de Instagram (martes) y el hilo de Threads
+(sábados)**; el álbum de Facebook se quitó, porque lo publicaba la misma app
+restringida y su público eran 2 personas pasara lo que pasara.
+
+⚠️ **Instagram cayó a un quinto en septiembre** — [P-34](#p-34). No es lo mismo
+que pasó en Facebook y conviene no confundirlos.
+
+**Herramienta nueva: [19_figuras.py](herramientas/19_figuras.py)**, que dibuja
+`metricas.csv`. El informe da medianas; las figuras dan la forma, que con n=6-9
+es justo lo que una mediana esconde.
+
+**Lote `v4-hashtags-limpios` (29 ago):** 10 temas pedidos, **9
 completados y aprobados**, 1 abortado. Coste **$2.32** más el control de calidad
 del abortado (~$0.09); mediana **$0.254** por tema. Se publica del 30 ago al 7 sep.
 
@@ -56,12 +70,13 @@ Verificado sobre los 7: **0 transiciones repetidas** de 15-18 y **0 títulos** f
 **aborta el tema** en vez de avisar, y lo que queda por hacer se mide por si **reduce intervención
 humana**, no por si mejora un número.
 
-**Tu semana son ahora tres cosas** (~30 min): elegir los temas, correr los cuatro comandos de
-métricas y subir por Metricool. Generar, empaquetar y publicar en Instagram y Threads va solo; a
-mano quedan YouTube, TikTok y —desde el 28 ago— Facebook.
+**Tu semana son ahora tres cosas** (~45 min): elegir los temas, correr los cuatro comandos de
+métricas y **subir los reels por Metricool a las cuatro redes**. Generar y empaquetar va solo, y
+también el carrusel de los martes y el hilo de los sábados.
 
 | | # | Pendiente | Gana |
 |---|---|---|---|
+| 🟡 | [P-34](#p-34) | Instagram cayó a un quinto en septiembre: ¿red o contenido? | la red que quedaba |
 | 🟡 | [P-33](#p-33) | El informe compara 2 lotes y ya hay 3: falta `v3` vs `v2` | la pregunta real |
 | 🟡 | [P-32](#p-32) | Los carruseles nunca alcanzaron a nadie: ¿se quitan? | 2 días de semana |
 | 🟡 | [P-20](#p-20) | Por qué menos gente para el scroll (el frame 0) | la única métrica en contra |
@@ -81,6 +96,35 @@ en silencio.
 
 ## 🟡 Producto y datos
 
+<a id="p-34"></a>
+**P-34 · Instagram cayó a un quinto en septiembre, y no se sabe por qué.**
+
+Medido el 15 sep sobre la última foto de cada reel:
+
+| tramo | n | mediana de vistas | rango |
+|---|---:|---:|---|
+| hasta 14 ago (a mano) | 45 | **165** | 21 – 4.261 |
+| 15-31 ago (por API) | 11 | **192** | 90 – 713 |
+| **1-15 sep (por API)** | 7 | **35** | 11 – 195 |
+
+Los últimos diez: 713, 156, 90, 123, 195, 26, 11, 142, 35, 24.
+
+⚠️ **No es lo mismo que pasó en Facebook, y conviene no confundirlos.** Aquello
+era un número fijo —alcance 2, diez veces— que delataba un interruptor. Esto es
+una caída con dispersión (de 11 a 195), que es lo que parece un problema de
+alcance de verdad, no una restricción de la app. Y la API siguió funcionando
+normal en la segunda quincena de agosto: la caída empieza en septiembre.
+
+⚠️ **Está confundido con el lote.** Los siete de septiembre son **todos
+`v4`** (`Historia16`-`Historia25`), así que «cambió la red» y «cambió el
+contenido» son la misma columna. Con n=7 no se puede separar.
+
+**Lo que lo separaría**, y es gratis: los reels que se suban **a mano** a partir
+de ahora son del mismo lote `v4`. Si suben, era la vía de publicación; si siguen
+en 35, es el contenido. Es el mismo experimento que resolvió P-31, y esta vez
+la decisión de publicar a mano ya lo pone en marcha sin hacer nada.
+
+
 <a id="p-32"></a>
 **P-32 · Los carruseles nunca alcanzaron a nadie. ¿Se quitan?**
 
@@ -93,10 +137,12 @@ Medido contra el histórico entero, no contra las últimas semanas:
 | carrusel instagram manual | 5 | **2** | 2 | 2 |
 | carrusel instagram por API | 3 | **5** | 1 | 7 |
 
-⚠️ **Los reels de Instagram por API van MEJOR que la línea de base**, no peor —
-la impresión contraria venía de compararlos con los tres manuales grandes de
-justo antes del cambio (2.984, 1.159, 1.064). **No hay nada que arreglar en
-Instagram, y el esfuerzo que se ponga ahí es esfuerzo tirado.**
+⚠️ **Esto se midió el 25 ago y septiembre lo contradijo en parte: ver
+[P-34](#p-34).** Entonces los reels por API iban *mejor* que la línea de base
+(146 contra 127) y la conclusión fue que no había nada que arreglar en Instagram.
+Con los siete de septiembre la mediana cae a **35**. La lectura de agosto era
+correcta con lo que había; lo que cambió son los datos, no el razonamiento. **La
+parte de los carruseles sigue en pie** — esa no depende de la de los reels.
 
 ⚠️ **Los carruseles llevan muertos desde siempre**: los cinco manuales de mayo
 dieron **2 de alcance cada uno**. No es una regresión del API — de hecho los de

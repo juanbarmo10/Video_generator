@@ -83,6 +83,10 @@ metricas_export/
 # y metricas.csv —que sí está en git— guarda todas las fotos históricas)
 reportes/
 
+# Figuras PNG (derivadas igual: `python herramientas/19_figuras.py` las rehace
+# desde metricas.csv, y pesan bastante más que el HTML)
+figuras/
+
 # Fecha del último recordatorio enviado (estado local de esta máquina)
 .ultimo_recordatorio
 

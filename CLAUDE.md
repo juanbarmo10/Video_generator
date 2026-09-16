@@ -365,6 +365,7 @@ falta saber para orientarse:
 | **`herramientas/`**[`16_agenda.py`](herramientas/16_agenda.py) | **Lo único que `cron` llama para publicar.** Decide qué sale hoy y se lo pide a los dos anteriores |
 | **`herramientas/`**[`17_tiktok_api.py`](herramientas/17_tiktok_api.py) | Métricas de TikTok. Cierra P-09b: era la última red que se tecleaba a mano |
 | **`herramientas/`**[`18_rehacer_srt.py`](herramientas/18_rehacer_srt.py) | Rehace los `.srt` que falten desde el mp3 del respaldo. Reparación, se corre a mano |
+| **`herramientas/`**[`19_figuras.py`](herramientas/19_figuras.py) | Figuras PNG de `metricas.csv`. Lo único que necesita matplotlib |
 | **`desuso/`** | Código que **no ejecuta nadie**: `03_voice_generator_free.py`, `publisher.py`, `ink_filter.py`, `imagen_generator_source.py`. Sigue en git como referencia. Ver [§ Código en desuso](#código-en-desuso-está-en-git-no-lo-ejecuta-nadie) |
 | `requirements.txt` | `moviepy==1.0.3` fijado; ffmpeg va aparte (apt) |
 
@@ -821,6 +822,30 @@ desde el mp3 de cada respaldo. Es una herramienta de **reparación**: no la llam
 - Los 21 respaldos de `proyectos/T1/` también salen en `--listar` y **no se han rehecho a
   propósito**: son de la tanda anterior al pipeline, están publicados y su `.srt` no lo
   consume nadie. Serían ~4 h de CPU para completar un archivo que no se usa.
+
+**[19_figuras.py](herramientas/19_figuras.py)** dibuja `metricas.csv`. Complementa al paso 11,
+no lo sustituye: **el informe da medianas y veredictos; las figuras dan la forma de los datos**,
+que con n=6-9 es justo lo que una mediana esconde.
+- ⚠️ **Importa el paso 11 entero y no reimplementa ni una regla.** `TIPO_METRICA`, `ETIQUETAS`,
+  `COLUMNAS_POR_PLATAFORMA`, `leer_metricas()`, `calcular_derivadas()` y `sincronizar_lotes()`
+  salen de allí. Duplicar esas tablas era la forma más fácil de que las figuras dijeran una cosa y
+  el informe otra sobre los mismos datos.
+- ⚠️ **`ultima_foto()` aplana a una fila por video** (la medición más reciente). `metricas.csv`
+  guarda una fila por `(plataforma, id, fecha_snapshot)` para poder mirar la historia; sin aplanar,
+  un video medido seis semanas pesaría seis veces en cada mediana solo por llevar más tiempo.
+- **Cuatro decisiones de diseño que no son estéticas**, y que conviene no «mejorar» sin leer esto:
+  **una rejilla por red** en vez de cinco series en un eje (las redes difieren en órdenes de
+  magnitud: en un eje común cuatro se aplastan contra el cero); **puntos, no cajas** (con n=6-9 un
+  diagrama de caja dibuja cuartiles que no existen); **la n escrita en la figura, siempre**; y
+  **solo métricas comparables entre lotes**, que es `TIPO_METRICA` mandando igual que en el informe.
+- ⚠️ **Sin líneas que unan puntos que no son una serie.** La primera versión unía videos
+  consecutivos en el tiempo y proyectos distintos en un eje categórico ordenado por vistas: las dos
+  dibujaban tendencias inexistentes. Lo único que se une es el mínimo y el máximo **del mismo
+  video** entre redes, que sí es una relación real.
+- `figuras/` está en `.gitignore`: es derivado, como `reportes/`. `--oscuro` usa la misma paleta
+  escalonada para fondo oscuro, no un volteo automático de colores.
+- **Es lo único del repositorio que necesita matplotlib.** Va en `requirements.txt` como opcional:
+  el informe HTML del paso 11 sigue siendo stdlib pura.
 
 ### Código en desuso (está en git, no lo ejecuta nadie)
 

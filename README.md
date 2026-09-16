@@ -7,11 +7,11 @@ cada uno con su texto, sus subtítulos y su carrusel.
 **Coste real: ~$0.29 y ~9 minutos por video.** Un lote de 7 son unos $2 y poco más de una hora.
 
 ```
-temas.csv  →  bash run_all.sh  →  publicar/<PROYECTO>/  →  cron + 16_agenda.py  (IG + Threads)
-              (8 pasos + paquete)              └──────→  Metricool a mano    (YouTube, TikTok, FB)
+temas.csv  →  bash run_all.sh  →  publicar/<PROYECTO>/  →  cron + 16_agenda.py  (Threads + carrusel)
+              (8 pasos + paquete)              └──────→  a mano  (reels: IG, YouTube, TikTok, FB)
                                                           ↓
-        reportes/ultimo.html  ←  metricas.csv  ←  python herramientas/10_metricas.py
-        (11_reporte.py)
+        reportes/ultimo.html  +  figuras/*.png  ←  metricas.csv  ←  las 4 APIs de métricas
+        (11_reporte.py)          (19_figuras.py)
 ```
 
 De cada tema salen:
@@ -391,15 +391,21 @@ reponerlos en la tanda siguiente.
 
 ## 4 · Publicar
 
-### 4.1 Instagram y Threads: no hay que hacer nada
+### 4.1 Lo que sigue saliendo solo: Threads y el carrusel
 
 **Lo publica `cron`.** Solo hay que haber corrido el paso 3, que deja el paquete y el calendario.
 
+⚠️ **El reel diario ya NO se publica solo en ninguna red** (desde el 15 sep). Facebook salió el
+28 ago por la app restringida (punto 4.1.b) e **Instagram salió por decisión: se sube a mano**.
+`CONFIG["redes_reel"]` está vacía a propósito, y con ella vacía `--reel` no hace nada más que
+decirlo. El calendario sigue sirviendo: pasa a ser **la lista de lo que hay que subir**, y
+`python herramientas/16_agenda.py --estado` la enseña.
+
 | Cuándo | Qué sale | Dónde |
 |---|---|---|
-| todos los días, **12:00** | el reel del calendario | Instagram |
+| ~~todos los días, 12:00~~ | ~~el reel del calendario~~ | **a mano** |
 | martes 18:00 | el carrusel del paso 06 | Instagram |
-| jueves 18:00 | las mismas slides como álbum | Facebook |
+| ~~jueves 18:00~~ | ~~las mismas slides como álbum~~ | **quitado el 15 sep** |
 | sábado 18:00 | un hilo de 3 mensajes con 1-2 fotos reales | Threads |
 
 ⚠️ **Las 12:00 no son una preferencia: es la hora a la que se publicó todo lo anterior.** La hora
@@ -594,6 +600,26 @@ cuatro cosas que no están en el CSV: `vistas_por_dia`, `tasa_guardado`, `engage
 `retencion_relativa` (retención del video ÷ mediana de su lote — si es bueno *para tu canal*).
 
 ---
+
+### 5.5 Mirar las figuras (~2 min)
+
+```bash
+python herramientas/19_figuras.py        # figuras/*.png
+```
+
+El informe del punto anterior da **medianas**; esto da **la forma**. Con 6-9 videos por lote es
+una diferencia que importa: una mediana de 674 puede ser seis videos parecidos o cinco de 200 y
+uno de 6.000, y esas dos situaciones piden decisiones opuestas.
+
+| Figura | Para qué |
+|---|---|
+| `01_historia` | Cada video el día que salió, una red por panel. Es donde se ve un desplome |
+| `02_lotes` | Todos los puntos de cada lote con su mediana. Solo métricas comparables |
+| `03_redes` | El mismo video en cada red — misma pieza, así que la diferencia es la red |
+| `04_cobertura` | Qué columna trae dato en cada red. Evita perder la tarde comparando algo que media red no exporta |
+
+⚠️ Necesita `matplotlib` (`pip install -r requirements.txt`). Es lo único del repositorio que lo
+usa; el informe HTML no.
 
 ## Leer los resultados
 
