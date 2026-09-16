@@ -22,12 +22,14 @@ página a quien tenga un rol en ella, y solo tiene un administrador: diez
 publicaciones con **alcance 2**, contra **1.039** del mismo vídeo por Metricool
 ([P-31](#p-31) en Resueltos). Se sube a mano, como YouTube y TikTok.
 
-Siguen automáticos **el carrusel de Instagram (martes) y el hilo de Threads
-(sábados)**; el álbum de Facebook se quitó, porque lo publicaba la misma app
-restringida y su público eran 2 personas pasara lo que pasara.
+**Lo único que se publica solo es el hilo de Threads (sábados).** El álbum de
+Facebook se quitó porque lo publicaba la misma app restringida, y el carrusel de
+Instagram el 15 sep — ese **como experimento**, no como limpieza ([P-35](#p-35)).
 
-⚠️ **Instagram cayó a un quinto en septiembre** — [P-34](#p-34). No es lo mismo
-que pasó en Facebook y conviene no confundirlos.
+⚠️ **El alcance de Instagram baja, pero un 38 %, no un 80 %** — [P-34](#p-34),
+rehecho el 15 sep porque la primera versión comparaba contra la mejor semana de
+la cuenta. Y no es lo que pasó en Facebook: aquello era un interruptor, esto es
+reparto que se apaga poco a poco.
 
 **Herramienta nueva: [19_figuras.py](herramientas/19_figuras.py)**, que dibuja
 `metricas.csv`. El informe da medianas; las figuras dan la forma, que con n=6-9
@@ -72,13 +74,13 @@ humana**, no por si mejora un número.
 
 **Tu semana son ahora tres cosas** (~45 min): elegir los temas, correr los cuatro comandos de
 métricas y **subir los reels por Metricool a las cuatro redes**. Generar y empaquetar va solo, y
-también el carrusel de los martes y el hilo de los sábados.
+también el hilo de los sábados — que desde el 15 sep es **lo único** que se publica solo.
 
 | | # | Pendiente | Gana |
 |---|---|---|---|
-| 🟡 | [P-34](#p-34) | Instagram cayó a un quinto en septiembre: ¿red o contenido? | la red que quedaba |
-| 🟡 | [P-33](#p-33) | El informe compara 2 lotes y ya hay 3: falta `v3` vs `v2` | la pregunta real |
-| 🟡 | [P-32](#p-32) | Los carruseles nunca alcanzaron a nadie: ¿se quitan? | 2 días de semana |
+| 🟡 | [P-35](#p-35) | Sin carrusel: ¿sube el alcance del reel? Mirar en octubre | la red que quedaba |
+| 🟡 | [P-34](#p-34) | El alcance de Instagram baja un 38 %: queda la interacción | la red que quedaba |
+| 🟡 | [P-33](#p-33) | El informe compara 2 lotes y ya hay 4: falta `v3` vs `v2` | la pregunta real |
 | 🟡 | [P-20](#p-20) | Por qué menos gente para el scroll (el frame 0) | la única métrica en contra |
 | 🟡 | [P-26](#p-26) | TikTok: 3 columnas que ninguna API pública da | ~5 min/semana |
 | 🔵 | [P-22](#p-22) | Vigilar la primera semana de publicación automática | confianza |
@@ -97,32 +99,99 @@ en silencio.
 ## 🟡 Producto y datos
 
 <a id="p-34"></a>
-**P-34 · Instagram cayó a un quinto en septiembre, y no se sabe por qué.**
+**P-34 · El alcance de Instagram baja, pero menos de lo que parecía.**
 
-Medido el 15 sep sobre la última foto de cada reel:
+⚠️ **Rehecho el 15 sep. La versión anterior de esta nota decía «cayó a un
+quinto» y estaba mal por dos motivos**, los dos de método:
 
-| tramo | n | mediana de vistas | rango |
-|---|---:|---:|---|
-| hasta 14 ago (a mano) | 45 | **165** | 21 – 4.261 |
-| 15-31 ago (por API) | 11 | **192** | 90 – 713 |
-| **1-15 sep (por API)** | 7 | **35** | 11 – 195 |
+1. Partía las cohortes por quincenas naturales, así que `Historia16` y
+   `Historia17` (30 y 31 ago) caían en el grupo de agosto siendo `v4`.
+2. Comparaba contra **la semana del 8-14 ago, que fue la mejor de la historia de
+   la cuenta** (mediana 492). Es la misma trampa que [P-32](#p-32) advierte, y
+   se cayó en ella en la dirección contraria.
 
-Los últimos diez: 713, 156, 90, 123, 195, 26, 11, 142, 35, 24.
+Contra la línea de base de verdad, por fecha de publicación y con la última foto
+de cada reel:
 
-⚠️ **No es lo mismo que pasó en Facebook, y conviene no confundirlos.** Aquello
-era un número fijo —alcance 2, diez veces— que delataba un interruptor. Esto es
-una caída con dispersión (de 11 a 195), que es lo que parece un problema de
-alcance de verdad, no una restricción de la app. Y la API siguió funcionando
-normal en la segunda quincena de agosto: la caída empieza en septiembre.
+| era | n | vistas | alcance | vistas/alcance | % interacción | bajo 40 vistas |
+|---|--:|--:|--:|--:|--:|--:|
+| may-jul (a mano) | 38 | 144 | 118 | 1,26 | 1,87 % | 3/38 |
+| 8-14 ago (a mano) | 7 | 492 | 371 | 1,33 | 1,27 % | 0/7 |
+| 16-26 ago (API, v3) | 9 | 204 | 160 | 1,28 | 1,56 % | 0/9 |
+| 30 ago-7 sep (API, v4) | 9 | **90** | **66** | 1,23 | **0,70 %** | **4/9** |
 
-⚠️ **Está confundido con el lote.** Los siete de septiembre son **todos
-`v4`** (`Historia16`-`Historia25`), así que «cambió la red» y «cambió el
-contenido» son la misma columna. Con n=7 no se puede separar.
+O sea **−38 % contra la base real**, no −80 %.
 
-**Lo que lo separaría**, y es gratis: los reels que se suban **a mano** a partir
-de ahora son del mismo lote `v4`. Si suben, era la vía de publicación; si siguen
-en 35, es el contenido. Es el mismo experimento que resolvió P-31, y esta vez
-la decisión de publicar a mano ya lo pone en marcha sin hacer nada.
+⚠️ **La edad NO confunde esta comparación, y merece saberse porque contradice la
+intuición.** Los reels de Instagram **se congelan hacia el día 5**: `Historia07`
+tenía 192 vistas a los 9 días y **las mismas 192 a los 30**; `Historia10`, 347 y
+347. Así que aquí sí se pueden comparar cohortes de distinta edad — y es la
+única red donde se puede.
+
+**Lo nuevo no es la mediana, es el suelo.** 4 de 9 reels por debajo de 40 vistas,
+cuando en los 38 de may-jul eso pasó 3 veces. La mitad rinde normal (123, 142,
+156, 195) y la otra mitad no se muestra a nadie (11, 24, 26, 35).
+
+**Es reparto, no rechazo.** `vistas/alcance` se mantiene en ~1,25 en las cuatro
+eras: de los que lo ven en el feed, la misma proporción lo reproduce. Lo que cayó
+es **a cuánta gente se lo enseñan** (118 → 66).
+
+**Y el contenido queda descartado por TikTok**, que es el control natural: son
+los mismos vídeos, y allí los me gusta **subieron** (14 → 21, 4,2 % de
+interacción, alcance plano 604 → 434 a igualdad de edad). TikTok no depende de
+seguidores; si los guiones `v4` fueran peores se vería allí primero. La duración
+también queda descartada: los vídeos cortos van **mejor** en todas partes
+(en YouTube, <32 s da 1.364 vistas contra 304 de los de 32-40 s).
+
+**La hipótesis que queda** es que la interacción lleva meses bajando
+(1,87 % → 1,56 % → 0,86 %) y ya está por debajo del nivel en que Instagram
+reparte. La mediana de `v4` tiene **0 me gusta, 0 guardados, 0 compartidos y 0
+comentarios**: sin una sola señal positiva el alcance se apaga solo, y menos
+alcance da menos señal. Qué lo alimenta, en [P-35](#p-35).
+
+⚠️ **Lo que NO se puede concluir todavía**: nada sobre las otras tres redes. La
+impresión de que «bajan todas» es un artefacto de edad — `vistas` es acumulativa
+y los vídeos de septiembre tenían 6-11 días contra 24-127 los demás. A igualdad
+de edad, TikTok y Facebook están planos y YouTube es ruidoso pero con la
+retención intacta (69,5 % → 88 % → 70 %).
+
+
+<a id="p-35"></a>
+**P-35 · Quitado el carrusel de Instagram: experimento en marcha (15 sep).**
+
+`dias_extra` se queda **solo con Threads**. No es limpieza, es la prueba de la
+hipótesis de [P-34](#p-34): publicar algo que nadie mira le enseña a Instagram
+que la cuenta no merece reparto.
+
+Lo que sostiene la hipótesis es **una coincidencia de fechas, y nada más**:
+
+- 6 carruseles publicados desde el 16 ago (16, 18, 25 ago · 1, 10, 15 sep).
+- Su alcance medido es **1-7** ([P-32](#p-32)).
+- En esa misma ventana el alcance del reel pasó de 118 a 66.
+
+⚠️ **No está demostrada.** Tres explicaciones alternativas siguen vivas y
+ninguna se descarta con estos datos: saturación de una audiencia pequeña a la que
+se publica a diario, un lazo de realimentación que empezó antes del primer
+carrusel, y estacionalidad de septiembre.
+
+**Cómo se mide** — y esto es lo que hay que leer antes de sacar conclusiones en
+octubre:
+
+- ⚠️ **NO se puede mirar en el informe: los carruseles no están en
+  `metricas.csv`.** Comprobados los 6 ids el 15 sep, cero filas. Se publican y no
+  los mide nadie.
+- Se mira el **alcance del reel** de las semanas sin carrusel contra 66, que es
+  la mediana de `v4`.
+- ⚠️ **El experimento está limpio por casualidad**: como el reel también pasó a
+  subirse a mano el 15 sep, el `v5` no lleva ni carrusel ni publicación por API.
+  Si el alcance sube, **no se sabrá cuál de las dos cosas fue**. Para separarlas
+  haría falta volver a poner una de las dos sola, y eso es una decisión, no un
+  descuido.
+- Hace falta **n≥5 reels** antes de decir nada. Con `v5` en marcha, eso es la
+  primera semana de octubre.
+
+Si en octubre el alcance sigue en ~66, la hipótesis del carrusel muere y hay que
+mirar la saturación de la audiencia.
 
 
 <a id="p-32"></a>
@@ -148,6 +217,10 @@ parte de los carruseles sigue en pie** — esa no depende de la de los reels.
 dieron **2 de alcance cada uno**. No es una regresión del API — de hecho los de
 API van algo mejor. El álbum de Facebook de `Historia04` sacó **0 reacciones y 1
 clic**.
+
+✅ **Decidido el 15 sep: se quitan.** Pero no por lo que dice esta nota —que solo
+dice que no alcanzan a nadie, y algo que no alcanza a nadie tampoco estorba— sino
+porque puede estar arrastrando al reel. El seguimiento está en [P-35](#p-35).
 
 **La decisión es de producto, no de código:** la agenda gasta dos de los tres
 días de extras (martes carrusel de IG, jueves álbum de FB) en un formato que

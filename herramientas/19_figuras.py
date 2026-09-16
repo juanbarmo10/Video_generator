@@ -281,6 +281,19 @@ def fig_historia(filas: list[dict], modo: str, destino: Path) -> Path | None:
 #   FIGURA 2 · Distribución por lote
 # ═══════════════════════════════════════════════════════════════
 
+def _lote_corto(lote: str) -> str:
+    """`v4-hashtags-limpios` → `v4`. Solo para el eje.
+
+    ⚠️ Los nombres de lote son descriptivos a propósito —dicen qué cambió— pero
+    miden 20+ caracteres y en un panel de 3 columnas se solapan hasta ser
+    ilegibles: `v2-mas-cortes` y `v3-guion-y-dispersion` se imprimían uno encima
+    del otro. Se acorta en el eje; el nombre entero va al pie, que es donde se
+    lee sin prisa.
+    """
+    cabeza = lote.split("-", 1)[0]
+    return cabeza if cabeza.startswith("v") and cabeza[1:].isdigit() else lote
+
+
 def fig_lotes(filas: list[dict], modo: str, destino: Path) -> Path | None:
     """Todos los puntos de cada lote, con su mediana encima.
 
@@ -337,8 +350,8 @@ def fig_lotes(filas: list[dict], modo: str, destino: Path) -> Path | None:
             ax.text(j + 0.34, m, rep.formato(m, campo), va="center", ha="left",
                     fontsize=7, color=t["principal"], zorder=5)
         ax.set_xticks(range(len(datos)))
-        ax.set_xticklabels([f"{l}\nn={len(v)}" for l, v in datos.items()],
-                           fontsize=7)
+        ax.set_xticklabels([f"{_lote_corto(l)}\nn={len(v)}"
+                            for l, v in datos.items()], fontsize=7)
         ax.set_title(f"{red} · {etiqueta(campo)}", color=t["principal"], pad=8)
         ax.yaxis.set_major_formatter(FuncFormatter(_miles))
     for ax in ejes[len(paneles):]:
@@ -346,7 +359,10 @@ def fig_lotes(filas: list[dict], modo: str, destino: Path) -> Path | None:
 
     fig.suptitle("Cada video como un punto, y la mediana encima",
                  color=t["principal"])
-    _pie(fig, "Solo métricas comparables entre lotes (ventana y tasa). "
+    nombres = " · ".join(f"{_lote_corto(l)} = {l}" for l in lotes
+                         if _lote_corto(l) != l)
+    _pie(fig, (f"{nombres}\n" if nombres else "") +
+              "Solo métricas comparables entre lotes (ventana y tasa). "
               "Los acumulados se omiten a propósito: entre lotes de edades "
               "distintas miden la antigüedad, no el video.", t)
     fig.tight_layout(rect=(0, 0.03, 1, 0.97))

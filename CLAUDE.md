@@ -360,7 +360,7 @@ falta saber para orientarse:
 | **`herramientas/`**[`11_reporte.py`](herramientas/11_reporte.py) | Convierte `metricas.csv` en `reportes/ultimo.html`. Se corre después del 10 |
 | **`herramientas/`**[`12_recordatorio.py`](herramientas/12_recordatorio.py) | Recordatorio semanal por Telegram. Lo llama `cron`, no un `.sh` |
 | **`herramientas/`**[`13_youtube_api.py`](herramientas/13_youtube_api.py) | Métricas de YouTube por API (OAuth). La **curva de retención** no la exporta ningún CSV |
-| **`herramientas/`**[`14_meta_api.py`](herramientas/14_meta_api.py) | Instagram y Facebook por API: métricas **y publicación** del reel, el carrusel y el álbum |
+| **`herramientas/`**[`14_meta_api.py`](herramientas/14_meta_api.py) | Instagram y Facebook por API: métricas **y publicación** del reel, el carrusel y el álbum. ⚠️ Desde el 15 sep la agenda no le pide ninguna: publicar sigue funcionando, pero solo a mano |
 | **`herramientas/`**[`15_threads_api.py`](herramientas/15_threads_api.py) | Threads: **otra API, otro host, otro token**. Escribe el hilo con GPT y lo publica |
 | **`herramientas/`**[`16_agenda.py`](herramientas/16_agenda.py) | **Lo único que `cron` llama para publicar.** Decide qué sale hoy y se lo pide a los dos anteriores |
 | **`herramientas/`**[`17_tiktok_api.py`](herramientas/17_tiktok_api.py) | Métricas de TikTok. Cierra P-09b: era la última red que se tecleaba a mano |
@@ -490,7 +490,24 @@ trae cada red.
   una tanda es historia, y la historia no puede vivir en un archivo que se reescribe cada semana.
   **Los cinco sitios que calculaban el lote a mano (pasos 10, 13, 14, 15 y 17) llaman ahora a
   `lote_de()`**; si añades otro cliente de métricas, llama a esa y no repitas la fórmula.
-  ⚠️ **Al cerrar una tanda, añádela a `lotes_historicos` Y sube `lote_nuevo`.**
+  ⚠️ **`lote` estaba protegido y `PROYECTO` no, y eso dejaba el arreglo a
+  medias.** El emparejamiento por texto se rehace entero en cada corrida y
+  **puede fallar donde antes acertó** (basta con que `asignar_uno_a_uno()` le dé
+  el título a otro candidato), así que la foto nueva nacía sin `PROYECTO` y el
+  vídeo quedaba con unas filas identificadas y otras no: **18 de 251 el 15 sep**.
+  Duele justo donde no se ve — cualquier análisis que aplane a la última foto
+  (`ultima_foto()` del paso 19) los tira en silencio, porque la fila rota es
+  precisamente la más reciente; `v2` en Instagram salía con n=3 en vez de n=9.
+  Lo arreglan **`identidad_ya_asignada()`** (protege las fotos nuevas, misma
+  regla asimétrica que `lotes_ya_asignados()`) y **`rellenar_identidad()`**, que
+  **repara hacia atrás**: sin ella las filas ya rotas seguirían rotas para
+  siempre, porque el daño estaba hecho antes de escribir la guarda.
+  ⚠️ **Al cerrar una tanda, añádela a `lotes_historicos` Y sube `lote_nuevo`**, y
+  hazlo **ANTES de reescribir `temas.csv`, no después.** El 15 sep se cargó
+  `Historia26`-`Historia45` sin cerrar `v4`: `Historia16`-`Historia25` cayeron a
+  `baseline` y **la tanda que se estaba investigando pasó a contaminar su propio
+  grupo de control**, sin que nada lo dijera. Es el mismo fallo del 15 ago por el
+  otro extremo.
   ⚠️ **Sube `lote_nuevo` en el `CONFIG` al cargar un `temas.csv` con cambios de pipeline detrás**,
   o dos tandas distintas comparten nombre y dejan de distinguirse. Hoy:
   `v2-mas-cortes` (Historia01-08) y `v3-guion-y-dispersion` (Historia09-15).
@@ -595,7 +612,8 @@ guarda todas las fotos.
 
 **[14_meta_api.py](herramientas/14_meta_api.py)** hace dos cosas con Instagram y Facebook:
 `--metricas` las lee y `--publicar PROYECTO` sube el reel a las dos.
-⚠️ **Pero la agenda ya no le pide Facebook: desde el 28 ago `redes_reel` es solo Instagram.**
+⚠️ **Pero la agenda ya no le pide NADA: `redes_reel` está vacía desde el 15 sep y
+el carrusel salió de `dias_extra` el mismo día.**
 El código de publicar en Facebook funciona y se conserva —`--publicar` sigue haciéndolo si se lo
 pides—; lo que no sirve es el resultado. Ver abajo y P-31.
 - **Un solo token de PÁGINA para las dos redes**, y el orden en que se saca es lo único delicado:
@@ -697,6 +715,15 @@ sabe hacerlo. Es lo único que llama `cron` para publicar (`--reel` a las 12:00,
   lotes viejos— entran desde el primer día.
 - **Importa los clientes con `importlib`** porque sus nombres empiezan por dígito, igual que el
   paso 12 con `11_reporte.py`. Si `15_threads_api.py` no existe, lo dice y sigue.
+- ⚠️ **Desde el 15 sep `dias_extra` solo tiene Threads**, así que el hilo de los
+  sábados es **lo único que se publica solo** en todo el proyecto. El álbum de
+  Facebook salió porque lo publicaba la app restringida de P-31 (público: 2
+  personas), y el carrusel de Instagram **como experimento, no como limpieza**:
+  se sospecha que publicar algo que nadie mira (alcance 1-7) le enseña a
+  Instagram que la cuenta no merece reparto. ⚠️ **No está demostrado** — lo único
+  que lo sostiene es que las fechas coinciden, y encima queda confundido con que
+  el reel también pasó a mano el mismo día. Ver P-35 en [TODO.md](TODO.md) antes
+  de devolverlo o de dar por buena la explicación.
 - `saltar_no_aprobados` está en **False** a propósito: la tanda de agosto se generó antes de que la
   puerta del paso 01 abortara y se publica tal cual, por decisión de operación. De los lotes
   siguientes no puede llegar ninguno sin auditar.
@@ -891,7 +918,7 @@ que forma parte del pipeline, no lo forma.
 
 ```bash
 conda activate ai_video_bot            # ⚠️ no es opcional, ver abajo
-python -m unittest discover tests      # desde la raíz, 166 tests, ~0.4 s
+python -m unittest discover tests      # desde la raíz, 177 tests, ~0.4 s
 ```
 
 ⚠️ **Los tests son de stdlib, pero el entorno no.** Con el Python de base fallan
@@ -899,7 +926,7 @@ python -m unittest discover tests      # desde la raíz, 166 tests, ~0.4 s
 importan de verdad los archivos que prueban, y esos sí traen `dotenv`, `openai` o
 `PIL`. El error que sale es `ModuleNotFoundError: No module named 'dotenv'` en la
 **línea del import del test**, que parece un test roto y es el intérprete
-equivocado. Si ves 4 errores y 39 tests en vez de 166, es esto.
+equivocado. Si ves 4 errores y 39 tests en vez de 177, es esto.
 
 Solo `unittest` de la stdlib, sin dependencias nuevas y **sin red**. Cubren
 [herramientas/10_metricas.py](herramientas/10_metricas.py),

@@ -42,13 +42,22 @@ CONFIG = {
 
     # Qué extra sale cada día de la semana (lunes = 0). Repartidos para que la
     # página no tenga tres publicaciones el mismo día y luego cuatro días muda.
-    # ⚠️ **El álbum de Facebook salió el 15 sep.** Lo publicaba la misma app
-    # restringida de P-31, así que su público eran 2 personas pase lo que pase:
-    # el de `Historia04` sacó 0 reacciones y 1 clic. No es que rindiera poco, es
-    # que no llegaba a nadie. El carrusel de Instagram se queda por decisión del
-    # dueño aunque su alcance medido sea 1-7 (P-32).
+    # ⚠️ **Solo queda Threads.** Los otros dos se retiraron el 15 sep:
+    #   · `facebook_album` — lo publicaba la misma app restringida de P-31, así
+    #     que su público eran 2 personas pase lo que pase: el de `Historia04`
+    #     sacó 0 reacciones y 1 clic. No rendía poco, no llegaba a nadie.
+    #   · `instagram_carrusel` — **es un experimento, no una limpieza** (P-35).
+    #     Su alcance medido es 1-7 (P-32) y se publicaron 6 desde el 16 ago, justo
+    #     mientras el alcance del reel caía de 118 a 66. La hipótesis es que
+    #     publicar algo que nadie mira le enseña a Instagram que la cuenta no
+    #     merece reparto. **No está demostrada**: lo único que sostiene el
+    #     vínculo es que las fechas coinciden. Quitarlo es lo que lo pone a
+    #     prueba, y el reel a mano deja el experimento limpio — si el alcance
+    #     sube sin carrusel, era esto; si no, hay que mirar a otro sitio.
+    # ⚠️ Los carruseles NO están en `metricas.csv` (comprobados los 6 ids el
+    # 15 sep: cero filas), así que esto no se puede evaluar con el informe.
+    # Se mide mirando el ALCANCE DEL REEL antes y después. Ver P-35.
     "dias_extra": {
-        1: "instagram_carrusel",   # martes
         5: "threads",              # sábado
     },
 
@@ -59,7 +68,7 @@ CONFIG = {
     # vacía, `pendientes()` no devuelve nunca nada y `--reel` no hace más que
     # decirlo; el calendario sigue sirviendo como **lista de lo que hay que
     # subir a mano**, que es lo que enseña `--estado`.
-    # Los extras (carrusel y Threads) SÍ siguen automáticos.
+    # El único extra que sigue automático es Threads.
     #
     # ⚠️ **Facebook tampoco está, y es una decisión, no un olvido ni un apaño
     # temporal: se publica a mano por Metricool.**

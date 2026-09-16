@@ -374,3 +374,70 @@ class RegistroDePublicacion(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class IdentidadPegajosa(unittest.TestCase):
+    """El fallo del 15 sep, hermano del de `lote` y encontrado seis meses después.
+
+    `lote` estaba protegido y `PROYECTO` no, así que el arreglo del 15 ago estaba
+    hecho a medias: el emparejamiento por texto se rehace entero en cada corrida
+    y puede fallar donde antes acertó. 18 videos de 251 tenían unas fotos con
+    nombre y otras sin él, y como el daño está en la foto MÁS RECIENTE, cualquier
+    análisis que aplane a la última —`ultima_foto()` del paso 19— los perdía en
+    silencio: `v2` en Instagram salía con n=3 en vez de n=9.
+    """
+
+    def test_el_proyecto_se_hereda_entre_fotos(self):
+        previas = [m(id_="v1", fecha="2026-08-15", PROYECTO="Historia07")]
+        nuevas = [m(id_="v1", fecha="2026-09-15", PROYECTO="")]
+        filas, _, _ = met.fusionar(previas, nuevas)
+        self.assertTrue(all(f["PROYECTO"] == "Historia07" for f in filas),
+                        "la foto nueva no puede estrenar identidad")
+
+    def test_rellena_hacia_atras_las_fotos_ya_rotas(self):
+        """Lo que hace que `metricas.csv` se cure solo: sin esto, las filas que
+        YA perdieron el nombre seguirían rotas para siempre."""
+        previas = [m(id_="v1", fecha="2026-08-15", PROYECTO=""),
+                   m(id_="v1", fecha="2026-08-25", PROYECTO="Historia07")]
+        filas, _, _ = met.fusionar(previas, [])
+        self.assertEqual({f["PROYECTO"] for f in filas}, {"Historia07"})
+
+    def test_no_inventa_proyecto_donde_nunca_lo_hubo(self):
+        """Los videos anteriores al pipeline son el baseline y no tienen ninguno:
+        rellenarlos con el del vecino sería peor que dejarlos vacíos."""
+        previas = [m(id_="v1", PROYECTO=""), m(id_="v2", PROYECTO="Historia07")]
+        filas, _, _ = met.fusionar(previas, [])
+        self.assertEqual({f["id_plataforma"]: f["PROYECTO"] for f in filas},
+                         {"v1": "", "v2": "Historia07"})
+
+    def test_el_primero_gana_si_el_emparejamiento_cambia_de_opinion(self):
+        """`asignar_uno_a_uno()` puede darle el título a otro candidato en una
+        corrida distinta. Ante dos respuestas, manda la primera y se avisa."""
+        previas = [m(id_="v1", fecha="2026-08-15", PROYECTO="Historia07")]
+        nuevas = [m(id_="v1", fecha="2026-09-15", PROYECTO="Historia11")]
+        filas, _, _ = met.fusionar(previas, nuevas)
+        self.assertTrue(all(f["PROYECTO"] == "Historia07" for f in filas))
+
+
+class LotesCerrados(unittest.TestCase):
+    """⚠️ Cerrar la tanda ANTES de reescribir `temas.csv`. El 15 sep se cargó
+    Historia26-45 sin cerrar v4 y Historia16-25 cayeron a `baseline`: la tanda
+    que se estaba investigando contaminando su propio grupo de control."""
+
+    def test_las_tandas_cerradas_no_caen_a_baseline(self):
+        cfg = dict(met.CONFIG)
+        for proyecto in ("Historia01", "Historia09", "Historia16", "Historia25"):
+            with self.subTest(proyecto=proyecto):
+                self.assertNotEqual(met.lote_de(proyecto, cfg), cfg["lote_baseline"])
+
+    def test_cada_tanda_historica_tiene_su_nombre(self):
+        cfg = dict(met.CONFIG)
+        self.assertEqual(met.lote_de("Historia07", cfg), "v2-mas-cortes")
+        self.assertEqual(met.lote_de("Historia12", cfg), "v3-guion-y-dispersion")
+        self.assertEqual(met.lote_de("Historia18", cfg), "v4-hashtags-limpios")
+
+    def test_el_lote_nuevo_no_reusa_el_nombre_de_uno_cerrado(self):
+        """Dos tandas con el mismo nombre dejan de distinguirse, que es justo lo
+        que hay que poder hacer."""
+        cfg = dict(met.CONFIG)
+        self.assertNotIn(cfg["lote_nuevo"], cfg["lotes_historicos"])

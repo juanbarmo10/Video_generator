@@ -88,10 +88,20 @@ CONFIG = {
     #                        ya no deja el bloque duplicado: Historia07 salió con
     #                        24) y **cómo se publica**: Facebook pasa a Metricool
     #                        a mano (P-31), Instagram sigue por API.
-    #   ⚠️ Para preguntas sobre el VÍDEO, v3 y v4 se pueden mirar juntos: los
+    #   v5-publicacion-manual  Historia26+ — el pipeline del VÍDEO sigue sin
+    #                        cambiar desde v3. Lo que cambia es que ya NO se
+    #                        publica nada solo salvo Threads: Facebook a mano por
+    #                        Metricool (P-31), el reel de Instagram a mano
+    #                        (15 sep) y el carrusel de Instagram retirado
+    #                        (15 sep, P-35).
+    #   ⚠️ Para preguntas sobre el VÍDEO, v3, v4 y v5 se pueden mirar juntos: los
     #   pasos 01, 04, 07 y 08 son idénticos. Se separan porque la condición de
     #   publicación no es la misma, y eso sí mueve el alcance.
-    "lote_nuevo":     "v4-hashtags-limpios",
+    #   ⚠️ **Cerrar la tanda ANTES de reescribir `temas.csv`, no después.** El
+    #   15 sep se cargó Historia26-45 sin cerrar v4, y Historia16-25 cayeron a
+    #   `baseline`: la tanda que estábamos investigando pasó a contaminar su
+    #   propio grupo de control, y el informe comparaba sin decir nada.
+    "lote_nuevo":     "v5-publicacion-manual",
     "lote_baseline":  "baseline",
 
     # Proyectos del lote EN CURSO que NO están en temas.csv. Test01 (Zidane) fue
@@ -112,6 +122,7 @@ CONFIG = {
     "lotes_historicos": {
         "v2-mas-cortes": [f"Historia0{n}" for n in range(1, 9)] + ["Test01"],
         "v3-guion-y-dispersion": [f"Historia{n:02d}" for n in range(9, 16)],
+        "v4-hashtags-limpios": [f"Historia{n:02d}" for n in range(16, 26)],
     },
 }
 
@@ -969,18 +980,31 @@ def fusionar(previas: list[dict], nuevas: list[dict]) -> tuple[list[dict], int, 
     """
     clave = lambda f: (f.get("plataforma", ""), f.get("id_plataforma", ""),
                        f.get("fecha_snapshot", ""))
+    video = lambda f: (f.get("plataforma", ""), f.get("id_plataforma", ""))
     indice = {clave(f): f for f in previas}
     nuevas_filas = actualizadas = 0
 
     lotes_previos = lotes_ya_asignados(previas)
+    identidades = identidad_ya_asignada(previas)
 
     for fila in nuevas:
         k = clave(fila)
         # ⚠️ El lote se decide UNA vez, la primera que se ve el video.
-        anterior = lotes_previos.get((fila.get("plataforma", ""),
-                                      fila.get("id_plataforma", "")))
+        anterior = lotes_previos.get(video(fila))
         if anterior:
             fila = dict(fila, lote=anterior)
+
+        # ⚠️ Y el PROYECTO igual: el emparejamiento por texto se rehace entera
+        # cada corrida y puede fallar donde antes acertó.
+        conocida = identidades.get(video(fila))
+        if conocida:
+            for campo, valor in conocida.items():
+                actual = (fila.get(campo) or "").strip()
+                if actual and actual != valor:
+                    print(f"   ⚠️  {video(fila)[0]} {video(fila)[1]}: "
+                          f"{campo} era '{valor}' y el emparejamiento de hoy dice "
+                          f"'{actual}'. Se conserva el primero.")
+            fila = dict(fila, **conocida)
 
         if k in indice:
             indice[k].update({c: v for c, v in fila.items() if v not in ("", None)})
@@ -988,6 +1012,8 @@ def fusionar(previas: list[dict], nuevas: list[dict]) -> tuple[list[dict], int, 
         else:
             indice[k] = fila
             nuevas_filas += 1
+
+    rellenar_identidad(list(indice.values()))
 
     return sorted(indice.values(), key=clave), nuevas_filas, actualizadas
 
@@ -1017,6 +1043,65 @@ def lotes_ya_asignados(previas: list[dict],
         if lote and lote != baseline:
             asignados[(f.get("plataforma", ""), f.get("id_plataforma", ""))] = lote
     return asignados
+
+
+# Columnas que dicen QUÉ video es, no cómo le fue. Salen del emparejamiento por
+# texto contra `metadata.json`, que se rehace entero en cada corrida.
+CAMPOS_IDENTIDAD = ("PROYECTO", "tema", "titulo")
+
+
+def identidad_ya_asignada(previas: list[dict]) -> dict[tuple[str, str], dict]:
+    """{(plataforma, id_plataforma): {campo: valor}} de lo que ya se sabe del VIDEO.
+
+    ⚠️ Misma idea que `lotes_ya_asignados()` y por el mismo motivo, pero para las
+    columnas que lo identifican. Que `lote` estuviera protegido y `PROYECTO` no
+    dejaba el fallo del 15 ago arreglado a medias: el emparejamiento por texto se
+    rehace en cada corrida y **puede fallar donde antes acertó** —basta con que
+    `asignar_uno_a_uno()` le dé el título a otro candidato— así que la foto nueva
+    nacía sin `PROYECTO` y el video quedaba con unas filas identificadas y otras
+    no. Medido el 15 sep: **18 videos de 251**, suficientes para que `v2` en
+    Instagram apareciera con n=3 en vez de n=9.
+
+    Duele justo donde no se ve: cualquier análisis que aplane a la última foto
+    —`ultima_foto()` del paso 19, sin ir más lejos— los tira en silencio, porque
+    la fila más reciente es precisamente la que perdió el nombre.
+    """
+    conocidas: dict[tuple[str, str], dict] = {}
+    for f in previas:
+        k = (f.get("plataforma", ""), f.get("id_plataforma", ""))
+        for campo in CAMPOS_IDENTIDAD:
+            valor = (f.get(campo) or "").strip()
+            if valor:
+                conocidas.setdefault(k, {}).setdefault(campo, valor)
+    return conocidas
+
+
+def rellenar_identidad(filas: list[dict]) -> int:
+    """Propaga `PROYECTO`/`tema`/`titulo` y `lote` a TODAS las fotos del video.
+
+    ⚠️ Repara hacia atrás, y por eso existe: `identidad_ya_asignada()` solo
+    protege las fotos nuevas, así que sin esto las filas que YA perdieron el
+    nombre seguirían rotas para siempre — el daño estaba hecho antes de escribir
+    la guarda. Con esto, `metricas.csv` se cura solo en la corrida siguiente.
+
+    Devuelve cuántas celdas rellenó. No pisa nada: solo llena vacíos.
+    """
+    conocidas = identidad_ya_asignada(filas)
+    lotes = lotes_ya_asignados(filas)
+    arregladas = 0
+    for f in filas:
+        k = (f.get("plataforma", ""), f.get("id_plataforma", ""))
+        for campo, valor in conocidas.get(k, {}).items():
+            if not (f.get(campo) or "").strip():
+                f[campo] = valor
+                arregladas += 1
+        lote = lotes.get(k)
+        if lote and not (f.get("lote") or "").strip():
+            f["lote"] = lote
+            arregladas += 1
+    if arregladas:
+        print(f"   🧩 {arregladas} celdas de identidad rellenadas en fotos antiguas")
+    return arregladas
 
 
 def escribir(ruta: str, filas: list[dict]) -> None:
