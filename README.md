@@ -709,7 +709,7 @@ mismo mp4 en las cuatro.
 | El lote deja carpetas con nombres raros | Ya arreglado (ffmpeg se comía bytes de `temas.csv`); si reaparece, ponle `-nostdin` a la llamada nueva de ffmpeg |
 | `command not found` al correr un paso suelto | Alguna línea del `.env` no es `CLAVE=VALOR`. `run_pipeline.sh` hace `source .env` y bash intenta ejecutarla. Bórrala |
 | El informe da porcentajes absurdos (+2000 %) | Estás mirando una métrica acumulada entre lotes de edades distintas. El informe las aparta solo; si la ves, es del bloque "fuera del veredicto" |
-| Los tests fallan con `No module named 'dotenv'` | Estás con el Python de base. `conda activate ai_video_bot` primero. Son 177 tests; si ves 39, es esto |
+| Los tests fallan con `No module named 'dotenv'` | Estás con el Python de base. `conda activate ai_video_bot` primero. Son 183 tests; si ves 39, es esto |
 | A un respaldo le falta el `.srt` | `python herramientas/18_rehacer_srt.py --listar` dice cuáles, y sin `--listar` los rehace desde el mp3 (~11 min cada uno) |
 
 Los logs por tema están en `logs/`. El coste del tema en curso, en `.costo_actual.json`.

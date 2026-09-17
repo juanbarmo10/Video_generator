@@ -114,23 +114,52 @@ def etiqueta(campo: str) -> str:
 # ═══════════════════════════════════════════════════════════════
 
 def ultima_foto(filas: list[dict]) -> list[dict]:
-    """Una fila por video: la foto más reciente de cada uno.
+    """Una fila por video: la foto más reciente, **rellenada con lo que solo se
+    midió antes**.
 
     ⚠️ **Sin esto cada video entra tantas veces como snapshots tenga**, y los
     que llevan más semanas medidos pesarían más en cada mediana solo por llevar
     más tiempo. `metricas.csv` guarda una fila por
     `(plataforma, id_plataforma, fecha_snapshot)` justo para poder mirar la
     historia; para comparar videos entre sí hace falta aplanarla.
+
+    ⚠️ **Quedarse con la última fila entera perdía columnas enteras**, y en
+    silencio: `se_quedaron_pct` solo existe en el snapshot del 15 ago —51 filas,
+    las únicas que ha habido nunca— porque la da el export de YouTube y no la
+    API, y desde entonces YouTube se lee por API. Al aplanar a la fila más
+    reciente **desaparecían las 51**, así que la métrica de la que trata P-20
+    salía con n=0 en todas las figuras sin que nada avisara.
+
+    ⚠️ **Solo se arrastra lo que NO es `acumulativa`, y esa distinción es toda
+    la corrección.** Una tasa (`se_quedaron_pct`, `retencion_pct`) no crece con
+    la edad: medida hace un mes sigue valiendo. Un acumulado sí, así que pegar un
+    recuento viejo a la fecha de la foto nueva sería afirmar que las vistas de
+    agosto son las de hoy — exactamente el error que `TIPO_METRICA` existe para
+    impedir. `fecha_snapshot` se queda **siempre** la de la fila más reciente,
+    porque es la que fija la edad del video.
     """
-    mejor: dict[tuple[str, str], dict] = {}
+    porvideo: dict[tuple[str, str], list[dict]] = {}
     for f in filas:
         clave = (f.get("plataforma", ""), f.get("id_plataforma", ""))
         if not clave[1]:
             continue
-        previo = mejor.get(clave)
-        if previo is None or f.get("fecha_snapshot", "") > previo.get("fecha_snapshot", ""):
-            mejor[clave] = f
-    return list(mejor.values())
+        porvideo.setdefault(clave, []).append(f)
+
+    aplanadas = []
+    for fotos in porvideo.values():
+        fotos = sorted(fotos, key=lambda f: f.get("fecha_snapshot", ""))
+        fila = dict(fotos[-1])
+        for anterior in reversed(fotos[:-1]):
+            for campo, valor in anterior.items():
+                if not str(valor or "").strip():
+                    continue
+                if str(fila.get(campo) or "").strip():
+                    continue
+                if rep.TIPO_METRICA.get(campo) == "acumulativa":
+                    continue
+                fila[campo] = valor
+        aplanadas.append(fila)
+    return aplanadas
 
 
 def valores(filas: list[dict], campo: str) -> list[float]:

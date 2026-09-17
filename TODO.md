@@ -85,7 +85,7 @@ también el hilo de los sábados — que desde el 15 sep es **lo único** que se
 | 🟡 | [P-35](#p-35) | Sin carrusel: ¿sube el alcance del reel? Mirar en octubre | la red que quedaba |
 | 🟡 | [P-34](#p-34) | El alcance de Instagram baja un 38 %: queda la interacción | la red que quedaba |
 | 🟡 | [P-33](#p-33) | El informe compara 2 lotes y ya hay 4: falta `v3` vs `v2` | la pregunta real |
-| 🟡 | [P-20](#p-20) | Por qué menos gente para el scroll (el frame 0) | la única métrica en contra |
+| 🟡 | [P-20](#p-20) | Frame 0: el dato dejó de recogerse, hay que bajar el export | la única métrica en contra |
 | 🟡 | [P-26](#p-26) | TikTok: 3 columnas que ninguna API pública da | ~5 min/semana |
 | 🔵 | [P-22](#p-22) | Vigilar la primera semana de publicación automática | confianza |
 | 🔵 | [P-23](#p-23) | ¿Un equipo siempre encendido? Decidir con datos | la hora exacta |
@@ -207,6 +207,50 @@ dudosas? ¿el `effort` del crítico?) o aceptar que la puerta es binaria y
 simplificarla. Hay 45 `calidad_guion.json` acumulados para responderlo sin gastar
 un dólar.
 
+---
+
+⚠️ **Y el 16 sep apareció por qué se amontonan ahí: el crítico penaliza a todos
+por una regla que el generador tiene PROHIBIDO cumplir.**
+
+El prompt del paso 01 exige **`CERO fechas`** —y `verificar_reglas_mecanicas()`
+marca un año de 4 cifras como falta **grave**, que dispara reescritura—. Pero el
+crítico juzga la verificabilidad **sin saber esa regla**, y reclama fechas:
+
+- `Historia13`: *«No se fecha nada: ni la sequía, ni el vuelo, ni la publicación.
+  Un guion histórico sin una sola fecha es imposible de comprobar.»*
+- `Historia17`: *«Falta el dato mínimo de anclaje: año (1932)… Sin fecha, el
+  espectador no puede verificar.»*
+- `Historia16`: *«Concretar fecha y lugar aumenta la verificabilidad.»*
+
+**39 de los 45 `calidad_guion.json`** llevan una objeción de fecha, vaguedad o
+falta de concreción. No es un tema desafortunado: es estructural.
+
+**Eso explica el amontonamiento mecánicamente.** Cada guion arrastra una
+penalización fija que no puede quitarse haga lo que haga, así que la puerta no
+está midiendo la calidad en su margen — está midiendo **un lastre constante**.
+De ahí que 15 de 20 caigan exactamente en 6 y exactamente en 3.
+
+**Tres salidas, y la elección no es mía:**
+
+1. **Decirle al crítico que las fechas están prohibidas por diseño**, para que
+   juzgue contra las reglas que el generador de verdad tiene. Es lo más barato y
+   no toca el prompt del guionista.
+2. **Permitir fechas.** ⚠️ Cambia el producto: `CERO fechas` está ahí porque
+   *destruyen el ritmo*, y se notaría en los 19 vídeos del mes.
+3. **Aceptarlo y recalibrar los umbrales** sabiendo que incluyen el lastre.
+
+⚠️ **No lo he tocado a propósito.** El prompt del paso 01 es el corazón del
+producto: si se cambia, cambia el tono de todos los vídeos. Y el crítico es el
+único filtro de publicación que hay.
+
+**`Historia43` (Cottingley) se relanzó el 16 sep y volvió a caer**, otra vez con
+nota 5 en los tres intentos. Esta vez la crítica es más sólida y **tiene parte de
+razón**: la primera frase quemaba el desenlace (dice ya que las fotos eran falsas
+y que Doyle las defendió), que es una falta real del prompt. Pero de las tres
+objeciones, dos piden datar la confesión de 1981-1983 — fechas. El tema es bueno
+y verificable; no es el crítico el que falla, es que generador y crítico juegan
+con reglas distintas.
+
 
 <a id="p-35"></a>
 **P-35 · Quitado el carrusel de Instagram: experimento en marcha (15 sep).**
@@ -300,8 +344,39 @@ empiece**. Lo único que actúa ahí es lo que se ve sin reproducir: **el primer
 frame 0— y comparar. Es `CONFIG` del paso 07, no hay que tocar código.
 ⚠️ n=6 en v2 y los lotes difieren en muchas cosas a la vez (duración, gancho, cortes, música).
 Esto **acota** el problema, no lo demuestra.
-⚠️ `se_quedaron_pct` **no la da la API** (ver [P-26](#p-26)): para seguir midiendo esto hay que
-descargar el export de YouTube.
+
+---
+
+⚠️ **Avance del 16 sep: el experimento NO se puede leer hoy, y ese es el
+bloqueo de verdad.** No hace falta diseñar nada mejor; hace falta volver a
+recoger el dato.
+
+**`se_quedaron_pct` no tiene datos nuevos desde el 15 de agosto.** Son **51
+filas, todas de ese único snapshot** (40 de YouTube, 11 de TikTok), de un total
+de 651. El motivo está en esta misma nota desde el principio —la da el export de
+YouTube, no la API— pero desde el 15 ago YouTube se lee **solo por API**, así que
+la columna dejó de alimentarse sin que nada avisara.
+
+Consecuencia práctica: **si se rinde el experimento del frame 0 ahora, no habrá
+con qué medirlo.** Antes de gastar dos renders hay que bajar el export de YouTube
+(el mismo que pide [P-26](#p-26) por otro motivo).
+
+⚠️ **Y estaba invisible por partida doble.** `ultima_foto()` del paso 19 se
+quedaba con la fila más reciente **entera**, así que al aplanar desaparecían las
+51 y la métrica salía con n=0 en todas las figuras sin decirlo. Arreglado el
+16 sep: ahora arrastra el último valor conocido **solo de lo que no es
+`acumulativa`** (una tasa medida hace un mes sigue valiendo; un recuento viejo
+pegado a la fecha de hoy sería justo el error que `TIPO_METRICA` impide).
+Recuperó las 51 de `se_quedaron_pct`, 42 de `ctr_pct` y 40 de `vistas_24h`.
+
+⚠️ **Trampa al analizar esto, que ya me comió una vez:** `se_quedaron_pct` **no
+es comparable entre plataformas**. YouTube tiene mediana **47,5** (n=40) y TikTok
+**13,0** (n=11): son denominadores distintos, no un rendimiento distinto. Al
+cruzarla contra la longitud del título salía una caída limpísima de 48,5 a 13,0…
+que era **exactamente** el corte YouTube/TikTok, porque las 11 filas de captions
+largos son las 11 de TikTok. Dentro de YouTube solo, no hay señal (n=5 en los
+títulos largos). **Cualquier análisis de esta columna va dentro de una red.**
+
 
 <a id="p-26"></a>
 **P-26 · TikTok: tres columnas que ninguna API pública da.**

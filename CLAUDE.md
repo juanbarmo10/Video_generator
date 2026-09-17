@@ -125,6 +125,18 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
      thinking + respuesta *juntos*: si se queda corto, el JSON sale truncado. `critico_effort`
      (`medium`) es la palanca de costo real.
 
+  ⚠️ **El crítico penaliza a todos por una regla que el generador tiene PROHIBIDO
+  cumplir, y eso sesga la puerta entera.** El prompt exige `CERO fechas` (y un año
+  de 4 cifras es falta **grave**), pero el crítico juzga la verificabilidad sin
+  saberlo y reclama fechas: *«Un guion histórico sin una sola fecha es imposible
+  de comprobar»* (`Historia13`), *«Falta el dato mínimo de anclaje: año (1932)»*
+  (`Historia17`). **39 de los 45 `calidad_guion.json`** llevan una objeción de ese
+  tipo. Como el lastre es constante y no se puede quitar, la puerta no mide la
+  calidad en su margen: de ahí que 15 de 20 guiones del lote del 16 sep cayeran
+  en **nota exactamente 6 y exactamente 3 dudosas**. Antes de mover un umbral o
+  de tocar cualquiera de los dos prompts, lee P-36 en [TODO.md](TODO.md) — las
+  tres salidas posibles están ahí y ninguna es gratis.
+
   Si no pasa, **reescribe pasándole los fallos concretos** hasta `intentos_max` (3).
 
   ⚠️ **Si ninguno pasa, el tema se ABORTA** (`abortar_si_ninguno_pasa: True`, desde el 15 ago), y
@@ -873,6 +885,20 @@ que con n=6-9 es justo lo que una mediana esconde.
 - ⚠️ **`ultima_foto()` aplana a una fila por video** (la medición más reciente). `metricas.csv`
   guarda una fila por `(plataforma, id, fecha_snapshot)` para poder mirar la historia; sin aplanar,
   un video medido seis semanas pesaría seis veces en cada mediana solo por llevar más tiempo.
+  ⚠️ **Pero quedarse con la última fila ENTERA perdía columnas enteras, y en silencio.**
+  `se_quedaron_pct` solo existe en el snapshot del 15 ago —51 filas, las únicas
+  que ha habido— porque la da el export de YouTube y no la API; al aplanar
+  desaparecían las 51 y **la métrica de la que trata P-20 salía con n=0 en todas
+  las figuras**. Desde el 16 sep se arrastra el último valor conocido **solo de
+  lo que NO es `acumulativa`**: una tasa medida hace un mes sigue valiendo, pero
+  pegar un recuento viejo a la fecha de la foto nueva afirmaría que las vistas de
+  agosto son las de hoy — el error exacto que `TIPO_METRICA` existe para impedir.
+  `fecha_snapshot` se queda **siempre** la de la fila más reciente: es la que fija
+  la edad. Recuperó 51 de `se_quedaron_pct`, 42 de `ctr_pct` y 40 de `vistas_24h`.
+  ⚠️ **`se_quedaron_pct` no es comparable entre plataformas** (YouTube 47,5 ·
+  TikTok 13,0): son denominadores distintos. Cruzarla contra la longitud del
+  título daba una caída limpísima que era **exactamente** el corte
+  YouTube/TikTok. Analízala siempre dentro de una red.
 - **Cuatro decisiones de diseño que no son estéticas**, y que conviene no «mejorar» sin leer esto:
   **una rejilla por red** en vez de cinco series en un eje (las redes difieren en órdenes de
   magnitud: en un eje común cuatro se aplastan contra el cero); **puntos, no cajas** (con n=6-9 un
@@ -931,7 +957,7 @@ que forma parte del pipeline, no lo forma.
 
 ```bash
 conda activate ai_video_bot            # ⚠️ no es opcional, ver abajo
-python -m unittest discover tests      # desde la raíz, 177 tests, ~0.4 s
+python -m unittest discover tests      # desde la raíz, 183 tests, ~0.4 s
 ```
 
 ⚠️ **Los tests son de stdlib, pero el entorno no.** Con el Python de base fallan
@@ -939,7 +965,7 @@ python -m unittest discover tests      # desde la raíz, 177 tests, ~0.4 s
 importan de verdad los archivos que prueban, y esos sí traen `dotenv`, `openai` o
 `PIL`. El error que sale es `ModuleNotFoundError: No module named 'dotenv'` en la
 **línea del import del test**, que parece un test roto y es el intérprete
-equivocado. Si ves 4 errores y 39 tests en vez de 177, es esto.
+equivocado. Si ves 4 errores y 39 tests en vez de 183, es esto.
 
 Solo `unittest` de la stdlib, sin dependencias nuevas y **sin red**. Cubren
 [herramientas/10_metricas.py](herramientas/10_metricas.py),
@@ -948,8 +974,14 @@ Solo `unittest` de la stdlib, sin dependencias nuevas y **sin red**. Cubren
 [15_threads_api.py](herramientas/15_threads_api.py)
 ([tests/test_agenda.py](tests/test_agenda.py)), [pipeline/estado.py](pipeline/estado.py), las
 funciones puras de los pasos **01**, **02** y **07**
-([tests/test_pipeline.py](tests/test_pipeline.py)) y las de los pasos **04**, **05** y **06**
-([tests/test_pasos_medios.py](tests/test_pasos_medios.py)).
+([tests/test_pipeline.py](tests/test_pipeline.py)), las de los pasos **04**, **05** y **06**
+([tests/test_pasos_medios.py](tests/test_pasos_medios.py)) y el aplanado de
+[herramientas/19_figuras.py](herramientas/19_figuras.py)
+([tests/test_figuras.py](tests/test_figuras.py)).
+
+⚠️ **[tests/test_figuras.py](tests/test_figuras.py) se salta entero si no hay matplotlib**
+(`skipUnless`), que es el único módulo del repositorio que lo necesita. Así la suite sigue
+corriendo sin dependencias en una máquina que solo use el informe HTML.
 
 ⚠️ **Los tests de la agenda apuntan `ag.RAIZ` a un temporal** con su propio `publicar/`. Sin eso
 leerían el de verdad, y `temas_ya_usados()` daría resultados distintos según lo que se hubiera
