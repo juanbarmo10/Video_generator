@@ -179,6 +179,9 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
   —ningún tema pasó de 3— y **`nota_minima` filtró a uno**, `Historia43`, que
   cayó con nota 5 y 3 dudosas. Ahora el que decide es el umbral que la
   calibración daba por inofensivo.
+  ⚠️ Y ese mismo `Historia43`, **relanzado al día siguiente sin cambiar nada,
+  sacó 6 y pasó**. En el margen la puerta es un lanzamiento de moneda: qué temas
+  se pierden por tanda no lo decide su calidad sino el muestreo del modelo.
   ⚠️ Y el reparto da más miedo que el cambio de papeles: **15 de 20 sacaron nota
   exactamente 6 y 15 de 20 exactamente 3 dudosas**, o sea justo encima de los dos
   umbrales. No es efecto de las reescrituras (12 pasaron al primer intento): el

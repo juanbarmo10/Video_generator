@@ -10,10 +10,11 @@
 ## Dónde vamos
 
 **Estado a 16 sep 2026.** El lote `v5` (`Historia26`-`Historia45`) salió:
-**19 de 20**, $5,09 en total y $0,256 de mediana por tema. El calendario cubre
-del 16 sep al 4 oct, uno al día. Cayó `Historia43` (Cottingley) en el control del
-paso 01 — y cayó de una forma que la calibración decía imposible: ver
-[P-36](#p-36).
+**19 de 20 a la primera, y el que faltaba al relanzarlo**, $5,35 en total y
+$0,256 de mediana por tema. El calendario cubre del 16 sep al 5 oct, uno al día. Cayó `Historia43` (Cottingley) en el control del
+paso 01 y **al relanzarlo pasó a la primera**, con el mismo prompt y el mismo
+crítico: en el margen la puerta es un lanzamiento de moneda. Ver [P-36](#p-36).
+Con él son **20**, hasta el 5 oct.
 
 **Pero el reel ya no lo publica nadie solo**, y por dos motivos distintos que no
 hay que mezclar. Facebook (28 ago) salió porque **la app está restringida**;
@@ -81,7 +82,7 @@ también el hilo de los sábados — que desde el 15 sep es **lo único** que se
 
 | | # | Pendiente | Gana |
 |---|---|---|---|
-| 🟡 | [P-36](#p-36) | La puerta del guion trabaja sin margen: 15 de 20 justo en el umbral | que no se rompa sola |
+| 🟡 | [P-36](#p-36) | La puerta del guion es azar en el margen: mismo tema, 5 y luego 6 | que no se rompa sola |
 | 🟡 | [P-35](#p-35) | Sin carrusel: ¿sube el alcance del reel? Mirar en octubre | la red que quedaba |
 | 🟡 | [P-34](#p-34) | El alcance de Instagram baja un 38 %: queda la interacción | la red que quedaba |
 | 🟡 | [P-33](#p-33) | El informe compara 2 lotes y ya hay 4: falta `v3` vs `v2` | la pregunta real |
@@ -243,13 +244,22 @@ De ahí que 15 de 20 caigan exactamente en 6 y exactamente en 3.
 producto: si se cambia, cambia el tono de todos los vídeos. Y el crítico es el
 único filtro de publicación que hay.
 
-**`Historia43` (Cottingley) se relanzó el 16 sep y volvió a caer**, otra vez con
-nota 5 en los tres intentos. Esta vez la crítica es más sólida y **tiene parte de
-razón**: la primera frase quemaba el desenlace (dice ya que las fotos eran falsas
-y que Doyle las defendió), que es una falta real del prompt. Pero de las tres
-objeciones, dos piden datar la confesión de 1981-1983 — fechas. El tema es bueno
-y verificable; no es el crítico el que falla, es que generador y crítico juegan
-con reglas distintas.
+**`Historia43` (Cottingley) se relanzó el 16 sep y PASÓ**: nota 6, 2 dudosas,
+vídeo generado y programado para el 5 oct.
+
+⚠️ **Y ese es el dato más incómodo de toda esta nota.** El mismo tema, con el
+mismo prompt y el mismo crítico, sacó **nota 5 tres veces seguidas** en la tanda
+y **6 al día siguiente**. No cambió nada entre las dos corridas salvo el muestreo
+del modelo.
+
+O sea que en el margen **la puerta es un lanzamiento de moneda**, y eso no es una
+sospecha: son dos corridas del mismo tema con veredictos opuestos. Con 15 de 20
+guiones cayendo exactamente en el umbral, el número de temas que se pierden por
+tanda no depende de su calidad sino del azar — y `failed.csv` no lo distingue.
+
+**Relanzar un tema caído es, por tanto, barato y razonable** (~$0,09 si vuelve a
+caer en el paso 01), pero es un parche: no arregla que el lastre de las fechas
+esté empujando a todos contra el umbral.
 
 
 <a id="p-35"></a>
