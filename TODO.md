@@ -9,8 +9,11 @@
 
 ## Dónde vamos
 
-**Estado a 15 sep 2026.** El lote `v4` salió entero y la automatización aguantó:
-se recuperó sola de tres fallos de subida de Instagram y de una caída de DNS.
+**Estado a 16 sep 2026.** El lote `v5` (`Historia26`-`Historia45`) salió:
+**19 de 20**, $5,09 en total y $0,256 de mediana por tema. El calendario cubre
+del 16 sep al 4 oct, uno al día. Cayó `Historia43` (Cottingley) en el control del
+paso 01 — y cayó de una forma que la calibración decía imposible: ver
+[P-36](#p-36).
 
 **Pero el reel ya no lo publica nadie solo**, y por dos motivos distintos que no
 hay que mezclar. Facebook (28 ago) salió porque **la app está restringida**;
@@ -78,6 +81,7 @@ también el hilo de los sábados — que desde el 15 sep es **lo único** que se
 
 | | # | Pendiente | Gana |
 |---|---|---|---|
+| 🟡 | [P-36](#p-36) | La puerta del guion trabaja sin margen: 15 de 20 justo en el umbral | que no se rompa sola |
 | 🟡 | [P-35](#p-35) | Sin carrusel: ¿sube el alcance del reel? Mirar en octubre | la red que quedaba |
 | 🟡 | [P-34](#p-34) | El alcance de Instagram baja un 38 %: queda la interacción | la red que quedaba |
 | 🟡 | [P-33](#p-33) | El informe compara 2 lotes y ya hay 4: falta `v3` vs `v2` | la pregunta real |
@@ -154,6 +158,54 @@ impresión de que «bajan todas» es un artefacto de edad — `vistas` es acumul
 y los vídeos de septiembre tenían 6-11 días contra 24-127 los demás. A igualdad
 de edad, TikTok y Facebook están planos y YouTube es ruidoso pero con la
 retención intacta (69,5 % → 88 % → 70 %).
+
+
+<a id="p-36"></a>
+**P-36 · La puerta del paso 01 trabaja sin margen, y cambió de manos.**
+
+Medido sobre el lote entero del 16 sep (`Historia26`-`Historia45`, n=20):
+
+| nota | 5 | 6 | 7 | 8 |
+|---|--:|--:|--:|--:|
+| temas | 1 | 14 | 3 | 2 |
+
+| dudosas | 0 | 1 | 2 | 3 |
+|---|--:|--:|--:|--:|
+| temas | 2 | 1 | 2 | 15 |
+
+⚠️ **Se invirtió lo que decía la calibración de agosto.** `dudosas_max` **no
+filtró a nadie** (ninguno pasó de 3) y **`nota_minima` filtró a uno**:
+`Historia43` (Cottingley), con nota 5 y 3 dudosas. Hasta ahora la nota era «un
+suelo barato» que nunca decidía; ya decide.
+
+⚠️ **Y lo serio no es el cambio de papeles, es el reparto: 15 de 20 sacaron nota
+exactamente 6 y 15 de 20 exactamente 3 dudosas** — justo encima de los dos
+umbrales. **No es efecto de las reescrituras**: 12 de 20 pasaron al primer
+intento (6 necesitaron dos, 2 necesitaron tres). El crítico converge ahí solo.
+
+La puerta funciona **sin margen**. Un desplazamiento pequeño del crítico —otra
+versión del modelo, otro `effort`— movería una docena de temas de golpe, en
+cualquiera de los dos sentidos, y **nadie se enteraría**: el lote sale igual y el
+único rastro sería `failed.csv` engordando o adelgazando.
+
+⚠️ **Y el único rechazo es un falso negativo.** Las tres dudosas de `Historia43`
+son hechos documentados: las edades de las niñas, que Conan Doyle picó, y que las
+figuras estaban calcadas del *Princess Mary's Gift Book* — que es justamente el
+dato que hace viral el tema. Es el sesgo al rechazo que `SYSTEM_CRITICO` pide por
+diseño (*«ante la duda, marca la afirmación como dudosa»*), y esta vez costó un
+tema bueno.
+
+**Qué NO hacer**: bajar `nota_minima` a 5 a ojo. Con este reparto, bajar el
+umbral un punto no deja pasar «uno más», deja pasar todo lo que hoy se apoya en
+el 6, y **la puerta es el único filtro de publicación que hay** — nadie lee los
+guiones antes de programarlos.
+
+**Qué hacer**, cuando haya un rato: mirar si la nota separa algo de verdad. Con
+14 temas empatados en 6 la nota ya casi no informa, y la pregunta es si conviene
+sustituirla por algo que discrimine (¿la `nota_final` con el desempate de
+dudosas? ¿el `effort` del crítico?) o aceptar que la puerta es binaria y
+simplificarla. Hay 45 `calidad_guion.json` acumulados para responderlo sin gastar
+un dólar.
 
 
 <a id="p-35"></a>

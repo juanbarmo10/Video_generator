@@ -162,6 +162,19 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
   mismos aprobados se mire la nota o no. Se deja como suelo barato, pero **quien decide es
   `dudosas_max`**. Afinar la nota es perder el tiempo.
 
+  ⚠️ **Esto se INVIRTIÓ en el lote del 16 sep (Historia26-45, n=20), y la frase de
+  arriba ya no describe lo que pasa.** Ahí `dudosas_max` no filtró a nadie
+  —ningún tema pasó de 3— y **`nota_minima` filtró a uno**, `Historia43`, que
+  cayó con nota 5 y 3 dudosas. Ahora el que decide es el umbral que la
+  calibración daba por inofensivo.
+  ⚠️ Y el reparto da más miedo que el cambio de papeles: **15 de 20 sacaron nota
+  exactamente 6 y 15 de 20 exactamente 3 dudosas**, o sea justo encima de los dos
+  umbrales. No es efecto de las reescrituras (12 pasaron al primer intento): el
+  crítico converge ahí. La puerta está funcionando **sin margen**, y un
+  desplazamiento pequeño del crítico movería muchos temas de golpe en cualquiera
+  de los dos sentidos. Antes de tocar ningún umbral, lee P-36 en
+  [TODO.md](TODO.md).
+
   **2. `dudosas_max` vale 3 y no 2 porque el crítico tiene sesgo al rechazo por diseño** —
   `SYSTEM_CRITICO` le ordena literalmente *"ante la duda, marca la afirmación como dudosa"*. A 2 se
   caían `Historia12` y `Historia15`, cuyas dudosas son **datos documentados** (la panadería de
