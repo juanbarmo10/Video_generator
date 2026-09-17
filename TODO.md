@@ -9,12 +9,28 @@
 
 ## Dónde vamos
 
-**Estado a 16 sep 2026.** El lote `v5` (`Historia26`-`Historia45`) salió:
-**19 de 20 a la primera, y el que faltaba al relanzarlo**, $5,35 en total y
-$0,256 de mediana por tema. El calendario cubre del 16 sep al 5 oct, uno al día. Cayó `Historia43` (Cottingley) en el control del
-paso 01 y **al relanzarlo pasó a la primera**, con el mismo prompt y el mismo
-crítico: en el margen la puerta es un lanzamiento de moneda. Ver [P-36](#p-36).
-Con él son **20**, hasta el 5 oct.
+**Estado a 16 sep 2026.** El lote `v5` (`Historia26`-`Historia45`) salió entero:
+**20 vídeos**, 19 a la primera y `Historia43` al relanzarlo. $5,35 en total,
+$0,256 de mediana por tema. El calendario va del 16 sep al 5 oct.
+
+⚠️ **Se publica a mano, 5-6 vídeos por semana.** El calendario reparte uno al
+día porque es la rejilla más simple, no porque haya que cumplirla: el ritmo real
+es menor y las herramientas ya lo saben (`ritmo_semanal` en el paso 12). Que a
+mitad de semana haya uno o dos «vencidos» es normal y no avisa nadie.
+
+⚠️ **Después de subir, anótalo.** `publicar/publicado.csv` lo escribía la agenda
+al publicar, y la agenda ya no publica: sin `16_agenda.py --marcar`, el registro
+se congela y tanto `--estado` como el recordatorio del domingo repiten para
+siempre lo que ya subiste.
+
+```bash
+python herramientas/16_agenda.py --marcar Historia26 Historia27 Historia28
+```
+
+**La puerta del guion estaba rota de una forma que no se veía**, y se arregló el
+16 sep: el crítico penalizaba a todos por no llevar fechas, que el guionista
+tiene prohibidas. Las notas se amontonaban en el umbral y el mismo tema podía
+sacar 5 o 6 según el día. Ver [P-36](#p-36).
 
 **Pero el reel ya no lo publica nadie solo**, y por dos motivos distintos que no
 hay que mezclar. Facebook (28 ago) salió porque **la app está restringida**;
@@ -76,13 +92,14 @@ Verificado sobre los 7: **0 transiciones repetidas** de 15-18 y **0 títulos** f
 **aborta el tema** en vez de avisar, y lo que queda por hacer se mide por si **reduce intervención
 humana**, no por si mejora un número.
 
-**Tu semana son ahora tres cosas** (~45 min): elegir los temas, correr los cuatro comandos de
-métricas y **subir los reels por Metricool a las cuatro redes**. Generar y empaquetar va solo, y
-también el hilo de los sábados — que desde el 15 sep es **lo único** que se publica solo.
+**Tu semana son ahora cuatro cosas** (~45 min): elegir los temas, **subir 5-6 reels por Metricool
+a las cuatro redes**, **anotarlos** con `16_agenda.py --marcar` y correr los cuatro comandos de
+métricas. Generar y empaquetar va solo, y también el hilo de los sábados — que desde el 15 sep es
+**lo único** que se publica solo.
 
 | | # | Pendiente | Gana |
 |---|---|---|---|
-| 🟡 | [P-36](#p-36) | La puerta del guion es azar en el margen: mismo tema, 5 y luego 6 | que no se rompa sola |
+| 🟡 | [P-36](#p-36) | Puerta del guion: lastre arreglado, umbrales por recalibrar con n≈20 | que no se rompa sola |
 | 🟡 | [P-35](#p-35) | Sin carrusel: ¿sube el alcance del reel? Mirar en octubre | la red que quedaba |
 | 🟡 | [P-34](#p-34) | El alcance de Instagram baja un 38 %: queda la interacción | la red que quedaba |
 | 🟡 | [P-33](#p-33) | El informe compara 2 lotes y ya hay 4: falta `v3` vs `v2` | la pregunta real |
@@ -162,104 +179,65 @@ retención intacta (69,5 % → 88 % → 70 %).
 
 
 <a id="p-36"></a>
-**P-36 · La puerta del paso 01 trabaja sin margen, y cambió de manos.**
+**P-36 · La puerta del guion: el lastre arreglado, los umbrales por recalibrar.**
 
-Medido sobre el lote entero del 16 sep (`Historia26`-`Historia45`, n=20):
+✅ **Resuelto el 16 sep lo que la rompía.** El crítico penalizaba a todos los
+guiones por no llevar fechas, que el guionista tiene **prohibidas** (`CERO
+fechas`, y un año de 4 cifras es falta grave). Nunca vio esa regla, así que
+pedía lo imposible: *«Un guion histórico sin una sola fecha es imposible de
+comprobar»* (`Historia13`), *«Falta el dato mínimo de anclaje: año (1932)»*
+(`Historia17`) — **39 de los 45 `calidad_guion.json`**.
 
-| nota | 5 | 6 | 7 | 8 |
-|---|--:|--:|--:|--:|
-| temas | 1 | 14 | 3 | 2 |
+Como el lastre era constante y ningún guion podía quitárselo, **la puerta no
+medía la calidad en su margen: medía el lastre.** De ahí los dos síntomas:
 
-| dudosas | 0 | 1 | 2 | 3 |
-|---|--:|--:|--:|--:|
-| temas | 2 | 1 | 2 | 15 |
+- **15 de 20** guiones del lote del 16 sep con nota **exactamente 6** y
+  **exactamente 3 dudosas**. No eran las reescrituras: 12 pasaron al primer
+  intento.
+- `Historia43` sacó **5 tres veces seguidas** y **6 al día siguiente** sin
+  cambiar nada. En el margen, un lanzamiento de moneda.
 
-⚠️ **Se invirtió lo que decía la calibración de agosto.** `dudosas_max` **no
-filtró a nadie** (ninguno pasó de 3) y **`nota_minima` filtró a uno**:
-`Historia43` (Cottingley), con nota 5 y 3 dudosas. Hasta ahora la nota era «un
-suelo barato» que nunca decidía; ya decide.
+**Se cambió el auditor, no el guionista** — `CERO fechas` existe porque las
+fechas rompen el ritmo hablado, y tocar el prompt del guionista habría cambiado
+el tono de todos los vídeos. Tres cambios en `SYSTEM_CRITICO`: el bloque de
+restricciones de producción, la verificabilidad reformulada (*¿el hecho está
+documentado?*, no *¿puede el espectador comprobarlo con lo que oye?*) y una
+**rúbrica explícita de la nota**.
 
-⚠️ **Y lo serio no es el cambio de papeles, es el reparto: 15 de 20 sacaron nota
-exactamente 6 y 15 de 20 exactamente 3 dudosas** — justo encima de los dos
-umbrales. **No es efecto de las reescrituras**: 12 de 20 pasaron al primer
-intento (6 necesitaron dos, 2 necesitaron tres). El crítico converge ahí solo.
+⚠️ **La rúbrica no es adorno: sin ella el arreglo desarmaba la puerta.** El
+primer intento solo quitaba la penalización y subió **todas** las notas ~1,5
+puntos; `Historia09` —el *"lujo romano"* de una carga griega, el caso por el que
+existe la puerta— **pasaba con 7**. Seguía marcándolo como dudoso: lo que se
+había roto era la escala, no la detección.
 
-La puerta funciona **sin margen**. Un desplazamiento pequeño del crítico —otra
-versión del modelo, otro `effort`— movería una docena de temas de golpe, en
-cualquiera de los dos sentidos, y **nadie se enteraría**: el lote sale igual y el
-único rastro sería `failed.csv` engordando o adelgazando.
+**Validación, 15 guiones ya juzgados, ~$0,44:**
 
-⚠️ **Y el único rechazo es un falso negativo.** Las tres dudosas de `Historia43`
-son hechos documentados: las edades de las niñas, que Conan Doyle picó, y que las
-figuras estaban calcadas del *Princess Mary's Gift Book* — que es justamente el
-dato que hace viral el tema. Es el sesgo al rechazo que `SYSTEM_CRITICO` pide por
-diseño (*«ante la duda, marca la afirmación como dudosa»*), y esta vez costó un
-tema bueno.
+| grupo | antes | ahora | |
+|---|---|---|---|
+| Historia01-07 (rechazos duros) | 3-5 | **2-3** | ✅ caen, y más hondo |
+| Historia09 (dato falso) | 5/4d | **5/3d** | ✅ sigue cayendo |
+| Historia10, 20 (historia documentada) | 6/4d ❌ | **6/3d, 8/2d** | ✅ ahora pasan |
+| Historia12-32 (ya pasaban) | 6/3d | 6-8 | ✅ con más margen |
 
-**Qué NO hacer**: bajar `nota_minima` a 5 a ojo. Con este reparto, bajar el
-umbral un punto no deja pasar «uno más», deja pasar todo lo que hoy se apoya en
-el 6, y **la puerta es el único filtro de publicación que hay** — nadie lee los
-guiones antes de programarlos.
-
-**Qué hacer**, cuando haya un rato: mirar si la nota separa algo de verdad. Con
-14 temas empatados en 6 la nota ya casi no informa, y la pregunta es si conviene
-sustituirla por algo que discrimine (¿la `nota_final` con el desempate de
-dudosas? ¿el `effort` del crítico?) o aceptar que la puerta es binaria y
-simplificarla. Hay 45 `calidad_guion.json` acumulados para responderlo sin gastar
-un dólar.
+`Historia10` son los vigiles de Augusto y `Historia20` el maratón de 1904 con la
+estricnina: repasados a mano, historia documentada que el crítico viejo
+rechazaba mal.
 
 ---
 
-⚠️ **Y el 16 sep apareció por qué se amontonan ahí: el crítico penaliza a todos
-por una regla que el generador tiene PROHIBIDO cumplir.**
+**Lo que queda.** La distribución pasó de amontonarse en 6 a repartirse entre 2 y
+8, así que **la calibración de agosto ya no describe esta puerta**. `nota_minima`
+(6) y `dudosas_max` (3) siguen donde estaban porque la validación muestra que
+separan bien, **no porque estén medidos sobre la distribución nueva**.
 
-El prompt del paso 01 exige **`CERO fechas`** —y `verificar_reglas_mecanicas()`
-marca un año de 4 cifras como falta **grave**, que dispara reescritura—. Pero el
-crítico juzga la verificabilidad **sin saber esa regla**, y reclama fechas:
+Con la tanda siguiente ya juzgada por el crítico nuevo habrá n≈20 para
+recalibrar. Hasta entonces no muevas los umbrales: sin la distribución delante
+es exactamente el error de agosto otra vez.
 
-- `Historia13`: *«No se fecha nada: ni la sequía, ni el vuelo, ni la publicación.
-  Un guion histórico sin una sola fecha es imposible de comprobar.»*
-- `Historia17`: *«Falta el dato mínimo de anclaje: año (1932)… Sin fecha, el
-  espectador no puede verificar.»*
-- `Historia16`: *«Concretar fecha y lugar aumenta la verificabilidad.»*
-
-**39 de los 45 `calidad_guion.json`** llevan una objeción de fecha, vaguedad o
-falta de concreción. No es un tema desafortunado: es estructural.
-
-**Eso explica el amontonamiento mecánicamente.** Cada guion arrastra una
-penalización fija que no puede quitarse haga lo que haga, así que la puerta no
-está midiendo la calidad en su margen — está midiendo **un lastre constante**.
-De ahí que 15 de 20 caigan exactamente en 6 y exactamente en 3.
-
-**Tres salidas, y la elección no es mía:**
-
-1. **Decirle al crítico que las fechas están prohibidas por diseño**, para que
-   juzgue contra las reglas que el generador de verdad tiene. Es lo más barato y
-   no toca el prompt del guionista.
-2. **Permitir fechas.** ⚠️ Cambia el producto: `CERO fechas` está ahí porque
-   *destruyen el ritmo*, y se notaría en los 19 vídeos del mes.
-3. **Aceptarlo y recalibrar los umbrales** sabiendo que incluyen el lastre.
-
-⚠️ **No lo he tocado a propósito.** El prompt del paso 01 es el corazón del
-producto: si se cambia, cambia el tono de todos los vídeos. Y el crítico es el
-único filtro de publicación que hay.
-
-**`Historia43` (Cottingley) se relanzó el 16 sep y PASÓ**: nota 6, 2 dudosas,
-vídeo generado y programado para el 5 oct.
-
-⚠️ **Y ese es el dato más incómodo de toda esta nota.** El mismo tema, con el
-mismo prompt y el mismo crítico, sacó **nota 5 tres veces seguidas** en la tanda
-y **6 al día siguiente**. No cambió nada entre las dos corridas salvo el muestreo
-del modelo.
-
-O sea que en el margen **la puerta es un lanzamiento de moneda**, y eso no es una
-sospecha: son dos corridas del mismo tema con veredictos opuestos. Con 15 de 20
-guiones cayendo exactamente en el umbral, el número de temas que se pierden por
-tanda no depende de su calidad sino del azar — y `failed.csv` no lo distingue.
-
-**Relanzar un tema caído es, por tanto, barato y razonable** (~$0,09 si vuelve a
-caer en el paso 01), pero es un parche: no arregla que el lastre de las fechas
-esté empujando a todos contra el umbral.
+⚠️ **Si tocas cualquiera de los dos prompts, vuelve a correr la validación.**
+`tests/test_pipeline.py` comprueba que las reglas siguen **enunciadas** en los
+dos sitios, pero no puede comprobar que el crítico las **obedezca**: eso solo lo
+dice re-evaluar guiones conocidos.
 
 
 <a id="p-35"></a>

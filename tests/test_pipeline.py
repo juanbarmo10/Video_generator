@@ -447,3 +447,47 @@ class DispersarPlanos(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GuionistaYCriticoEnSintonia(unittest.TestCase):
+    """El fallo estructural del 16 sep: las dos capas del paso 01 jugaban con
+    reglas distintas y nadie lo veía.
+
+    El prompt del guionista exige `CERO fechas` —y un año de 4 cifras es falta
+    GRAVE, que dispara reescritura— mientras el crítico juzgaba la
+    verificabilidad sin saberlo y reclamaba fechas: *«Un guion histórico sin una
+    sola fecha es imposible de comprobar»* (Historia13), *«Falta el dato mínimo
+    de anclaje: año (1932)»* (Historia17). **39 de los 45 `calidad_guion.json`**
+    llevan una objeción de ese tipo.
+
+    Como el lastre era constante y el guion no podía quitárselo, la puerta no
+    medía la calidad en su margen: 15 de 20 guiones del lote del 16 sep cayeron
+    en nota exactamente 6 y exactamente 3 dudosas.
+    """
+
+    def test_el_critico_sabe_que_las_fechas_estan_prohibidas(self):
+        """Si alguien recorta el prompt del crítico y se lleva esto por delante,
+        vuelve el lastre y no se entera nadie: el lote sale igual."""
+        self.assertIn("CERO fechas", p01.SYSTEM_CRITICO)
+        self.assertIn("NO penalices", p01.SYSTEM_CRITICO)
+
+    def test_el_critico_conoce_el_limite_de_palabras_del_guionista(self):
+        """No puede pedir matices que no caben en 65-75 palabras."""
+        self.assertIn(str(p01.CONFIG["palabras_min"]), p01.SYSTEM_CRITICO)
+        self.assertIn(str(p01.CONFIG["palabras_max"]), p01.SYSTEM_CRITICO)
+
+    def test_el_aprobado_que_se_le_pide_es_el_que_de_verdad_se_aplica(self):
+        """⚠️ El prompt le decía «nota >= 7 y cero dudosas» cuando la puerta real
+        es 6 y <=3. Python sobrescribe ese campo, así que no rompía nada
+        visible — pero anclaba al modelo a un listón más duro del que se aplica,
+        que es exactamente el sesgo que no se quiere."""
+        self.assertIn(f"nota >= {p01.CONFIG['nota_minima']}", p01.SYSTEM_CRITICO)
+        self.assertIn(str(p01.CONFIG["dudosas_max"]), p01.SYSTEM_CRITICO)
+
+    def test_el_generador_sigue_prohibiendo_las_fechas(self):
+        """La otra mitad del contrato: si un día se permiten, hay que quitar el
+        aviso del crítico o volverá a desincronizarse por el otro lado."""
+        graves, _ = p01.verificar_reglas_mecanicas(
+            "Roma ardio en 1666 y nadie lo conto jamas alli.", p01.CONFIG)
+        self.assertTrue(any("fecha" in g.lower() for g in graves),
+                        "un año de 4 cifras tiene que seguir siendo falta grave")

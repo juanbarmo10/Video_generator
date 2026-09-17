@@ -391,7 +391,7 @@ reponerlos en la tanda siguiente.
 
 ## 4 · Publicar
 
-### 4.1 Lo que sigue saliendo solo: Threads y el carrusel
+### 4.1 Lo único que sigue saliendo solo: Threads
 
 **Lo publica `cron`.** Solo hay que haber corrido el paso 3, que deja el paquete y el calendario.
 
@@ -404,9 +404,14 @@ decirlo. El calendario sigue sirviendo: pasa a ser **la lista de lo que hay que 
 | Cuándo | Qué sale | Dónde |
 |---|---|---|
 | ~~todos los días, 12:00~~ | ~~el reel del calendario~~ | **a mano** |
-| martes 18:00 | el carrusel del paso 06 | Instagram |
+| ~~martes 18:00~~ | ~~el carrusel del paso 06~~ | **quitado el 15 sep** |
 | ~~jueves 18:00~~ | ~~las mismas slides como álbum~~ | **quitado el 15 sep** |
 | sábado 18:00 | un hilo de 3 mensajes con 1-2 fotos reales | Threads |
+
+⚠️ **El carrusel se quitó como experimento, no como limpieza.** Alcanzaba a 1-7 personas y se
+sospecha que publicar algo que nadie mira le enseña a Instagram que la cuenta no merece reparto,
+justo mientras el alcance del reel caía de 118 a 66. **No está demostrado**: ver P-35 en
+[TODO.md](TODO.md) antes de devolverlo.
 
 ⚠️ **Las 12:00 no son una preferencia: es la hora a la que se publicó todo lo anterior.** La hora
 mueve el alcance por sí sola, así que cambiarla mezclaría dos condiciones distintas en la misma
@@ -429,7 +434,6 @@ Y si hace falta empujar algo a mano:
 python herramientas/16_agenda.py --reel                        # el del día, ya
 python herramientas/14_meta_api.py --publicar Historia08       # uno concreto
 python herramientas/14_meta_api.py --carrusel Historia03       # su carrusel en IG
-python herramientas/14_meta_api.py --album Historia04          # sus slides en FB
 python herramientas/15_threads_api.py --hilo Historia05        # su hilo en Threads
 ```
 
@@ -494,6 +498,28 @@ Por cada tema, abres `publicar/<PROYECTO>/` (la carpeta se llama como el `PROYEC
 ⚠️ **Subir a YouTube por API exige el permiso `youtube.upload`, que es restringido**: hace falta
 pasar la verificación de Google con dominio propio. Por eso se quedan a mano — y desde el 28 ago
 Facebook las acompaña, por el motivo distinto del punto 4.1.b.
+
+### 4.3 Después de subir: anótalo (~10 s)
+
+⚠️ **Esto no es burocracia: sin ello, todo lo demás miente.** `publicar/publicado.csv` lo escribía
+la agenda al confirmar cada red, y desde el 15 sep la agenda no publica el reel. Si no lo anotas,
+el registro se congela: `--estado` sigue listando como pendientes los que ya subiste y el
+recordatorio del domingo te avisa cada semana de lo mismo.
+
+```bash
+python herramientas/16_agenda.py --marcar Historia26 Historia27 Historia28
+```
+
+Apunta una fila por red (Instagram, Facebook, YouTube y TikTok) con la fecha de hoy; `--fecha
+AAAA-MM-DD` si los subiste otro día y `--dry-run` para ver qué haría. Nunca apunta dos veces el
+mismo tema en la misma red, así que repetirlo es inofensivo.
+
+⚠️ **No guarda `id_publicacion`**, porque Metricool no lo devuelve. Aquí solo se responde «¿salió o
+no?»; el cruce con las métricas se hace por el id nativo que trae cada export.
+
+**No hace falta subir uno cada día.** El calendario reparte uno al día porque es la rejilla más
+simple, pero el ritmo real son **5-6 por semana** y las herramientas ya lo dan por hecho: que a
+mitad de semana haya uno o dos vencidos no dispara ningún aviso.
 
 ## 5 · Recoger las métricas de la semana anterior (~15 min)
 
@@ -709,7 +735,7 @@ mismo mp4 en las cuatro.
 | El lote deja carpetas con nombres raros | Ya arreglado (ffmpeg se comía bytes de `temas.csv`); si reaparece, ponle `-nostdin` a la llamada nueva de ffmpeg |
 | `command not found` al correr un paso suelto | Alguna línea del `.env` no es `CLAVE=VALOR`. `run_pipeline.sh` hace `source .env` y bash intenta ejecutarla. Bórrala |
 | El informe da porcentajes absurdos (+2000 %) | Estás mirando una métrica acumulada entre lotes de edades distintas. El informe las aparta solo; si la ves, es del bloque "fuera del veredicto" |
-| Los tests fallan con `No module named 'dotenv'` | Estás con el Python de base. `conda activate ai_video_bot` primero. Son 183 tests; si ves 39, es esto |
+| Los tests fallan con `No module named 'dotenv'` | Estás con el Python de base. `conda activate ai_video_bot` primero. Son 197 tests; si ves 39, es esto |
 | A un respaldo le falta el `.srt` | `python herramientas/18_rehacer_srt.py --listar` dice cuáles, y sin `--listar` los rehace desde el mp3 (~11 min cada uno) |
 
 Los logs por tema están en `logs/`. El coste del tema en curso, en `.costo_actual.json`.

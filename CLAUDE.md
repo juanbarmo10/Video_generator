@@ -137,6 +137,37 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
   de tocar cualquiera de los dos prompts, lee P-36 en [TODO.md](TODO.md) — las
   tres salidas posibles están ahí y ninguna es gratis.
 
+  **Las dos capas en sintonía** (16 sep). El crítico ahora sabe **bajo qué reglas
+  escribe el guionista** —65-75 palabras, frases ≤12, y **cero fechas**— y tiene
+  prohibido penalizar por ellas. Antes no lo sabía y pedía lo imposible:
+  *«Un guion histórico sin una sola fecha es imposible de comprobar»*
+  (`Historia13`), *«Falta el dato mínimo de anclaje: año (1932)»* (`Historia17`);
+  **39 de los 45 `calidad_guion.json`** llevan una objeción de ese tipo.
+  Tres cambios, y ninguno es cosmético:
+  1. **El bloque de restricciones de producción**, con el aviso de no pedir
+     fechas y de pedir en su lugar lo que sí cabe (un nombre, un lugar, un
+     objeto).
+  2. **La verificabilidad se reformula**: la pregunta es *¿el hecho está
+     documentado?*, no *¿puede el espectador comprobarlo con lo que oye?*. El
+     crítico se había deslizado a la segunda, que ningún guion de 70 palabras
+     puede satisfacer.
+  3. **Una rúbrica explícita de la nota** (9-10 / 7-8 / 6 / 4-5 / 0-3) con una
+     regla dura: *un guion con un dato falso va SIEMPRE por debajo de 6*.
+  ⚠️ **La rúbrica no es adorno: sin ella el arreglo desarmaba la puerta.** El
+  primer intento solo quitaba la penalización por fechas y subió **todas** las
+  notas ~1,5 puntos, con lo que `Historia09` —el *"lujo romano"* de una carga
+  griega, el caso por el que existe todo esto— **pasaba con 7**. La detección
+  seguía funcionando (la marcaba como dudosa); lo que se había roto era la
+  escala. Anclarla arregló las dos cosas.
+  ⚠️ **Validado sobre 15 guiones ya juzgados, ~$0,44**, que es la única forma de
+  saberlo. Los 6 rechazos duros siguen cayendo y **más hondo** (notas 2-3 donde
+  antes eran 3-5); `Historia09` sigue cayendo (5/3); `Historia10` (vigiles de
+  Augusto) y `Historia20` (maratón de 1904, la estricnina) **ahora pasan**, y
+  repasados a mano son historia documentada que el crítico viejo rechazaba mal.
+  Si se toca cualquiera de los dos prompts, **vuelve a correr esa validación**:
+  `tests/test_pipeline.py` comprueba que las reglas siguen enunciadas en los dos
+  sitios, pero no puede comprobar que el crítico las obedezca.
+
   Si no pasa, **reescribe pasándole los fallos concretos** hasta `intentos_max` (3).
 
   ⚠️ **Si ninguno pasa, el tema se ABORTA** (`abortar_si_ninguno_pasa: True`, desde el 15 ago), y
@@ -174,21 +205,24 @@ Los pasos 02, 06 y 07 además copian sus artefactos a `proyectos/$PROYECTO/` com
   mismos aprobados se mire la nota o no. Se deja como suelo barato, pero **quien decide es
   `dudosas_max`**. Afinar la nota es perder el tiempo.
 
-  ⚠️ **Esto se INVIRTIÓ en el lote del 16 sep (Historia26-45, n=20), y la frase de
-  arriba ya no describe lo que pasa.** Ahí `dudosas_max` no filtró a nadie
-  —ningún tema pasó de 3— y **`nota_minima` filtró a uno**, `Historia43`, que
-  cayó con nota 5 y 3 dudosas. Ahora el que decide es el umbral que la
-  calibración daba por inofensivo.
-  ⚠️ Y ese mismo `Historia43`, **relanzado al día siguiente sin cambiar nada,
-  sacó 6 y pasó**. En el margen la puerta es un lanzamiento de moneda: qué temas
-  se pierden por tanda no lo decide su calidad sino el muestreo del modelo.
-  ⚠️ Y el reparto da más miedo que el cambio de papeles: **15 de 20 sacaron nota
-  exactamente 6 y 15 de 20 exactamente 3 dudosas**, o sea justo encima de los dos
-  umbrales. No es efecto de las reescrituras (12 pasaron al primer intento): el
-  crítico converge ahí. La puerta está funcionando **sin margen**, y un
-  desplazamiento pequeño del crítico movería muchos temas de golpe en cualquiera
-  de los dos sentidos. Antes de tocar ningún umbral, lee P-36 en
-  [TODO.md](TODO.md).
+  ⚠️ **TODO LO DE ARRIBA se midió con el crítico ANTERIOR al 16 sep, y ese
+  crítico estaba roto de una forma que no se veía.** Penalizaba a todos los
+  guiones por no llevar fechas —que el guionista tiene **prohibidas**— así que
+  cada guion arrastraba un lastre constante que no podía quitarse. La puerta no
+  medía la calidad en su margen; medía el lastre. Los síntomas fueron:
+  **15 de 20** guiones del lote del 16 sep con nota **exactamente 6** y
+  **exactamente 3 dudosas** (no por las reescrituras: 12 pasaron al primer
+  intento), y `Historia43` cayendo con un 5 tres veces seguidas y sacando un 6 al
+  día siguiente **sin cambiar nada**. En el margen era un lanzamiento de moneda.
+  El diagnóstico entero está en P-36 de [TODO.md](TODO.md).
+
+  ✅ **Arreglado el 16 sep en `SYSTEM_CRITICO`** (§ *Las dos capas en sintonía*,
+  más abajo). La distribución de notas pasó de amontonarse en 6 a repartirse
+  entre 2 y 8, así que **la calibración de agosto ya no describe la puerta** y
+  `nota_minima`/`dudosas_max` están **pendientes de recalibrar** con el crítico
+  nuevo. Los valores actuales (6 y 3) se conservan porque la validación mostró
+  que siguen separando bien lo falso de lo verificable, no porque estén medidos
+  sobre esta distribución.
 
   **2. `dudosas_max` vale 3 y no 2 porque el crítico tiene sesgo al rechazo por diseño** —
   `SYSTEM_CRITICO` le ordena literalmente *"ante la duda, marca la afirmación como dudosa"*. A 2 se
@@ -743,6 +777,15 @@ sabe hacerlo. Es lo único que llama `cron` para publicar (`--reel` a las 12:00,
   lotes viejos— entran desde el primer día.
 - **Importa los clientes con `importlib`** porque sus nombres empiezan por dígito, igual que el
   paso 12 con `11_reporte.py`. Si `15_threads_api.py` no existe, lo dice y sigue.
+- ⚠️ **`--marcar PROYECTO…` es lo que mantiene honesto el registro desde que se publica a mano.**
+  `publicar/publicado.csv` lo escribía la agenda al confirmar la red; con `redes_reel` vacía **dejó
+  de crecer**, y sin él `--estado` y el recordatorio del domingo repiten para siempre lo que ya
+  subiste. Apunta una fila por `(proyecto, red)` de `redes_a_mano` (las cuatro), **sin inventar
+  `id_publicacion`**: Metricool no lo devuelve y rellenarlo con algo falso rompería el cruce con
+  `metricas.csv`, que se indexa por el id nativo de cada red. Aquí solo se responde «¿salió o no?».
+  Nunca apunta dos veces el mismo par, igual que al publicar por API.
+- ⚠️ **`REDES_DE_REEL` son ahora las cuatro** (antes Instagram y Facebook): el reel se sube a las
+  cuatro por Metricool, así que eso es lo que cuenta como reel al leer el registro.
 - ⚠️ **Desde el 15 sep `dias_extra` solo tiene Threads**, así que el hilo de los
   sábados es **lo único que se publica solo** en todo el proyecto. El álbum de
   Facebook salió porque lo publicaba la app restringida de P-31 (público: 2
@@ -839,10 +882,31 @@ Lo llama `cron` (no `run_all.sh`: no tiene nada que ver con generar videos).
   `proyectos/*/calidad_guion.json`, `publicar/calendario.csv` **cruzado con `publicado.csv`**, la
   `fecha_snapshot` máxima de `metricas.csv`, `THREADS_TOKEN_CADUCA` del `.env` y si los `PROYECTO`
   de `temas.csv` ya tienen video. Ninguna API salvo la de enviar.
-- ⚠️ **`calendario_vencido()` cruza con `publicado.csv` desde que la agenda publica sola.** Una
-  fecha pasada ya no es un aviso —lo normal es que esté publicada—; lo que importa es lo que venció
-  **y** no salió, que significa que `cron` no está corriendo. Sin el cruce, avisaría cada semana de
-  todo lo ya publicado y se volvería ruido.
+- ⚠️ **`pendientes_de_subir()` (antes `calendario_vencido()`) cambió de sentido el 16 sep, y el
+  aviso viejo daba un consejo FALSO.** Cuando la agenda publicaba sola, una fecha vencida y sin
+  salir significaba que `cron` no corría, y el texto mandaba a `logs/agenda.log`. Desde que se sube
+  todo a mano por Metricool ahí no hay nada que mirar: lo que toca es subirlo y **anotarlo**.
+  ⚠️ **Tolera el ritmo real** (`ritmo_semanal`, 6). El calendario reparte uno al día pero se suben
+  5-6 por semana, así que a mitad de semana sobra siempre algún vencido; avisar de eso cada domingo
+  es enseñar a ignorar el aviso.
+- ⚠️ **`toca_medir()` es lo que hay que hacer DESPUÉS de subir**, y es el paso que se olvida: subir
+  deja el trabajo a medias si nadie recoge el resultado. El umbral son **5 días**
+  (`dias_hasta_medir`), no una semana, porque **el reel de Instagram se congela hacia el día 5**
+  (P-34). Recuerda además bajar **el export de YouTube**, que la API no trae `se_quedaron_pct`
+  (P-20). En cuatro meses solo hubo 4 fotos en `metricas.csv`, con un hueco de 21 días.
+- ⚠️ **`guiones_sin_revisar()` prometía «y siguen sin publicar» y no lo comprobaba**: el domingo
+  listaba 12 guiones de agosto ya publicados, sobre los que no se puede hacer nada. De 12 avisos,
+  11 eran ruido. Ahora descarta los que ya salieron por dos señales —el registro y, para los
+  anteriores a que el registro existiera, **tener métricas**— y quedó en 1.
+- ⚠️ **`nota_minima` del recordatorio tiene que ser la MISMA que la del paso 01.** Estuvo en 7 con
+  la puerta en 6, así que marcaba «por revisar» justo los guiones que la puerta aprueba. Hay un test
+  que compara los dos archivos.
+- ⚠️ **El import del paso 11 va por `_reporte()`, que sincroniza SIEMPRE.** `resumen_metricas()` lo
+  importaba y calculaba directamente, sin `sincronizar_lotes()`: usaba el `lote_nuevo` **por defecto
+  del archivo** (congelado en `v3`) mientras el paso 10 iba por v5, y mandaba números de una tanda
+  bajo el título de otra. El import y la sincronización van juntos en un solo sitio para que nadie
+  pueda olvidarse. El nombre del lote del mensaje **tampoco se escribe a mano**: estuvo clavado en
+  «v2» durante meses.
 - **Importa `11_reporte.py` con `importlib` en vez de recalcular** (el nombre empieza por dígito, no
   se puede `import` normal). A propósito: el informe ya descarta lo no comparable, y un resumen que
   rehiciera las cuentas por su cuenta mandaría cada lunes un "+2493 % en vistas por día" que solo
@@ -960,7 +1024,7 @@ que forma parte del pipeline, no lo forma.
 
 ```bash
 conda activate ai_video_bot            # ⚠️ no es opcional, ver abajo
-python -m unittest discover tests      # desde la raíz, 183 tests, ~0.4 s
+python -m unittest discover tests      # desde la raíz, 197 tests, ~0.4 s
 ```
 
 ⚠️ **Los tests son de stdlib, pero el entorno no.** Con el Python de base fallan
@@ -968,7 +1032,7 @@ python -m unittest discover tests      # desde la raíz, 183 tests, ~0.4 s
 importan de verdad los archivos que prueban, y esos sí traen `dotenv`, `openai` o
 `PIL`. El error que sale es `ModuleNotFoundError: No module named 'dotenv'` en la
 **línea del import del test**, que parece un test roto y es el intérprete
-equivocado. Si ves 4 errores y 39 tests en vez de 183, es esto.
+equivocado. Si ves 4 errores y 39 tests en vez de 197, es esto.
 
 Solo `unittest` de la stdlib, sin dependencias nuevas y **sin red**. Cubren
 [herramientas/10_metricas.py](herramientas/10_metricas.py),
@@ -978,9 +1042,11 @@ Solo `unittest` de la stdlib, sin dependencias nuevas y **sin red**. Cubren
 ([tests/test_agenda.py](tests/test_agenda.py)), [pipeline/estado.py](pipeline/estado.py), las
 funciones puras de los pasos **01**, **02** y **07**
 ([tests/test_pipeline.py](tests/test_pipeline.py)), las de los pasos **04**, **05** y **06**
-([tests/test_pasos_medios.py](tests/test_pasos_medios.py)) y el aplanado de
+([tests/test_pasos_medios.py](tests/test_pasos_medios.py)), el aplanado de
 [herramientas/19_figuras.py](herramientas/19_figuras.py)
-([tests/test_figuras.py](tests/test_figuras.py)).
+([tests/test_figuras.py](tests/test_figuras.py)) y los avisos de
+[herramientas/12_recordatorio.py](herramientas/12_recordatorio.py)
+([tests/test_recordatorio.py](tests/test_recordatorio.py)).
 
 ⚠️ **[tests/test_figuras.py](tests/test_figuras.py) se salta entero si no hay matplotlib**
 (`skipUnless`), que es el único módulo del repositorio que lo necesita. Así la suite sigue

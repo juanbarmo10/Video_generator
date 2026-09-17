@@ -80,7 +80,27 @@ CONFIG = {
 
     # Nota de calidad del guion por debajo de la cual conviene leerlo antes de
     # publicar. Es la escala 0-10 que devuelve el crítico del paso 01.
-    "nota_minima": 7,
+    # ⚠️ Tiene que ser la MISMA que `nota_minima` del paso 01 (6). Estuvo en 7
+    # hasta el 16 sep, así que marcaba "por revisar" justo los guiones que la
+    # puerta aprueba — y como la mitad del lote sale con 6, el aviso llegaba
+    # cada domingo con media tanda dentro y se volvía ruido.
+    "nota_minima": 6,
+
+    # A qué redes subes el reel a mano, por Metricool. Es lo que se cruza con
+    # `publicado.csv` para saber qué falta.
+    "redes_a_mano": ["instagram", "facebook", "youtube", "tiktok"],
+
+    # Cuántos videos subes por semana de verdad. El calendario reparte uno al
+    # día, pero el ritmo real son 5-6, así que a mitad de semana siempre habrá
+    # uno o dos "vencidos" que no son ningún problema.
+    # ⚠️ Sin esto el domingo avisaría todas las semanas de un atraso normal, y un
+    # aviso que salta siempre se aprende a ignorar.
+    "ritmo_semanal": 6,
+
+    # Días tras publicar en que ya vale la pena medir. En Instagram el reel se
+    # congela hacia el día 5 (P-34: Historia07 tenía 192 vistas a los 9 días y
+    # las mismas 192 a los 30), así que esperar más no añade nada.
+    "dias_hasta_medir": 5,
 
     "timeout_s": 20,
 }
@@ -165,9 +185,29 @@ def guiones_sin_revisar() -> dict | None:
     El paso 01 deja su veredicto en `proyectos/<PROYECTO>/calidad_guion.json`.
     Un guion no aprobado no es un fallo del pipeline —el crítico está haciendo
     su trabajo— pero conviene leerlo antes de que salga a cuatro redes.
+
+    ⚠️ **"Y siguen sin publicar" no se comprobaba**, y eso convertía el aviso en
+    ruido permanente: el domingo listaba 12 guiones de agosto con nota 3 y 4 que
+    llevaban un mes publicados y sobre los que ya no se puede hacer nada. Un
+    aviso que no se puede atender se aprende a ignorar, y entonces tampoco se
+    lee el día que trae uno de verdad.
+    Se descartan los que ya salieron, por dos señales: el registro de
+    publicación y —para los anteriores a que el registro existiera— tener
+    métricas, que solo las tiene un video que se publicó.
+    ⚠️ Los veredictos viejos además se juzgaron con el crítico ANTERIOR al
+    16 sep, que penalizaba por no llevar fechas (P-36). Sus notas no son
+    comparables con las de hoy, otra razón para no arrastrarlos.
     """
+    ya_salieron = {(f.get("proyecto") or "").strip()
+                   for f in _filas_csv(CONFIG["publicado"])}
+    ya_salieron |= {(f.get("PROYECTO") or "").strip()
+                    for f in _filas_csv(CONFIG["metricas"])}
+    ya_salieron.discard("")
+
     flojos = []
     for archivo in Path(CONFIG["proyectos"]).glob("*/calidad_guion.json"):
+        if archivo.parent.name in ya_salieron:
+            continue
         try:
             datos = json.loads(archivo.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
@@ -193,14 +233,22 @@ def guiones_sin_revisar() -> dict | None:
     }
 
 
-def calendario_vencido(hoy: date) -> dict | None:
-    """Videos cuya fecha pasó y que **siguen sin publicarse**.
+def pendientes_de_subir(hoy: date) -> dict | None:
+    """Videos cuya fecha pasó y que **no constan como subidos**.
 
-    ⚠️ Desde que la agenda publica sola, una fecha pasada ya no es un aviso: lo
-    normal es que esté publicada. Lo que importa es el cruce con
-    `publicar/publicado.csv` — si algo lleva días vencido Y sin salir, es que
-    `cron` no está corriendo o está fallando, y eso no se entera nadie porque el
-    error se queda en `logs/agenda.log`.
+    ⚠️ Cambió de sentido el 16 sep, y el aviso viejo daba un consejo FALSO.
+    Cuando la agenda publicaba sola, una fecha vencida y sin salir significaba
+    que `cron` no corría, y el aviso decía "mira logs/agenda.log". Desde que se
+    sube todo a mano por Metricool eso ya no publica nada, así que el consejo
+    mandaba a mirar un log que no tiene la respuesta.
+
+    ⚠️ Y el registro dejó de crecer: `publicado.csv` lo escribía la agenda al
+    confirmar la red. Sin `16_agenda.py --marcar`, aquí sale TODO como
+    pendiente para siempre.
+
+    ⚠️ Tolera el ritmo real (`ritmo_semanal`). El calendario reparte uno al día
+    pero se suben 5-6 por semana, así que a mitad de semana sobra siempre algún
+    vencido. Avisar de eso cada domingo es enseñar a ignorar el aviso.
     """
     filas = _filas_csv(CONFIG["calendario"])
     if not filas:
@@ -213,6 +261,7 @@ def calendario_vencido(hoy: date) -> dict | None:
 
     salidos = {(f.get("proyecto"), f.get("red"))
                for f in _filas_csv(CONFIG["publicado"])}
+    redes = CONFIG["redes_a_mano"]
     vencidos = []
     for fila in filas:
         crudo = (fila.get(columna) or "").strip()[:10]
@@ -221,19 +270,74 @@ def calendario_vencido(hoy: date) -> dict | None:
         except ValueError:
             continue
         proyecto = fila.get("proyecto")
-        falta = any((proyecto, red) not in salidos
-                    for red in ("instagram", "facebook"))
-        if cuando < hoy and falta:
-            vencidos.append(fila)
+        if cuando < hoy and any((proyecto, red) not in salidos for red in redes):
+            vencidos.append((cuando, proyecto))
 
-    if not vencidos:
+    # El desfase que el propio ritmo explica: publicar 6 de cada 7 días deja
+    # ~1 pendiente por semana transcurrida. Se tolera el doble antes de avisar.
+    holgura = max(2, round(2 * (7 - CONFIG["ritmo_semanal"])))
+    if len(vencidos) <= holgura:
+        return None
+
+    vencidos.sort()
+    nombres = ", ".join(p for _, p in vencidos[:4])
+    if len(vencidos) > 4:
+        nombres += f" y {len(vencidos) - 4} más"
+    return {
+        "nivel": "toca",
+        "texto": (f"<b>{len(vencidos)} sin subir o sin anotar</b> — "
+                  f"el más viejo, {vencidos[0][1]} del {vencidos[0][0].isoformat()}: "
+                  f"{nombres}"),
+        "accion": ("Súbelos por Metricool y luego: "
+                   "python herramientas/16_agenda.py --marcar " +
+                   " ".join(p for _, p in vencidos[:4])),
+    }
+
+
+def toca_medir(hoy: date) -> dict | None:
+    """Videos subidos hace ya bastante y sin medir desde entonces.
+
+    ⚠️ Es **lo que hay que hacer DESPUÉS de subir**, que es justo el paso que se
+    olvida: subir deja el trabajo a medias si nadie recoge el resultado. En
+    cuatro meses solo hubo 4 fotos en `metricas.csv` y un hueco de 21 días, y un
+    experimento sin medir a tiempo no se puede leer nunca (P-35).
+
+    ⚠️ El umbral son `dias_hasta_medir` (5), no una semana, porque el reel de
+    Instagram **se congela hacia el día 5**: medir antes da un número a medias y
+    medir mucho después no añade nada.
+    """
+    publicados = []
+    for f in _filas_csv(CONFIG["publicado"]):
+        try:
+            publicados.append(datetime.strptime(
+                (f.get("fecha") or "").strip()[:10], "%Y-%m-%d").date())
+        except ValueError:
+            continue
+    if not publicados:
+        return None
+
+    fotos = []
+    for f in _filas_csv(CONFIG["metricas"]):
+        try:
+            fotos.append(datetime.strptime(
+                (f.get("fecha_snapshot") or "").strip(), "%Y-%m-%d").date())
+        except ValueError:
+            continue
+    ultima_foto = max(fotos) if fotos else None
+
+    # Los que ya maduraron y se publicaron DESPUÉS de la última foto.
+    maduros = [d for d in publicados
+               if (hoy - d).days >= CONFIG["dias_hasta_medir"]
+               and (ultima_foto is None or d > ultima_foto)]
+    if not maduros:
         return None
     return {
-        "nivel": "revisar",
-        "texto": (f"<b>{len(vencidos)} video(s) vencidos y sin publicar</b> — "
-                  f"el más viejo, {vencidos[0].get('proyecto')} del "
-                  f"{vencidos[0].get(columna, '')[:10]}"),
-        "accion": "Mira logs/agenda.log: la agenda no está saliendo",
+        "nivel": "toca",
+        "texto": (f"<b>{len(maduros)} publicación(es) ya maduras y sin medir</b> "
+                  f"(la última foto es del "
+                  f"{ultima_foto.isoformat() if ultima_foto else 'nunca'})"),
+        "accion": ("Baja los exports —incluido el de YouTube, que la API NO trae "
+                   "se_quedaron_pct— y corre 10_metricas.py + 11_reporte.py"),
     }
 
 
@@ -320,6 +424,41 @@ def temas_ya_usados() -> dict | None:
 #   RESUMEN DE MÉTRICAS
 # ═══════════════════════════════════════════════════════════════════════
 
+def _reporte():
+    """Importa `11_reporte.py` **ya sincronizado** con el paso 10, o None.
+
+    ⚠️ El `sincronizar_lotes()` no es opcional y saltárselo costó un fallo real.
+    `resumen_metricas()` importaba el módulo y calculaba directamente, así que
+    usaba el `lote_nuevo` **por defecto del archivo** —congelado en
+    `v3-guion-y-dispersion`— mientras el paso 10 ya iba por v5. El domingo salían
+    números de una tanda bajo el título de otra, que es exactamente la mentira
+    silenciosa contra la que se escribió `sincronizar_lotes()`.
+    Por eso el import y la sincronización van juntos en un solo sitio: quien
+    quiera el módulo lo pide aquí y no puede olvidarse.
+    """
+    sys.path.insert(0, "herramientas")
+    try:
+        reporte = importlib.import_module("11_reporte")
+    except ImportError:
+        return None
+    if hasattr(reporte, "sincronizar_lotes"):
+        try:
+            reporte.sincronizar_lotes()
+        except Exception:
+            pass
+    return reporte
+
+
+def _lote_nuevo() -> str:
+    """Cómo se llama la tanda en curso. No se escribe aquí: se pregunta.
+
+    ⚠️ Estuvo clavado en "v2" en el texto del mensaje hasta el 16 sep, con el
+    proyecto ya en v5: el domingo llevaba meses titulando mal la tabla.
+    """
+    reporte = _reporte()
+    return reporte.CONFIG.get("lote_nuevo", "lote nuevo") if reporte else "lote nuevo"
+
+
 def resumen_metricas() -> list[str]:
     """Las cifras de la semana, reusando el cálculo de 11_reporte.py.
 
@@ -330,10 +469,8 @@ def resumen_metricas() -> list[str]:
     antigüedad de los videos. El nombre del módulo empieza por dígito, así que
     no se puede `import` normal: hace falta `importlib`.
     """
-    sys.path.insert(0, "herramientas")
-    try:
-        reporte = importlib.import_module("11_reporte")
-    except ImportError:
+    reporte = _reporte()
+    if reporte is None:
         return []
 
     try:
@@ -379,7 +516,10 @@ def construir_mensaje(avisos: list[dict], metricas: list[str], hoy: date) -> str
                    "y las métricas al día.", ""]
 
     if metricas:
-        partes.append("<b>v2 frente a baseline</b> (solo lo comparable):")
+        # ⚠️ El nombre del lote sale del paso 10, no se escribe aquí: estuvo
+        # clavado en "v2" hasta el 16 sep, cuando ya iba por v5.
+        partes.append(f"<b>{_lote_nuevo()} frente a baseline</b> "
+                      f"(solo lo comparable):")
         partes += metricas
         partes.append("")
         partes.append(f"Informe completo: <code>{CONFIG['informe']}</code>")
@@ -456,12 +596,18 @@ def main() -> None:
               f"nada que hacer.")
         return
 
+    # ⚠️ `toca_medir()` y `metricas_viejas()` dicen casi lo mismo por dos
+    # caminos: "hay publicaciones maduras sin medir" y "hace mucho que no
+    # consolidas". Cuando las dos saltan, la segunda sobra — el aviso específico
+    # ya trae el comando. Dos líneas para una sola acción es como se erosiona la
+    # costumbre de leer el mensaje.
+    medir = toca_medir(hoy)
     avisos = [a for a in (
         temas_caidos(),
         guiones_sin_revisar(),
-        calendario_vencido(hoy),
+        pendientes_de_subir(hoy),
         token_threads_caduca(hoy),
-        metricas_viejas(hoy),
+        medir or metricas_viejas(hoy),
         temas_ya_usados(),
     ) if a]
 

@@ -61,6 +61,14 @@ CONFIG = {
         5: "threads",              # sábado
     },
 
+    # A qué redes sube el reel **a mano**, por Metricool. No lo publica nadie
+    # automáticamente (`redes_reel` está vacía); esto es lo que `--marcar`
+    # apunta en el registro cuando dices que ya lo subiste.
+    # ⚠️ Sin `--marcar` el registro dejó de crecer el 15 sep, porque lo escribía
+    # la agenda al publicar y la agenda ya no publica. Eso deja `--estado` y el
+    # recordatorio del domingo repitiendo para siempre lo que ya subiste.
+    "redes_a_mano": ["instagram", "facebook", "youtube", "tiktok"],
+
     # Las redes del reel diario.
     # ⚠️ **Está VACÍA a propósito: desde el 15 sep el reel no lo publica nadie
     # automáticamente.** Instagram salió por decisión del dueño (se sube a mano)
@@ -105,7 +113,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 # mano. `CONFIG["redes_reel"]` dice qué automatiza la agenda; esto dice qué
 # cuenta como reel al leer el registro, y no cambia porque se apague un
 # automatismo.
-REDES_DE_REEL = ("instagram", "facebook")
+REDES_DE_REEL = ("instagram", "facebook", "youtube", "tiktok")
 
 
 #%% ═══════════════════════════════════════════════════════════════
@@ -132,6 +140,42 @@ def ya_salio(proyecto: str, red: str) -> dict | None:
         if f.get("proyecto") == proyecto and f.get("red") == red:
             return f
     return None
+
+
+def marcar_a_mano(proyectos: list[str], fecha: str,
+                  seco: bool = False) -> tuple[int, list[str]]:
+    """Apunta en el registro que estos temas se subieron A MANO.
+
+    ⚠️ Existe porque desde el 15 sep no publica nadie salvo Threads, y
+    `publicar/publicado.csv` lo escribía **la agenda al confirmar la red**. Sin
+    esto el registro se congela: `--estado` sigue listando como pendientes los
+    que ya subiste y el recordatorio del domingo avisa cada semana de lo mismo.
+
+    ⚠️ **No inventa `id_publicacion`.** Metricool no lo devuelve, y rellenarlo
+    con algo falso rompería el cruce con `metricas.csv`, que se indexa por el id
+    nativo de cada red. Queda vacío: aquí solo se responde «¿salió o no?».
+
+    ⚠️ Nunca apunta dos veces el mismo `(proyecto, red)`: el registro es lo que
+    impide publicar lo mismo dos veces, igual que al publicar por API.
+    """
+    redes = CONFIG["redes_a_mano"]
+    nuevas, saltados = [], []
+    for proyecto in proyectos:
+        for red in redes:
+            if ya_salio(proyecto, red):
+                saltados.append(f"{proyecto}/{red}")
+                continue
+            nuevas.append({"fecha": fecha, "proyecto": proyecto,
+                           "red": red, "id_publicacion": ""})
+    if nuevas and not seco:
+        ruta = RAIZ / CONFIG["registro"]
+        existe = ruta.is_file()
+        with open(ruta, "a", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(f, fieldnames=["fecha", "proyecto", "red", "id_publicacion"])
+            if not existe:
+                w.writeheader()
+            w.writerows(nuevas)
+    return len(nuevas), saltados
 
 
 def toca_hoy(hoy: str) -> dict | None:
@@ -417,6 +461,8 @@ def main() -> None:
                    help="Publica el reel que toca hoy según el calendario")
     p.add_argument("--extras", action="store_true",
                    help="Publica el extra semanal que toca hoy (carrusel/álbum/hilo)")
+    p.add_argument("--marcar", nargs="+", metavar="PROYECTO",
+                   help="Apunta que estos temas ya los subiste a mano")
     p.add_argument("--estado", action="store_true",
                    help="Qué hay publicado y qué falta. No publica nada")
     p.add_argument("--dry-run", action="store_true",
@@ -427,7 +473,15 @@ def main() -> None:
 
     hoy = args.fecha or date.today().isoformat()
 
-    if args.estado:
+    if args.marcar:
+        n, saltados = marcar_a_mano(args.marcar, hoy, args.dry_run)
+        if saltados:
+            print(f"⏭️  Ya estaban en el registro: {', '.join(saltados)}")
+        verbo = "Se apuntarían" if args.dry_run else "Apuntadas"
+        print(f"✅ {verbo} {n} fila(s) en {CONFIG['registro']} con fecha {hoy}")
+        if n and not args.dry_run:
+            print("   El calendario deja de contarlos como pendientes.")
+    elif args.estado:
         estado(hoy)
     elif args.reel:
         _sin_reventar(publicar_reel, hoy, args.dry_run)
